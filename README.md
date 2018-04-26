@@ -1,0 +1,2 @@
+# gotak
+A Tak server
