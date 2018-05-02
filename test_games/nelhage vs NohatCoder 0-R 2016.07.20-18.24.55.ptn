@@ -1,0 +1,40 @@
+[Site "PlayTak.com"]
+[Event "Online Play"]
+[Date "2016.07.20"]
+[Time "18:24:55"]
+[Player1 "nelhage"]
+[Player2 "NohatCoder"]
+[Result "0-R"]
+[Size "5"]
+
+1. a1 a5
+2. b4 c4 {nelhage plays my new favourite opening, and I play a defensive move, spreading my pieces.}
+3. Cc3 b3 {3. b3, thus getting the beginning of a road, would have been more agressive, but a central capstone is always good to have.}
+4. b2 c2
+5. d4 Cd3 {I think this capstone was a mistake, 6. c3< would leave it isolated.}
+6. c5 d2
+7. a4 1c4>1 {Trying to use a surround strategy.}
+8. d5 c1
+9. e5 2d4+2 {A bit too close for comfort, and making a stack with two white pieces is less than optimal.}
+10. 1c5>1 Sc5 {Fortunately there is no good spread options for that stack.}
+11. a2 b1 {Somewhat passive white play, 11. b1 would have forced a capture, now it is the other way round.}
+12. 1c3-1 d1
+13. 2c2-2 a3 {White a and b file begin looking strong, leaving the defence until white had played a3 would have turned ugly.}
+14. 1b4-1 Sb4 {Playing a wall costs flat count, but building stacks of white pieces while defending could easily turn out to be more costly in the long run.}
+15. c2 1b4-1 {Getting some flat count value back through a nice spreadable stack, while defending adequately.}
+16. c3 1c5>1 {I'd like to bring my cap to c3 in order to defend against the c file road, but moving it would allow too great liberty for the d5 stack, fortunately I have a free move to take care of that.}
+17. b5 2b3-2 {I'm only two moves away from a d file road, so I won't take pieces away from it until forced to do so. In hindsight I should have played 17. ... d4 and forced some undesirable captures.}
+18. c4 1d3<1
+19. d3 d4 {19. ... e3 would have been a stronger, immediately forcing, move.}
+20. e3 2d5>2
+21. 3c1>3 e4
+22. 4d1+4 2c3+2
+23. 1a4-1 b4
+24. a4 3b2<3
+25. b2 1b3<1 {The wall on a2 is pinned, but a flat can do its job because the flat on a4 is also pinned.}
+26. 1d3+1 3a3+12 {3d5- is not played, as that would allow the white capstone to take over a big stack of white pieces.}
+27. 1b5-1 2a4>2 {In hindsight, I should have captured b4 with the capstone, the stacks on a5 and b5 are a bit too juicy.}
+28. 5d2+14 {A premature move I'd say, it is so insanely expensive in flat count that all other defensive options should be tried first.} a4
+29. Sb5 {The move that should have been move 28.} 4b4-13
+30. 1b5<1 c3
+31. 4a5>112 {An unfortunate mistake, with white having a lot of pieces on the board that could be taken back, the game might not be as lost as it looks. 31. c3< could have keept it interesting.} 1e4-1 0-R 
