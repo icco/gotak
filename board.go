@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"bufio"
+	"bytes"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type Tag struct {
 type Move struct {
 	Player1 string
 	Player2 string
+	Comment string
 }
 
 type Board struct {
@@ -38,7 +40,14 @@ type Stone struct {
 func ParsePTN(ptn []byte) (*Game, error) {
 	ret := &Game{}
 
-	log.Printf("%s", ptn)
+	s := bufio.NewScanner(bytes.NewReader(ptn))
+	for s.Scan() {
+		//_ := s.Text()
+	}
+
+	if err := s.Err(); err != nil {
+		return ret, err
+	}
 
 	return ret, nil
 }
