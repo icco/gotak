@@ -15,6 +15,8 @@ The rough goal of this repo is to create a server that lets two people play tak 
 
  - https://github.com/gruppler/PTN-Ninja
  - playtak.org
+ - https://www.reddit.com/r/Tak/wiki/the_stacks
+ - https://www.reddit.com/r/Tak/wiki/ptn_file_format
 
 ## TODO
 
