@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"regexp"
 	"strconv"
@@ -158,4 +159,17 @@ func parseTurn(line string) (*Turn, error) {
 	}
 
 	return nil, nil
+}
+
+func main() {
+	file, err := ioutil.ReadFile("test_games/sample.ptn")
+	if err != nil {
+		log.Panicf("%+v", err)
+	}
+
+	g, err := ParsePTN(file)
+	if err != nil {
+		log.Panicf("%+v", err)
+	}
+	log.Printf("Game: %+v", g)
 }
