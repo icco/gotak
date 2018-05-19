@@ -23,7 +23,7 @@ type Game struct {
 // returns an error if the key does not exist.
 func (g *Game) GetMeta(key string) (string, error) {
 	for _, t := range g.Meta {
-		if t.Key == key {
+		if t != nil && t.Key == key {
 			return t.Value, nil
 		}
 	}
@@ -79,8 +79,25 @@ func (m *Move) String() string {
 
 // Board is a current state of a game of Tak.
 type Board struct {
-	Size   int64
-	Square map[string][]*Stone
+	Size    int64
+	Squares map[string][]*Stone
+}
+
+func (b *Board) Init() error {
+	if b.Size < 4 || b.Size > 10 {
+		return fmt.Errorf("%d is not a valid board size.", b.Size)
+	}
+
+	b.Squares = map[string][]*Stone{}
+	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
+	for x := int64(0); x < b.Size; x++ {
+		for y := int64(1); y <= b.Size; y++ {
+			location := letters[x] + strconv.FormatInt(y, 10)
+			b.Squares[location] = []*Stone{}
+		}
+	}
+
+	return nil
 }
 
 // Stone is a single Tak stone.
@@ -131,8 +148,14 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	ret.Board = &Board{
 		Size: num,
+	}
+
+	err = ret.Board.Init()
+	if err != nil {
+		return nil, err
 	}
 
 	return ret, nil
