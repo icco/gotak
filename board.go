@@ -19,6 +19,8 @@ type Game struct {
 	Meta  []*Tag
 }
 
+// GetMeta does a linear search for the key specified and returns the value. It
+// returns an error if the key does not exist.
 func (g *Game) GetMeta(key string) (string, error) {
 	for _, t := range g.Meta {
 		if t.Key == key {
