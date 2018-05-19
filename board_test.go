@@ -19,10 +19,19 @@ func TestParse(t *testing.T) {
 				t.Errorf("%s: %+v", fi.Name(), err)
 			}
 
-			_, err = ParsePTN(file)
+			g, err := ParsePTN(file)
 			if err != nil {
 				t.Errorf("%+v", err)
 			}
+
+			// Required tags
+			for _, k := range []string{"Player1", "Player2", "Date", "Size", "Result"} {
+				_, err := g.GetMeta(k)
+				if err != nil {
+					t.Errorf("%+v", err)
+				}
+			}
+
 		})
 	}
 }
