@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -103,7 +104,22 @@ func parseTurn(line string) (*Turn, error) {
 	s.Init(r)
 
 	commentRegex := regexp.MustCompile("{.+}")
-	turn.Comment = strings.Join(commentRegex.FindAllString(line, -1), " ")
+	turn.Comment = strings.TrimSpace(strings.Join(commentRegex.FindAllString(line, -1), " "))
+	cleanLine := strings.TrimSpace(commentRegex.ReplaceAllString(line, ""))
+
+	if cleanLine != "" {
+		fields := strings.Fields(cleanLine)
+		if len(fields) != 3 {
+			return turn, fmt.Errorf("Line doesn't have three parts: %+v", fields)
+		}
+
+		//number := fields[0]
+		p1 := Move(fields[1])
+		p2 := Move(fields[2])
+
+		turn.First = &p1
+		turn.Second = &p2
+	}
 
 	if turn.Comment != "" || (turn.Number > 0 && (turn.First != nil || turn.Second != nil)) {
 		return turn, nil
