@@ -109,8 +109,10 @@ func ParsePTN(ptn []byte) (*Game, error) {
 			return nil, err
 		}
 		if tu != nil {
-			ret.Turns = append(ret.Turns, tu)
-			continue
+			if tu.Number > 0 {
+				ret.Turns = append(ret.Turns, tu)
+				continue
+			}
 		}
 	}
 

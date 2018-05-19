@@ -34,26 +34,20 @@ func TestParse(t *testing.T) {
 			}
 
 			for _, turn := range g.Turns {
-				assertNotEqual(t, turn, nil)
-				assertNotEqual(t, turn.First, nil)
-				assertNotEqual(t, turn.Second, nil)
-				assertNotEqual(t, turn.First.String(), "")
-				assertNotEqual(t, turn.Second.String(), "")
-				assertNotEqual(t, turn.Number, 0)
-
+				context := fmt.Sprintf("Turn: %+v", turn)
+				assertNotEqual(t, context, turn, nil)
+				assertNotEqual(t, context, turn.First, nil)
+				assertNotEqual(t, context, turn.Second, nil)
+				assertNotEqual(t, context, turn.First.String(), "")
+				assertNotEqual(t, context, turn.Second.String(), "")
+				assertNotEqual(t, context, turn.Number, 0)
 			}
 		})
 	}
 }
 
-func assertEqual(t *testing.T, a interface{}, b interface{}) {
-	if a != b {
-		t.Errorf("%s != %s", a, b)
-	}
-}
-
-func assertNotEqual(t *testing.T, a interface{}, b interface{}) {
+func assertNotEqual(t *testing.T, context string, a interface{}, b interface{}) {
 	if a == b {
-		t.Errorf("%s == %s", a, b)
+		t.Errorf("%s: %+v == %+v", context, a, b)
 	}
 }
