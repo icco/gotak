@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"log"
-	"strconv"
 	"strings"
 	"text/scanner"
 	"time"
@@ -68,7 +67,6 @@ func parseLine(line string) (*Turn, *Tag, error) {
 	var turn *Turn
 
 	insideTag := false
-	insideComment := false
 
 	run := s.Peek()
 	for run != scanner.EOF {
@@ -78,9 +76,6 @@ func parseLine(line string) (*Turn, *Tag, error) {
 		case '[', ']':
 			run = s.Next()
 			insideTag = !insideTag
-		case '{', '}':
-			run = s.Next()
-			insideComment = !insideComment
 		default:
 			if insideTag {
 				s.Scan()
@@ -91,33 +86,15 @@ func parseLine(line string) (*Turn, *Tag, error) {
 					Value: strings.Trim(val, "\""),
 					Key:   key,
 				}
-			} else if insideComment {
-				if turn == nil {
-					turn = &Turn{}
-				}
-				s.Scan()
-				val := s.TokenText()
-				turn.Comment = val
 			} else {
-				// This is part of a Turn
-				if turn == nil {
-					turn = &Turn{}
-				}
 				s.Scan()
-				val := s.TokenText()
-				if strings.HasSuffix(val, ".") {
-					val = strings.TrimRight(val, ".")
-					i, err := strconv.Atoi(val)
-					if err != nil {
-						return nil, nil, err
-					}
-					turn.Number = i
-				} else {
-					// It's a move
-				}
 			}
 		}
 		run = s.Peek()
 	}
 	return turn, tag, nil
+}
+
+func parseTurn() {
+
 }
