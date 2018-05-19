@@ -9,15 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"text/scanner"
-	"time"
 )
 
 type Game struct {
-	Date   time.Time
-	Result string
-	Turns  []*Turn
-	Board  *Board
-	Meta   []*Tag
+	Turns []*Turn
+	Board *Board
+	Meta  []*Tag
 }
 
 type Tag struct {
@@ -25,10 +22,15 @@ type Tag struct {
 	Value string
 }
 
+func (t *Tag) String() string {
+	return fmt.Sprintf("%s: %s", t.Key, t.Value)
+}
+
 type Turn struct {
 	Number  int64
 	First   *Move
 	Second  *Move
+	Result  string
 	Comment string
 }
 
@@ -66,14 +68,31 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	for s.Scan() {
 		l := s.Text()
 		ta, err := parseTag(l)
+		if err != nil {
+			return nil, err
+		}
+
+		if ta != nil {
+			ret.Meta = append(ret.Meta, ta)
+			continue
+		}
+
 		tu, err := parseTurn(l)
-		log.Printf("%s : %+v, %+v, %+v", l, ta, tu, err)
+		if err != nil {
+			return nil, err
+		}
+		if tu != nil {
+			ret.Turns = append(ret.Turns, tu)
+			continue
+		}
+
 	}
 
 	if err := s.Err(); err != nil {
 		return ret, err
 	}
 
+	log.Printf("Parsed Game: %+v", ret)
 	return ret, nil
 }
 
@@ -119,14 +138,18 @@ func parseTurn(line string) (*Turn, error) {
 	s := scanner.Scanner{}
 	s.Init(r)
 
+	// Parse out comments
 	commentRegex := regexp.MustCompile("{.+}")
-	turn.Comment = strings.TrimSpace(strings.Join(commentRegex.FindAllString(line, -1), " "))
+	cmnt := strings.TrimSpace(strings.Join(commentRegex.FindAllString(line, -1), " "))
+	cmnt = strings.Trim(cmnt, "{}")
+	turn.Comment = cmnt
+
 	cleanLine := strings.TrimSpace(commentRegex.ReplaceAllString(line, ""))
 
 	if cleanLine != "" {
 		fields := strings.Fields(cleanLine)
-		if len(fields) != 3 {
-			return turn, fmt.Errorf("Line doesn't have three parts: %+v", fields)
+		if len(fields) < 3 || len(fields) > 4 {
+			return turn, fmt.Errorf("Line doesn't have correct number of parts: %+v", fields)
 		}
 
 		// TODO: Support branches. Right now we discard things that are not ints.
@@ -143,6 +166,10 @@ func parseTurn(line string) (*Turn, error) {
 
 		turn.First = &p1
 		turn.Second = &p2
+
+		if len(fields) == 4 {
+			turn.Result = fields[3]
+		}
 	}
 
 	if turn.Comment != "" || (turn.Number > 0 && (turn.First != nil || turn.Second != nil)) {
