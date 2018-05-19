@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"log"
+	"regexp"
 	"strings"
 	"text/scanner"
 	"time"
@@ -47,7 +48,8 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	s := bufio.NewScanner(bytes.NewReader(ptn))
 	for s.Scan() {
 		l := s.Text()
-		ta, tu, err := parseLine(l)
+		ta, err := parseTag(l)
+		tu, err := parseTurn(l)
 		log.Printf("%s : %+v, %+v, %+v", l, ta, tu, err)
 	}
 
@@ -58,13 +60,12 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	return ret, nil
 }
 
-func parseLine(line string) (*Turn, *Tag, error) {
+func parseTag(line string) (*Tag, error) {
 	r := strings.NewReader(line)
 	s := scanner.Scanner{}
 	s.Init(r)
 
 	var tag *Tag
-	var turn *Turn
 
 	insideTag := false
 
@@ -72,7 +73,7 @@ func parseLine(line string) (*Turn, *Tag, error) {
 	for run != scanner.EOF {
 		switch run {
 		case '\n', '\r', '1':
-			return turn, tag, nil
+			return tag, nil
 		case '[', ']':
 			run = s.Next()
 			insideTag = !insideTag
@@ -92,9 +93,21 @@ func parseLine(line string) (*Turn, *Tag, error) {
 		}
 		run = s.Peek()
 	}
-	return turn, tag, nil
+	return tag, nil
 }
 
-func parseTurn() {
+func parseTurn(line string) (*Turn, error) {
+	turn := &Turn{}
+	r := strings.NewReader(line)
+	s := scanner.Scanner{}
+	s.Init(r)
 
+	commentRegex := regexp.MustCompile("{.+}")
+	turn.Comment = strings.Join(commentRegex.FindAllString(line, -1), " ")
+
+	if turn.Comment != "" || (turn.Number > 0 && (turn.First != nil || turn.Second != nil)) {
+		return turn, nil
+	}
+
+	return nil, nil
 }
