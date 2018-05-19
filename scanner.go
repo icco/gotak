@@ -46,7 +46,7 @@ func isDigit(ch rune) bool {
 	return (ch >= '0' && ch <= '9')
 }
 
-var eof = rune(0)
+var EOF = rune(0)
 
 // Scanner represents a lexical scanner.
 type Scanner struct {
@@ -62,7 +62,7 @@ func NewScanner(r io.Reader) *Scanner {
 func (s *Scanner) read() rune {
 	ch, _, err := s.r.ReadRune()
 	if err != nil {
-		return eof
+		return EOF
 	}
 	return ch
 }
@@ -92,7 +92,7 @@ func (s *Scanner) scanWhitespace() (tok Token, lit string) {
 	return WS, buf.String()
 }
 
-// scanIdent consumes the current rune and all contiguous ident runes.
+// scanDigit consumes the current rune and all contiguous digit runes.
 func (s *Scanner) scanDigit() (tok Token, lit string) {
 	// Create a buffer and read the current character into it.
 	var buf bytes.Buffer
@@ -115,7 +115,7 @@ func (s *Scanner) scanDigit() (tok Token, lit string) {
 	return INTEGER, buf.String()
 }
 
-// scanIdent consumes the current rune and all contiguous ident runes.
+// scanString consumes the current rune and all contiguous string runes.
 func (s *Scanner) scanString() (tok Token, lit string) {
 	// Create a buffer and read the current character into it.
 	var buf bytes.Buffer
