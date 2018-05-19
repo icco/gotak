@@ -3,17 +3,19 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"log"
+	"strconv"
+	"strings"
+	"text/scanner"
 	"time"
 )
 
 type Game struct {
-	Player1 string
-	Player2 string
-	Date    time.Time
-	Result  string
-	Moves   []*Move
-	Board   *Board
-	Meta    []*Tag
+	Date   time.Time
+	Result string
+	Turns  []*Turn
+	Board  *Board
+	Meta   []*Tag
 }
 
 type Tag struct {
@@ -21,11 +23,14 @@ type Tag struct {
 	Value string
 }
 
-type Move struct {
-	Player1 string
-	Player2 string
+type Turn struct {
+	Number  int
+	First   *Move
+	Second  *Move
 	Comment string
 }
+
+type Move string
 
 type Board struct {
 	Size   int
@@ -42,7 +47,9 @@ func ParsePTN(ptn []byte) (*Game, error) {
 
 	s := bufio.NewScanner(bytes.NewReader(ptn))
 	for s.Scan() {
-		//_ := s.Text()
+		l := s.Text()
+		ta, tu, err := parseLine(l)
+		log.Printf("%s : %+v, %+v, %+v", l, ta, tu, err)
 	}
 
 	if err := s.Err(); err != nil {
@@ -50,4 +57,67 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	}
 
 	return ret, nil
+}
+
+func parseLine(line string) (*Turn, *Tag, error) {
+	r := strings.NewReader(line)
+	s := scanner.Scanner{}
+	s.Init(r)
+
+	var tag *Tag
+	var turn *Turn
+
+	insideTag := false
+	insideComment := false
+
+	run := s.Peek()
+	for run != scanner.EOF {
+		switch run {
+		case '\n', '\r', '1':
+			return turn, tag, nil
+		case '[', ']':
+			run = s.Next()
+			insideTag = !insideTag
+		case '{', '}':
+			run = s.Next()
+			insideComment = !insideComment
+		default:
+			if insideTag {
+				s.Scan()
+				key := s.TokenText()
+				s.Scan()
+				val := s.TokenText()
+				tag = &Tag{
+					Value: strings.Trim(val, "\""),
+					Key:   key,
+				}
+			} else if insideComment {
+				if turn == nil {
+					turn = &Turn{}
+				}
+				s.Scan()
+				val := s.TokenText()
+				turn.Comment = val
+			} else {
+				// This is part of a Turn
+				if turn == nil {
+					turn = &Turn{}
+				}
+				s.Scan()
+				val := s.TokenText()
+				if strings.HasSuffix(val, ".") {
+					val = strings.TrimRight(val, ".")
+					i, err := strconv.Atoi(val)
+					if err != nil {
+						return nil, nil, err
+					}
+					turn.Number = i
+				} else {
+					// It's a move
+				}
+			}
+		}
+		run = s.Peek()
+	}
+	return turn, tag, nil
 }

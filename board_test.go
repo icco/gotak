@@ -15,12 +15,12 @@ func TestParse(t *testing.T) {
 	for _, fi := range files {
 		file, err := ioutil.ReadFile(fmt.Sprintf("test_games/%s", fi.Name()))
 		if err != nil {
-			t.Errorf("%+v", err)
+			t.Errorf("%s: %+v", fi.Name(), err)
 		}
 
 		_, err = ParsePTN(file)
 		if err != nil {
-			t.Errorf("%+v", err)
+			t.Errorf("%s: %+v", fi.Name(), err)
 		}
 	}
 }

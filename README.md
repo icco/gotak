@@ -18,6 +18,7 @@ The rough goal of this repo is to create a server that lets two people play tak 
  - https://www.reddit.com/r/Tak/wiki/the_stacks
  - https://www.reddit.com/r/Tak/wiki/ptn_file_format
  - http://blog.leahhanson.us/post/recursecenter2016/recipeparser.html
+ - https://github.com/freeeve/pgn
 
 ## TODO
 
