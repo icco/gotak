@@ -13,6 +13,7 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, fi := range files {
+		// Run the following test for each file
 		t.Run(fi.Name(), func(t *testing.T) {
 			file, err := ioutil.ReadFile(fmt.Sprintf("test_games/%s", fi.Name()))
 			if err != nil {
@@ -32,6 +33,27 @@ func TestParse(t *testing.T) {
 				}
 			}
 
+			for _, turn := range g.Turns {
+				assertNotEqual(t, turn, nil)
+				assertNotEqual(t, turn.First, nil)
+				assertNotEqual(t, turn.Second, nil)
+				assertNotEqual(t, turn.First.String(), "")
+				assertNotEqual(t, turn.Second.String(), "")
+				assertNotEqual(t, turn.Number, 0)
+
+			}
 		})
+	}
+}
+
+func assertEqual(t *testing.T, a interface{}, b interface{}) {
+	if a != b {
+		t.Errorf("%s != %s", a, b)
+	}
+}
+
+func assertNotEqual(t *testing.T, a interface{}, b interface{}) {
+	if a == b {
+		t.Errorf("%s == %s", a, b)
 	}
 }

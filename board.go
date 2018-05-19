@@ -68,6 +68,13 @@ func (t *Turn) String() string {
 // TODO: Turn into a struct and add functions for modifying a board.
 type Move string
 
+func (m *Move) String() string {
+	if m == nil {
+		return ""
+	}
+	return string(*m)
+}
+
 // Board is a current state of a game of Tak.
 type Board struct {
 	Size   int64
