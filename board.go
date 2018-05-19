@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/scanner"
 	"time"
@@ -25,10 +26,25 @@ type Tag struct {
 }
 
 type Turn struct {
-	Number  int
+	Number  int64
 	First   *Move
 	Second  *Move
 	Comment string
+}
+
+func (t *Turn) String() string {
+	var move string
+	if t.First != nil && t.Second != nil {
+		move = fmt.Sprintf("%d. %s %s", t.Number, *t.First, *t.Second)
+	}
+	if t.Comment != "" {
+		if move != "" {
+			move = fmt.Sprintf("%s { %s }", move, t.Comment)
+		} else {
+			move = fmt.Sprintf("{ %s }", t.Comment)
+		}
+	}
+	return move
 }
 
 type Move string
@@ -113,7 +129,15 @@ func parseTurn(line string) (*Turn, error) {
 			return turn, fmt.Errorf("Line doesn't have three parts: %+v", fields)
 		}
 
-		//number := fields[0]
+		// TODO: Support branches. Right now we discard things that are not ints.
+		numberVal := fields[0]
+		numberVal = strings.TrimRight(numberVal, ".")
+		num, err := strconv.ParseInt(numberVal, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		turn.Number = num
+
 		p1 := Move(fields[1])
 		p2 := Move(fields[2])
 
