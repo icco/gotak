@@ -4,11 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
-	"text/scanner"
 )
 
 type Game struct {
@@ -92,51 +90,29 @@ func ParsePTN(ptn []byte) (*Game, error) {
 		return ret, err
 	}
 
-	log.Printf("Parsed Game: %+v", ret)
+	//log.Printf("Parsed Game: %+v", ret)
 	return ret, nil
 }
 
 func parseTag(line string) (*Tag, error) {
-	r := strings.NewReader(line)
-	s := scanner.Scanner{}
-	s.Init(r)
-
 	var tag *Tag
 
-	insideTag := false
+	// Example: [Tag_Name "Tag Data"]
+	tagRegex := regexp.MustCompile(`\[([0-9A-Za-z_]+) "(.*)"\]`)
+	parts := tagRegex.FindStringSubmatch(line)
 
-	run := s.Peek()
-	for run != scanner.EOF {
-		switch run {
-		case '\n', '\r', '1':
-			return tag, nil
-		case '[', ']':
-			run = s.Next()
-			insideTag = !insideTag
-		default:
-			if insideTag {
-				s.Scan()
-				key := s.TokenText()
-				s.Scan()
-				val := s.TokenText()
-				tag = &Tag{
-					Value: strings.Trim(val, "\""),
-					Key:   key,
-				}
-			} else {
-				s.Scan()
-			}
+	if parts != nil && len(parts) >= 3 {
+		tag = &Tag{
+			Key:   parts[1],
+			Value: parts[2],
 		}
-		run = s.Peek()
 	}
+
 	return tag, nil
 }
 
 func parseTurn(line string) (*Turn, error) {
 	turn := &Turn{}
-	r := strings.NewReader(line)
-	s := scanner.Scanner{}
-	s.Init(r)
 
 	// Parse out comments
 	commentRegex := regexp.MustCompile("{.+}")
