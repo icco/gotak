@@ -83,6 +83,7 @@ type Board struct {
 	Squares map[string][]*Stone
 }
 
+// Init creates a board once a board size is set.
 func (b *Board) Init() error {
 	if b.Size < 4 || b.Size > 10 {
 		return fmt.Errorf("%d is not a valid board size.", b.Size)
@@ -98,6 +99,10 @@ func (b *Board) Init() error {
 	}
 
 	return nil
+}
+
+func (b *Board) String() string {
+	return fmt.Sprintf("%+v", b.Squares)
 }
 
 // Stone is a single Tak stone.
