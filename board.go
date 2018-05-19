@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -131,6 +132,10 @@ func parseTurn(line string) (*Turn, error) {
 		// TODO: Support branches. Right now we discard things that are not ints.
 		numberVal := fields[0]
 		numberVal = strings.TrimRight(numberVal, ".")
+		if regexp.MustCompile("[^0-9]+").MatchString(numberVal) {
+			log.Printf("%+v is not a number, ignoring line.", numberVal)
+			return nil, nil
+		}
 		num, err := strconv.ParseInt(numberVal, 10, 64)
 		if err != nil {
 			return nil, err
