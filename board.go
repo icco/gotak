@@ -11,12 +11,15 @@ import (
 	"strings"
 )
 
+// Game is the datastructure for a single game. Most data is stored in the meta
+// field.
 type Game struct {
 	Turns []*Turn
 	Board *Board
 	Meta  []*Tag
 }
 
+// Tag is a Key and Value pair stored providing meta about a game.
 type Tag struct {
 	Key   string
 	Value string
@@ -26,6 +29,7 @@ func (t *Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Key, t.Value)
 }
 
+// Turn is a single turn played in a game.
 type Turn struct {
 	Number  int64
 	First   *Move
@@ -49,18 +53,24 @@ func (t *Turn) String() string {
 	return move
 }
 
+// Move is a single move in Tak.
+//
+// TODO: Turn into a struct and add functions for modifying a board.
 type Move string
 
+// Board is a current state of a game of Tak.
 type Board struct {
 	Size   int
 	Square map[string][]*Stone
 }
 
+// Stone is a single Tak stone.
 type Stone struct {
 	Type   string
 	Player int
 }
 
+// ParsePTN parses a .ptn file and returns a Game.
 func ParsePTN(ptn []byte) (*Game, error) {
 	ret := &Game{}
 
