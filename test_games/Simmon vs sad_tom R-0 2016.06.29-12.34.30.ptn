@@ -1,0 +1,33 @@
+[Site "PlayTak.com"]
+[Event "Online Play"]
+[Date "2016.06.29"]
+[Time "12:34:30"]
+[Player1 "Simmon"]
+[Player2 "sad_tom"]
+[Result "R-0"]
+[Size "5"]
+
+1. e1 d1
+2. d2 c3
+3. d3 d4
+4. e3 e4
+5. c4 1c3+1
+6. d5 Cc3
+7. 1e3+1 1c3>1
+8. e3 e2
+9. e5 c1
+10. c5 b5
+11. 1d2>1 1c1>1
+12. d2 b4
+13. 1d2-1 2d3>2
+14. Cd3 1e1<1
+15. d2 e1
+16. c2 b1
+17. c1 1b1>1
+18. b1 b2
+19. 1b1>1 2d1<2
+20. 1c2-1 Sc2
+21. 3c1>12 3e3+3
+22. 1d3+1 d3
+23. 1d2+1" b3
+24. 2d1+2 R-0
