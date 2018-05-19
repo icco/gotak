@@ -19,6 +19,16 @@ type Game struct {
 	Meta  []*Tag
 }
 
+func (g *Game) GetMeta(key string) (string, error) {
+	for _, t := range g.Meta {
+		if t.Key == key {
+			return t.Value, nil
+		}
+	}
+
+	return "", fmt.Errorf("No such meta key '%s'", key)
+}
+
 // Tag is a Key and Value pair stored providing meta about a game.
 type Tag struct {
 	Key   string
@@ -60,7 +70,7 @@ type Move string
 
 // Board is a current state of a game of Tak.
 type Board struct {
-	Size   int
+	Size   int64
 	Square map[string][]*Stone
 }
 
@@ -95,14 +105,25 @@ func ParsePTN(ptn []byte) (*Game, error) {
 			ret.Turns = append(ret.Turns, tu)
 			continue
 		}
-
 	}
 
 	if err := s.Err(); err != nil {
 		return ret, err
 	}
 
-	//log.Printf("Parsed Game: %+v", ret)
+	// Get Board size
+	size, err := ret.GetMeta("Size")
+	if err != nil {
+		return nil, err
+	}
+	num, err := strconv.ParseInt(size, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	ret.Board = &Board{
+		Size: num,
+	}
+
 	return ret, nil
 }
 
