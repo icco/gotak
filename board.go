@@ -113,7 +113,7 @@ func parseTag(line string) (*Tag, error) {
 	tagRegex := regexp.MustCompile(`\[([0-9A-Za-z_]+) "(.*)"\]`)
 	parts := tagRegex.FindStringSubmatch(line)
 
-	if parts != nil && len(parts) >= 3 {
+	if len(parts) >= 3 {
 		tag = &Tag{
 			Key:   parts[1],
 			Value: parts[2],
