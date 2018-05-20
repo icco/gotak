@@ -158,8 +158,28 @@ func (b *Board) DoMove(mv *Move, player int) error {
 			stone.Type = "f"
 		}
 		b.Squares[location] = append(b.Squares[location], stone)
+		return nil
 	}
 
+	// (count)(square)(direction)(drop counts)(stone)
+	moveRegex := regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]+)(C|S)?$`)
+	if moveRegex.MatchString(mvStr) {
+		parts := moveRegex.FindStringSubmatch(mvStr)
+		//log.Printf("move piece: %+v", parts)
+
+		countStr := parts[1]
+
+		square := parts[2]
+
+		direction := parts[3]
+
+		drpCnts := strings.Split(parts[4], "")
+
+		stoneType := parts[5]
+		if stoneType == "" {
+			stoneType = "f"
+		}
+	}
 	return nil
 }
 
