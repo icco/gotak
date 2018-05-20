@@ -168,12 +168,32 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		//log.Printf("move piece: %+v", parts)
 
 		countStr := parts[1]
+		totalPieces, err := strconv.ParseInt(countStr, 10, 64)
+		if err != nil {
+			return err
+		}
 
-		square := parts[2]
+		//square := parts[2]
 
-		direction := parts[3]
+		//direction := parts[3]
 
-		drpCnts := strings.Split(parts[4], "")
+		var totalDropped int64
+		drpCounts := []int64{}
+		for _, str := range strings.Split(parts[4], "") {
+			drpCount, err := strconv.ParseInt(str, 10, 64)
+			if err != nil {
+				return err
+			}
+			totalDropped += drpCount
+			if totalDropped > totalPieces {
+				return fmt.Errorf("tried to drop more pieces than available: %d > %d", totalDropped, totalPieces)
+			}
+			drpCounts = append(drpCounts, drpCount)
+		}
+
+		if totalDropped != totalPieces {
+			return fmt.Errorf("Did not drop same pieces picked up: %d != %d", totalDropped, totalPieces)
+		}
 
 		stoneType := parts[5]
 		if stoneType == "" {
