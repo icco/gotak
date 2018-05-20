@@ -55,6 +55,7 @@ func (t *Turn) String() string {
 	if t.First != nil && t.Second != nil {
 		move = fmt.Sprintf("%d. %s %s", t.Number, *t.First, *t.Second)
 	}
+
 	if t.Comment != "" {
 		if move != "" {
 			move = fmt.Sprintf("%s { %s }", move, t.Comment)
@@ -62,6 +63,7 @@ func (t *Turn) String() string {
 			move = fmt.Sprintf("{ %s }", t.Comment)
 		}
 	}
+
 	return move
 }
 
@@ -85,7 +87,7 @@ type Board struct {
 
 // Init creates a board once a board size is set.
 func (b *Board) Init() error {
-	if b.Size < 4 || b.Size > 10 {
+	if b.Size < 4 || b.Size >= 10 {
 		return fmt.Errorf("%d is not a valid board size", b.Size)
 	}
 
@@ -105,10 +107,70 @@ func (b *Board) String() string {
 	return fmt.Sprintf("%+v", b.Squares)
 }
 
+// DoMove modifies the boards state based off of a move.
+//
+// Move notation is from https://www.reddit.com/r/Tak/wiki/portable_tak_notation
+//
+// The notation format for placing stones is: (stone)(square).
+//
+// The notation format for moving one or more stones is:
+// (count)(square)(direction)(drop counts)(stone)
+//
+// 1. The count of stones to be lifted from a square is given. This may be
+// omitted only if the count is 1.
+//
+// 2. The square wich stones are being moved from is given. This is always
+// required.
+//
+// 3. The direction to move the stones is given. This is always required.
+//
+// 4. The number of stones to drop on each square in the given direction are
+// listed, without spaces. This may be omitted if all of the stones given in
+// the count are dropped on a square immediately adjacent to the source square.
+// If the stack is moving more than one square, all drop counts must be listed
+// and must add up to equal the lift count from parameter 1 above.
+//
+// 5. The stone type of the top stone of the moved stack is given. If the top
+// stone is a flat stone the F identifier is never needed, flat stones are
+// always assumed. If the top stone is a standing stone or capstone, the S or C
+// can be used, though it is not required and infrequently used.
+func (b *Board) DoMove(mv *Move, player int) error {
+	mvStr := mv.String()
+
+	placeRegex := regexp.MustCompile(`^(C|S)?([a-z][0-9]+)$`)
+	if placeRegex.MatchString(mvStr) {
+		parts := placeRegex.FindStringSubmatch(mvStr)
+		// log.Printf("Place piece: %+v", parts)
+		stone := &Stone{
+			Player: player,
+		}
+		location := ""
+		if len(parts) == 2 {
+			location = parts[1]
+		}
+
+		if len(parts) == 3 {
+			location = parts[2]
+			stone.Type = parts[1]
+		}
+
+		if stone.Type == "" {
+			stone.Type = "f"
+		}
+		b.Squares[location] = append(b.Squares[location], stone)
+	}
+
+	return nil
+}
+
 // Stone is a single Tak stone.
 type Stone struct {
 	Type   string
 	Player int
+}
+
+func (s *Stone) String() string {
+	return fmt.Sprintf("%d(%s)", s.Player, s.Type)
 }
 
 // ParsePTN parses a .ptn file and returns a Game.
@@ -240,6 +302,11 @@ func main() {
 	g, err := ParsePTN(file)
 	if err != nil {
 		log.Panicf("%+v", err)
+	}
+
+	for _, t := range g.Turns {
+		g.Board.DoMove(t.First, 1)
+		g.Board.DoMove(t.Second, 2)
 	}
 	log.Printf("Game: %+v", g)
 }
