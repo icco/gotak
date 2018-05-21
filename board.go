@@ -202,14 +202,16 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 		// Get current pieces
 		begin := max(0, len(b.Squares[location])-1-int(totalPieces))
-		end := len(b.Squares[location])
+		end := max(1, len(b.Squares[location])-1)
+		log.Printf("%s %s", begin, end)
 		stones := b.Squares[location][begin:end]
+		//log.Printf("%s %+v", mv, stones)
 
 		squares := []string{}
 
 		currentSpace := location
 		nextSpace := ""
-		for i := 0; i < len(stones); i++ {
+		for i := 0; i < len(drpCounts); i++ {
 			switch direction {
 			case "<":
 				// < Left
@@ -229,12 +231,23 @@ func (b *Board) DoMove(mv *Move, player int) error {
 			currentSpace = nextSpace
 			squares = append(squares, nextSpace)
 		}
-		//log.Printf("%s %+v %+v", mv, squares, stones)
 
 		// pop and shift
-		//x, a = a[0], a[1:]
-
+		for i, s := range squares {
+			//log.Printf("%+v %+v", s, drpCounts[i])
+			for j := int64(0); j < drpCounts[i]; j++ {
+				log.Printf("%+v %+v", stones, drpCounts[i])
+				st := stones[0]
+				b.Squares[s] = append(b.Squares[s], st)
+				if len(stones) > 1 {
+					b.Squares[location] = stones[1:]
+				} else {
+					b.Squares[location] = []*Stone{}
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
