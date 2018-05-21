@@ -119,7 +119,7 @@ func (b *Board) String() string {
 // 1. The count of stones to be lifted from a square is given. This may be
 // omitted only if the count is 1.
 //
-// 2. The square wich stones are being moved from is given. This is always
+// 2. The square which stones are being moved from is given. This is always
 // required.
 //
 // 3. The direction to move the stones is given. This is always required.
@@ -173,9 +173,9 @@ func (b *Board) DoMove(mv *Move, player int) error {
 			return err
 		}
 
-		//square := parts[2]
+		location := parts[2]
 
-		//direction := parts[3]
+		direction := parts[3]
 
 		var totalDropped int64
 		drpCounts := []int64{}
@@ -199,8 +199,50 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		if stoneType == "" {
 			stoneType = "f"
 		}
+
+		// Get current pieces
+		begin := max(0, len(b.Squares[location])-1-int(totalPieces))
+		end := len(b.Squares[location])
+		stones := b.Squares[location][begin:end]
+
+		squares := []string{}
+
+		currentSpace := location
+		nextSpace := ""
+		for i := 0; i < len(stones); i++ {
+			switch direction {
+			case "<":
+				// < Left
+				nextSpace = string(currentSpace[0]-1) + string(currentSpace[1])
+			case ">":
+				// > Right
+				nextSpace = string(currentSpace[0]+1) + string(currentSpace[1])
+			case "+":
+				// + Up
+				nextSpace = string(currentSpace[0]) + string(currentSpace[1]+1)
+			case "-":
+				// - Down
+				nextSpace = string(currentSpace[0]) + string(currentSpace[1]-1)
+			}
+
+			//log.Printf("%s %s", direction, nextSpace)
+			currentSpace = nextSpace
+			squares = append(squares, nextSpace)
+		}
+		//log.Printf("%s %+v %+v", mv, squares, stones)
+
+		// pop and shift
+		//x, a = a[0], a[1:]
+
 	}
 	return nil
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
 }
 
 // Stone is a single Tak stone.
