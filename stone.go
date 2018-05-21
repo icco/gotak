@@ -12,6 +12,11 @@ func (s *Stone) String() string {
 	return fmt.Sprintf("%d(%s)", s.Player, s.Type)
 }
 
-const STONE_FLAT string = "F"
-const STONE_STANDING string = "S"
-const STONE_CAP string = "C"
+// StoneFlat is a constant for a string representation of a flat stone.
+const StoneFlat string = "F"
+
+// StoneStanding is a constant for a string representation of a standing stone.
+const StoneStanding string = "S"
+
+// StoneCap is a constant for a string representation of a cap stone.
+const StoneCap string = "C"
