@@ -1,10 +1,9 @@
-package main
+package gotak
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"regexp"
 	"strconv"
@@ -203,7 +202,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		// Get current pieces
 		begin := max(0, len(b.Squares[location])-1-int(totalPieces))
 		end := max(1, len(b.Squares[location])-1)
-		log.Printf("%s %s", begin, end)
+		log.Printf("%d %d", begin, end)
 		stones := b.Squares[location][begin:end]
 		//log.Printf("%s %+v", mv, stones)
 
@@ -386,22 +385,4 @@ func parseTurn(line string) (*Turn, error) {
 	}
 
 	return nil, nil
-}
-
-func main() {
-	file, err := ioutil.ReadFile("test_games/sample.ptn")
-	if err != nil {
-		log.Panicf("%+v", err)
-	}
-
-	g, err := ParsePTN(file)
-	if err != nil {
-		log.Panicf("%+v", err)
-	}
-
-	for _, t := range g.Turns {
-		g.Board.DoMove(t.First, 1)
-		g.Board.DoMove(t.Second, 2)
-	}
-	log.Printf("Game: %+v", g)
 }
