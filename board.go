@@ -84,7 +84,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		}
 
 		if stone.Type == "" {
-			stone.Type = STONE_FLAT
+			stone.Type = StoneFlat
 		}
 		b.Squares[location] = append(b.Squares[location], stone)
 		return nil
@@ -126,7 +126,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 		stoneType := parts[5]
 		if stoneType == "" {
-			stoneType = STONE_FLAT
+			stoneType = StoneFlat
 		}
 
 		// Get current pieces

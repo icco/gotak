@@ -11,10 +11,10 @@ type testPair struct {
 
 func TestDrop(t *testing.T) {
 	tests := map[string]testPair{
-		"a1":  {Stone: &Stone{Type: STONE_FLAT, Player: 1}, Square: "a1"},
-		"c2":  {Stone: &Stone{Type: STONE_FLAT, Player: 1}, Square: "c2"},
-		"Ca1": {Stone: &Stone{Type: STONE_CAP, Player: 1}, Square: "a1"},
-		"Sa1": {Stone: &Stone{Type: STONE_STANDING, Player: 1}, Square: "a1"},
+		"a1":  {Stone: &Stone{Type: StoneFlat, Player: 1}, Square: "a1"},
+		"c2":  {Stone: &Stone{Type: StoneFlat, Player: 1}, Square: "c2"},
+		"Ca1": {Stone: &Stone{Type: StoneCap, Player: 1}, Square: "a1"},
+		"Sa1": {Stone: &Stone{Type: StoneStanding, Player: 1}, Square: "a1"},
 	}
 	for mv, data := range tests {
 		t.Run(mv, func(t *testing.T) {
