@@ -66,7 +66,7 @@ func (b *Board) String() string {
 func (b *Board) DoMove(mv *Move, player int) error {
 	mvStr := mv.String()
 
-	placeRegex := regexp.MustCompile(`^(C|S)?([a-z][0-9]+)$`)
+	placeRegex := regexp.MustCompile(`^(C|S|F)?([a-z][0-9]+)$`)
 	if placeRegex.MatchString(mvStr) {
 		parts := placeRegex.FindStringSubmatch(mvStr)
 		// log.Printf("Place piece: %+v", parts)
@@ -84,14 +84,14 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		}
 
 		if stone.Type == "" {
-			stone.Type = "f"
+			stone.Type = STONE_FLAT
 		}
 		b.Squares[location] = append(b.Squares[location], stone)
 		return nil
 	}
 
 	// (count)(square)(direction)(drop counts)(stone)
-	moveRegex := regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]+)(C|S)?$`)
+	moveRegex := regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]+)(C|S|F)?$`)
 	if moveRegex.MatchString(mvStr) {
 		parts := moveRegex.FindStringSubmatch(mvStr)
 		//log.Printf("move piece: %+v", parts)
@@ -126,7 +126,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 		stoneType := parts[5]
 		if stoneType == "" {
-			stoneType = "f"
+			stoneType = STONE_FLAT
 		}
 
 		// Get current pieces
