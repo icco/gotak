@@ -14,7 +14,7 @@ type Turn struct {
 func (t *Turn) String() string {
 	var move string
 	if t.First != nil && t.Second != nil {
-		move = fmt.Sprintf("%d. %s %s", t.Number, *t.First, *t.Second)
+		move = fmt.Sprintf("%d. %s %s", t.Number, t.First.String(), t.Second.String())
 	}
 
 	if t.Comment != "" {

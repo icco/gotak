@@ -16,6 +16,7 @@ func TestDrop(t *testing.T) {
 		"Ca1": {Stone: &Stone{Type: StoneCap, Player: 1}, Square: "a1"},
 		"Sa1": {Stone: &Stone{Type: StoneStanding, Player: 1}, Square: "a1"},
 	}
+
 	for mv, data := range tests {
 		t.Run(mv, func(t *testing.T) {
 			b := &Board{
@@ -23,8 +24,12 @@ func TestDrop(t *testing.T) {
 			}
 			b.Init()
 
-			move := Move(mv)
-			err := b.DoMove(&move, 1)
+			move, err := NewMove(mv)
+			if err != nil {
+				t.Errorf("error creating move: %+v", err)
+			}
+
+			err = b.DoMove(move, 1)
 			if err != nil {
 				t.Errorf("error doing move: %+v", err)
 			}
