@@ -132,11 +132,18 @@ func parseTurn(line string) (*Turn, error) {
 		}
 		turn.Number = num
 
-		p1 := Move(fields[1])
-		p2 := Move(fields[2])
+		p1, err := NewMove(fields[1])
+		if err != nil {
+			return nil, err
+		}
 
-		turn.First = &p1
-		turn.Second = &p2
+		p2, err := NewMove(fields[2])
+		if err != nil {
+			return nil, err
+		}
+
+		turn.First = p1
+		turn.Second = p2
 
 		if len(fields) == 4 {
 			turn.Result = fields[3]

@@ -3,9 +3,7 @@ package gotak
 import (
 	"fmt"
 	"log"
-	"regexp"
 	"strconv"
-	"strings"
 )
 
 // Board is a current state of a game of Tak.
@@ -64,95 +62,37 @@ func (b *Board) String() string {
 // always assumed. If the top stone is a standing stone or capstone, the S or C
 // can be used, though it is not required and infrequently used.
 func (b *Board) DoMove(mv *Move, player int) error {
-	mvStr := mv.String()
-
-	placeRegex := regexp.MustCompile(`^(C|S|F)?([a-z][0-9]+)$`)
-	if placeRegex.MatchString(mvStr) {
-		parts := placeRegex.FindStringSubmatch(mvStr)
-		// log.Printf("Place piece: %+v", parts)
+	if mv.isPlace() {
 		stone := &Stone{
 			Player: player,
+			Type:   mv.Stone,
 		}
-		location := ""
-		if len(parts) == 2 {
-			location = parts[1]
-		}
+		b.Squares[mv.Square] = append(b.Squares[mv.Square], stone)
 
-		if len(parts) == 3 {
-			location = parts[2]
-			stone.Type = parts[1]
-		}
-
-		if stone.Type == "" {
-			stone.Type = StoneFlat
-		}
-		b.Squares[location] = append(b.Squares[location], stone)
 		return nil
 	}
 
-	// (count)(square)(direction)(drop counts)(stone)
-	moveRegex := regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]+)(C|S|F)?$`)
-	if moveRegex.MatchString(mvStr) {
-		parts := moveRegex.FindStringSubmatch(mvStr)
-		//log.Printf("move piece: %+v", parts)
-
-		countStr := parts[1]
-		totalPieces, err := strconv.ParseInt(countStr, 10, 64)
-		if err != nil {
-			return err
-		}
-
-		location := parts[2]
-
-		direction := parts[3]
-
-		var totalDropped int64
-		drpCounts := []int64{}
-		for _, str := range strings.Split(parts[4], "") {
-			drpCount, err := strconv.ParseInt(str, 10, 64)
-			if err != nil {
-				return err
-			}
-			totalDropped += drpCount
-			if totalDropped > totalPieces {
-				return fmt.Errorf("tried to drop more pieces than available: %d > %d", totalDropped, totalPieces)
-			}
-			drpCounts = append(drpCounts, drpCount)
-		}
-
-		if totalDropped != totalPieces {
-			return fmt.Errorf("Did not drop same pieces picked up: %d != %d", totalDropped, totalPieces)
-		}
-
-		stoneType := parts[5]
-		if stoneType == "" {
-			stoneType = StoneFlat
-		}
-
+	if mv.isMove() {
 		// Get current pieces
-		begin := max(0, len(b.Squares[location])-1-int(totalPieces))
-		end := max(1, len(b.Squares[location])-1)
+		begin := max(0, len(b.Squares[mv.Square])-1-int(mv.MoveCount))
+		end := max(1, len(b.Squares[mv.Square])-1)
 		log.Printf("%d %d", begin, end)
-		stones := b.Squares[location][begin:end]
+		stones := b.Squares[mv.Square][begin:end]
 		//log.Printf("%s %+v", mv, stones)
 
 		squares := []string{}
 
-		currentSpace := location
+		currentSpace := mv.Square
 		nextSpace := ""
-		for i := 0; i < len(drpCounts); i++ {
-			switch direction {
-			case "<":
-				// < Left
+		for i := 0; i < len(mv.MoveDropCounts); i++ {
+			switch mv.MoveDirection {
+			case MoveLeft:
 				nextSpace = string(currentSpace[0]-1) + string(currentSpace[1])
-			case ">":
-				// > Right
+			case MoveRight:
 				nextSpace = string(currentSpace[0]+1) + string(currentSpace[1])
-			case "+":
-				// + Up
+			case MoveUp:
 				nextSpace = string(currentSpace[0]) + string(currentSpace[1]+1)
-			case "-":
-				// - Down
+			case MoveDown:
 				nextSpace = string(currentSpace[0]) + string(currentSpace[1]-1)
 			}
 
@@ -163,15 +103,15 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 		// pop and shift
 		for i, s := range squares {
-			//log.Printf("%+v %+v", s, drpCounts[i])
-			for j := int64(0); j < drpCounts[i]; j++ {
-				log.Printf("%+v %+v", stones, drpCounts[i])
+			//log.Printf("%+v %+v", s, mv.MoveDropCounts[i])
+			for j := int64(0); j < mv.MoveDropCounts[i]; j++ {
+				log.Printf("%+v %+v", stones, mv.MoveDropCounts[i])
 				st := stones[0]
 				b.Squares[s] = append(b.Squares[s], st)
 				if len(stones) > 1 {
-					b.Squares[location] = stones[1:]
+					b.Squares[mv.Square] = stones[1:]
 				} else {
-					b.Squares[location] = []*Stone{}
+					b.Squares[mv.Square] = []*Stone{}
 				}
 			}
 		}
