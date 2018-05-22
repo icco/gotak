@@ -48,3 +48,42 @@ func TestDrop(t *testing.T) {
 		})
 	}
 }
+
+func TestMoving(t *testing.T) {
+	b := &Board{
+		Size: 6,
+	}
+	b.Init()
+
+	tests := []string{
+		"a1",
+		"a2",
+		"a3",
+		"a4",
+		"a1+", // TODO: This leaves a piece at a1, also errors if 1
+		"2a2+2",
+		"3a3+3",
+		"4a4>121",
+	}
+
+	for _, mv := range tests {
+		t.Run(mv, func(t *testing.T) {
+
+			move, err := NewMove(mv)
+			if err != nil {
+				t.Errorf("error creating move: %+v", err)
+			}
+
+			err = b.DoMove(move, 1)
+			if err != nil {
+				t.Errorf("error doing move: %+v", err)
+			}
+		})
+	}
+
+	t.Logf("Squares post moves: %+v", b.Squares)
+
+	if len(b.Squares["b4"]) != 1 || len(b.Squares["c4"]) != 2 || len(b.Squares["d4"]) != 1 {
+		t.Errorf("pieces are not in the correct place: %+v", b.Squares)
+	}
+}
