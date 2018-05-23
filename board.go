@@ -115,10 +115,3 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 	return nil
 }
-
-func max(x, y int) int {
-	if x > y {
-		return x
-	}
-	return y
-}
