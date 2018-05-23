@@ -3,12 +3,23 @@ package main
 import (
 	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/icco/gotak"
+	"github.com/jessevdk/go-flags"
 )
 
+var opts struct {
+	Filename flags.Filename `short:"f" long:"filename" description:"PTN file to parse" required:"true"`
+}
+
 func main() {
-	file, err := ioutil.ReadFile("test_games/sample.ptn")
+	_, err := flags.Parse(&opts)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	file, err := ioutil.ReadFile(string(opts.Filename))
 	if err != nil {
 		log.Panicf("%+v", err)
 	}
