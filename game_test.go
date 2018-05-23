@@ -38,8 +38,8 @@ func TestParse(t *testing.T) {
 				assertNotEqual(t, context, turn, nil)
 				assertNotEqual(t, context, turn.First, nil)
 				assertNotEqual(t, context, turn.Second, nil)
-				assertNotEqual(t, context, turn.First.String(), "")
-				assertNotEqual(t, context, turn.Second.String(), "")
+				assertNotEqual(t, context, turn.First.Text, "")
+				assertNotEqual(t, context, turn.Second.Text, "")
 				assertNotEqual(t, context, turn.Number, 0)
 			}
 		})

@@ -2,6 +2,7 @@ package gotak
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,7 +26,7 @@ type Move struct {
 var placeRegex = regexp.MustCompile(`^(C|S|F)?([a-z][0-9]+)$`)
 
 // (count)(square)(direction)(drop counts)(stone)
-var moveRegex = regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]+)(C|S|F)?$`)
+var moveRegex = regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]*)(C|S|F)?$`)
 
 // Directions
 const (
@@ -88,6 +89,7 @@ func (m *Move) parsePlace() error {
 
 func (m *Move) parseMove() error {
 	parts := moveRegex.FindStringSubmatch(m.Text)
+	log.Printf("parse: %s %+v", m.Text, len(parts))
 
 	countStr := parts[1]
 	totalPieces, err := strconv.ParseInt(countStr, 10, 64)
@@ -112,9 +114,10 @@ func (m *Move) parseMove() error {
 		}
 		m.MoveDropCounts = append(m.MoveDropCounts, drpCount)
 	}
+	log.Printf("drops: %d %+v", totalDropped, m)
 
 	if totalDropped != m.MoveCount {
-		return fmt.Errorf("Did not drop same pieces picked up: %d != %d", totalDropped, totalPieces)
+		return fmt.Errorf("Did not drop same pieces picked up: %d != %d", totalDropped, m.MoveCount)
 	}
 
 	m.Stone = parts[5]
@@ -123,8 +126,4 @@ func (m *Move) parseMove() error {
 	}
 
 	return nil
-}
-
-func (m *Move) String() string {
-	return m.Text
 }

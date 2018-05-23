@@ -62,6 +62,7 @@ func (b *Board) String() string {
 // always assumed. If the top stone is a standing stone or capstone, the S or C
 // can be used, though it is not required and infrequently used.
 func (b *Board) DoMove(mv *Move, player int) error {
+	log.Printf("Do Move %+v: %+v", mv.Square, b.Squares[mv.Square])
 	if mv.isPlace() {
 		stone := &Stone{
 			Player: player,
@@ -73,12 +74,9 @@ func (b *Board) DoMove(mv *Move, player int) error {
 	}
 
 	if mv.isMove() {
-		// Get current pieces
-		begin := max(0, len(b.Squares[mv.Square])-1-int(mv.MoveCount))
-		end := max(1, len(b.Squares[mv.Square])-1)
-		log.Printf("%d %d", begin, end)
-		stones := b.Squares[mv.Square][begin:end]
-		//log.Printf("%s %+v", mv, stones)
+		begin := len(b.Squares[mv.Square]) - int(mv.MoveCount)
+		log.Printf(" | %d", begin)
+		stones := b.Squares[mv.Square][begin:]
 
 		squares := []string{}
 
@@ -96,14 +94,12 @@ func (b *Board) DoMove(mv *Move, player int) error {
 				nextSpace = string(currentSpace[0]) + string(currentSpace[1]-1)
 			}
 
-			//log.Printf("%s %s", direction, nextSpace)
 			currentSpace = nextSpace
 			squares = append(squares, nextSpace)
 		}
 
 		// pop and shift
 		for i, s := range squares {
-			//log.Printf("%+v %+v", s, mv.MoveDropCounts[i])
 			for j := int64(0); j < mv.MoveDropCounts[i]; j++ {
 				log.Printf("%+v %+v", stones, mv.MoveDropCounts[i])
 				st := stones[0]
