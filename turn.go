@@ -29,6 +29,7 @@ func (t *Turn) Text() string {
 	return move
 }
 
+// Debug is a verbose dumping of the object and its sub objects.
 func (t *Turn) Debug() string {
 	return fmt.Sprintf("&{%d 1:%+v 1:%+v Result:%+v  Comment: \"%s\"}", t.Number, t.First, t.Second, t.Result, t.Comment)
 }
