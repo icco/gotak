@@ -92,6 +92,9 @@ func (m *Move) parseMove() error {
 	log.Printf("parse: %s %+v", m.Text, len(parts))
 
 	countStr := parts[1]
+	if countStr == "" {
+		countStr = "1"
+	}
 	totalPieces, err := strconv.ParseInt(countStr, 10, 64)
 	if err != nil {
 		return err
@@ -102,8 +105,12 @@ func (m *Move) parseMove() error {
 	m.MoveDirection = parts[3]
 	m.MoveDropCounts = []int64{}
 
+	drpCountStr := parts[4]
+	if drpCountStr == "" {
+		drpCountStr = countStr
+	}
 	var totalDropped int64
-	for _, str := range strings.Split(parts[4], "") {
+	for _, str := range strings.Split(drpCountStr, "") {
 		drpCount, err := strconv.ParseInt(str, 10, 64)
 		if err != nil {
 			return err
