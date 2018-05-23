@@ -100,7 +100,7 @@ func TestMovingOnce(t *testing.T) {
 
 	tests := []string{
 		"a1",
-		"a1+1",
+		"1a1+1",
 	}
 
 	for _, mv := range tests {

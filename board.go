@@ -2,7 +2,6 @@ package gotak
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 )
 
@@ -62,7 +61,6 @@ func (b *Board) String() string {
 // always assumed. If the top stone is a standing stone or capstone, the S or C
 // can be used, though it is not required and infrequently used.
 func (b *Board) DoMove(mv *Move, player int) error {
-	log.Printf("Do Move %+v: %+v", mv.Square, b.Squares[mv.Square])
 	if mv.isPlace() {
 		stone := &Stone{
 			Player: player,
@@ -75,7 +73,6 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 	if mv.isMove() {
 		begin := len(b.Squares[mv.Square]) - int(mv.MoveCount)
-		log.Printf(" | %d", begin)
 		stones := b.Squares[mv.Square][begin:]
 		b.Squares[mv.Square] = b.Squares[mv.Square][:begin]
 
@@ -102,8 +99,6 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		// pop and shift
 		for i, s := range squares {
 			for j := int64(0); j < mv.MoveDropCounts[i]; j++ {
-				log.Printf("pop[%s](%d < %d) : %+v", s, j, mv.MoveDropCounts[i], stones)
-
 				st := stones[0]
 				b.Squares[s] = append(b.Squares[s], st)
 				stones = stones[1:]
