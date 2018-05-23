@@ -2,7 +2,6 @@ package gotak
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -89,7 +88,6 @@ func (m *Move) parsePlace() error {
 
 func (m *Move) parseMove() error {
 	parts := moveRegex.FindStringSubmatch(m.Text)
-	log.Printf("parse: %s %+v", m.Text, len(parts))
 
 	countStr := parts[1]
 	if countStr == "" {
@@ -121,7 +119,6 @@ func (m *Move) parseMove() error {
 		}
 		m.MoveDropCounts = append(m.MoveDropCounts, drpCount)
 	}
-	log.Printf("drops: %d %+v", totalDropped, m)
 
 	if totalDropped != m.MoveCount {
 		return fmt.Errorf("Did not drop same pieces picked up: %d != %d", totalDropped, m.MoveCount)
