@@ -19,6 +19,23 @@ func (s *Stone) String() string {
 	return fmt.Sprintf("%s(%s)", plyrText, s.Type)
 }
 
+// Validate checks that all fields of Stone are correct.
+func (s *Stone) Validate() error {
+	if s.Player != PlayerWhite && s.Player != PlayerBlack {
+		return fmt.Errorf("%d is not a valid player int", s.Player)
+	}
+
+	if s.Type == "" {
+		return fmt.Errorf("type is empty string")
+	}
+
+	if s.Type != StoneFlat && s.Type != StoneStanding && s.Type != StoneCap {
+		return fmt.Errorf("type '%s' is not valid", s.Type)
+	}
+
+	return nil
+}
+
 // StoneFlat is a constant for a string representation of a flat stone.
 const StoneFlat string = "F"
 

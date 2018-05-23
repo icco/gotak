@@ -30,6 +30,36 @@ func (g *Game) GetMeta(key string) (string, error) {
 	return "", fmt.Errorf("No such meta key '%s'", key)
 }
 
+// DoTurn takes raw input, validates
+func (g *Game) DoTurn(mvOneStr, mvTwoStr string) error {
+	mvOne, err := NewMove(mvOneStr)
+	if err != nil {
+		return err
+	}
+
+	mvTwo, err := NewMove(mvTwoStr)
+	if err != nil {
+		return err
+	}
+
+	// First turn you place the other person's
+	if len(g.Turns) == 0 {
+		g.Board.DoMove(mvOne, PlayerBlack)
+		g.Board.DoMove(mvTwo, PlayerWhite)
+	} else {
+		g.Board.DoMove(mvOne, PlayerWhite)
+		g.Board.DoMove(mvTwo, PlayerBlack)
+	}
+
+	g.Turns = append(g.Turns, &Turn{
+		Number: int64(len(g.Turns)),
+		First:  mvOne,
+		Second: mvTwo,
+	})
+
+	return nil
+}
+
 // ParsePTN parses a .ptn file and returns a Game.
 func ParsePTN(ptn []byte) (*Game, error) {
 	ret := &Game{}
