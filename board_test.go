@@ -60,7 +60,7 @@ func TestMoving(t *testing.T) {
 		"a2",
 		"a3",
 		"a4",
-		"a1+", // TODO: This leaves a piece at a1, also errors if 1
+		"a1+",
 		"2a2+2",
 		"3a3+3",
 		"4a4>121",
@@ -85,5 +85,9 @@ func TestMoving(t *testing.T) {
 
 	if len(b.Squares["b4"]) != 1 || len(b.Squares["c4"]) != 2 || len(b.Squares["d4"]) != 1 {
 		t.Errorf("pieces are not in the correct place: %+v", b.Squares)
+	}
+
+	if len(b.Squares["a1"]) != 0 || len(b.Squares["a2"]) != 0 || len(b.Squares["a3"]) != 0 || len(b.Squares["a4"]) != 0 {
+		t.Errorf("not all pieces were removed when moving: %+v", b.Squares)
 	}
 }
