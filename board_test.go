@@ -91,3 +91,40 @@ func TestMoving(t *testing.T) {
 		t.Errorf("not all pieces were removed when moving: %+v", b.Squares)
 	}
 }
+
+func TestMovingOnce(t *testing.T) {
+	b := &Board{
+		Size: 6,
+	}
+	b.Init()
+
+	tests := []string{
+		"a1",
+		"a1+1",
+	}
+
+	for _, mv := range tests {
+		t.Run(mv, func(t *testing.T) {
+
+			move, err := NewMove(mv)
+			if err != nil {
+				t.Errorf("error creating move: %+v", err)
+			}
+
+			err = b.DoMove(move, 1)
+			if err != nil {
+				t.Errorf("error doing move: %+v", err)
+			}
+		})
+	}
+
+	t.Logf("Squares post moves: %+v", b.Squares)
+
+	if len(b.Squares["b1"]) != 1 {
+		t.Errorf("pieces are not in the correct place: %+v", b.Squares)
+	}
+
+	if len(b.Squares["a1"]) != 0 {
+		t.Errorf("not all pieces were removed when moving: %+v", b.Squares)
+	}
+}
