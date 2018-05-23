@@ -10,7 +10,7 @@ before_script:
 
 
 script:
-  - go test -v -race ./...                   # Run all the tests with the race detector enabled
-  - go vet ./...                             # go vet is the official Go static analyzer
-  - megacheck ./...                          # "go vet on steroids" + linter
-  - golint -set_exit_status $(go list ./...) # one last linter
+  - go test -v -race -cover ./...
+  - go vet ./...
+  - megacheck ./...
+  - golint -set_exit_status
