@@ -81,7 +81,7 @@ func TestMoving(t *testing.T) {
 		})
 	}
 
-	t.Logf("Squares post moves: %+v", b.Squares)
+	//t.Logf("squares post moves: %+v", b.Squares)
 
 	if len(b.Squares["b4"]) != 1 || len(b.Squares["c4"]) != 2 || len(b.Squares["d4"]) != 1 {
 		t.Errorf("pieces are not in the correct place: %+v", b.Squares)
@@ -118,9 +118,9 @@ func TestMovingOnce(t *testing.T) {
 		})
 	}
 
-	t.Logf("Squares post moves: %+v", b.Squares)
+	//t.Logf("squares post moves: %+v", b.Squares)
 
-	if len(b.Squares["b1"]) != 1 {
+	if len(b.Squares["a2"]) != 1 {
 		t.Errorf("pieces are not in the correct place: %+v", b.Squares)
 	}
 

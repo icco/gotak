@@ -77,6 +77,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		begin := len(b.Squares[mv.Square]) - int(mv.MoveCount)
 		log.Printf(" | %d", begin)
 		stones := b.Squares[mv.Square][begin:]
+		b.Squares[mv.Square] = b.Squares[mv.Square][:begin]
 
 		squares := []string{}
 
@@ -101,14 +102,11 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		// pop and shift
 		for i, s := range squares {
 			for j := int64(0); j < mv.MoveDropCounts[i]; j++ {
-				log.Printf("%+v %+v", stones, mv.MoveDropCounts[i])
+				log.Printf("pop[%s](%d < %d) : %+v", s, j, mv.MoveDropCounts[i], stones)
+
 				st := stones[0]
 				b.Squares[s] = append(b.Squares[s], st)
-				if len(stones) > 1 {
-					b.Squares[mv.Square] = stones[1:]
-				} else {
-					b.Squares[mv.Square] = []*Stone{}
-				}
+				stones = stones[1:]
 			}
 		}
 	}
