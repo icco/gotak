@@ -14,6 +14,7 @@ func TestParseMove(t *testing.T) {
 		"3a3+3",
 		"4a4>121",
 		"1a4+1C",
+		"1d2<1",
 	}
 
 	for _, mv := range tests {

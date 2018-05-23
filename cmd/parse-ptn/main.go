@@ -29,9 +29,16 @@ func main() {
 		log.Panicf("%+v", err)
 	}
 
-	for _, t := range g.Turns {
-		g.Board.DoMove(t.First, 1)
-		g.Board.DoMove(t.Second, 2)
+	for i, t := range g.Turns {
+		//log.Printf("%+v", t.Debug())
+		if i == 0 {
+			g.Board.DoMove(t.First, gotak.PlayerBlack)
+			g.Board.DoMove(t.Second, gotak.PlayerWhite)
+
+		} else {
+			g.Board.DoMove(t.First, gotak.PlayerWhite)
+			g.Board.DoMove(t.Second, gotak.PlayerBlack)
+		}
 	}
 	log.Printf("Game: %+v", g)
 }

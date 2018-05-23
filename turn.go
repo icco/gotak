@@ -11,7 +11,8 @@ type Turn struct {
 	Comment string
 }
 
-func (t *Turn) String() string {
+// Text returns a PTN formated string of the turn.
+func (t *Turn) Text() string {
 	var move string
 	if t.First != nil && t.Second != nil {
 		move = fmt.Sprintf("%d. %s %s", t.Number, t.First.Text, t.Second.Text)
@@ -26,4 +27,8 @@ func (t *Turn) String() string {
 	}
 
 	return move
+}
+
+func (t *Turn) Debug() string {
+	return fmt.Sprintf("&{%d 1:%+v 1:%+v Result:%+v  Comment: \"%s\"}", t.Number, t.First, t.Second, t.Result, t.Comment)
 }
