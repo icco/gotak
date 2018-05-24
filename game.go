@@ -18,6 +18,7 @@ type Game struct {
 	Meta  []*Tag
 }
 
+// PrintCurrentState is an attempt to render a tak game as text.
 func (g *Game) PrintCurrentState() {
 	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
 	for x := int64(0); x < g.Board.Size; x++ {
