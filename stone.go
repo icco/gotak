@@ -16,7 +16,7 @@ func (s *Stone) String() string {
 		plyrText = "B"
 	}
 
-	return fmt.Sprintf("%s(%s)", plyrText, s.Type)
+	return fmt.Sprintf("%s%s", plyrText, s.Type)
 }
 
 // Validate checks that all fields of Stone are correct.

@@ -21,6 +21,5 @@ func main() {
 		log.Fatalf("Error moving: %+v", err)
 	}
 	g.Board.DoMove(mv, gotak.PlayerWhite)
-
-	log.Printf("Game: %+v", g)
+	g.PrintCurrentState()
 }

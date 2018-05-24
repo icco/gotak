@@ -18,6 +18,17 @@ type Game struct {
 	Meta  []*Tag
 }
 
+func (g *Game) PrintCurrentState() {
+	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
+	for x := int64(0); x < g.Board.Size; x++ {
+		for y := int64(1); y <= g.Board.Size; y++ {
+			location := letters[x] + strconv.FormatInt(y, 10)
+			fmt.Printf("%v", g.Board.Squares[location])
+		}
+		fmt.Println("")
+	}
+}
+
 // GetMeta does a linear search for the key specified and returns the value. It
 // returns an error if the key does not exist.
 func (g *Game) GetMeta(key string) (string, error) {
