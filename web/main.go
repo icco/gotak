@@ -51,16 +51,16 @@ var (
 		FrameDeny:            true,
 		ContentTypeNosniff:   true,
 		BrowserXssFilter:     true,
-		IsDevelopment:        os.Getenv("FLM_ENV") == "local",
+		IsDevelopment:        os.Getenv("TAK_ENV") == "local",
 	}
 )
 
-// SSLMiddleware redirects for all paths besides /_healthcheck.json. This is a
-// slight modification of the code in
+// SSLMiddleware redirects for all paths besides /healthz and /metrics. This is
+// a slight modification of the code in
 // https://github.com/unrolled/secure/blob/v1/secure.go
 func SSLMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/_healthcheck.json" {
+		if r.URL.Path != "/healthz" && r.URL.Path != "/metrics" {
 			ssl := strings.EqualFold(r.URL.Scheme, "https") || r.TLS != nil
 			if !ssl {
 				for k, v := range SecureMiddlewareOptions.SSLProxyHeaders {
