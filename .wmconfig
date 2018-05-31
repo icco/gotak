@@ -1,0 +1,6 @@
+{
+  "project": "gotak",
+  "ignorePatterns": [
+    ".git/**"
+  ]
+}

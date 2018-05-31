@@ -1,0 +1,25 @@
+# -*- mode: Python -*-
+# vim: set filetype=python:
+#
+# Import symbols from the 'go' module.
+load('go', 'go_create_tree', 'go_fmt', 'go_vet', 'go_build', 'go_test', 'go_get')
+
+def main(s):
+    root_package = "github.com/icco/gotak"
+    tree = go_create_tree(s, root_package)
+
+    j = new_job_set()
+    sub_prjs = [ '', '/web', '/cmd/gotak', '/cmd/parse-ptn']
+    for i in sub_prjs:
+        j.add('go_get:'+i, lambda: go_get(s, package=(root_package+i)))
+
+    j.add('go_fmt', lambda: go_vet(s))
+    j.add('go_vet', lambda: go_fmt(s))
+    j.add('go_build', lambda: go_build(tree, package=root_package))
+    j.add('go_test', lambda: go_test(tree, package=root_package))
+    j.add('forbid_strings', lambda: forbid_strings(s))
+
+    return j
+
+def forbid_strings(s):
+    return run(s, 'COUNT=$(grep -iR DONOTSUBMIT | wc -l); echo "found forbidden string $COUNT times"; if [ "$COUNT" -gt "1" ]; then exit 1; fi')
