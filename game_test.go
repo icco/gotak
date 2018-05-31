@@ -2,12 +2,16 @@ package gotak
 
 import (
 	"fmt"
+	"go/build"
 	"io/ioutil"
+	"path"
 	"testing"
 )
 
 func TestParse(t *testing.T) {
-	files, err := ioutil.ReadDir("./test_games")
+	gopath := build.Default.GOPATH
+	dir := path.Join(gopath, "src", "github.com", "icco", "gotak", "test_games")
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
