@@ -1,0 +1,3 @@
+DROP TABLE games;
+DROP TABLE tags;
+DROP TABLE moves;

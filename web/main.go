@@ -115,7 +115,13 @@ func main() {
 	r.Post("/game/{id}/move/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 	r.Post("/game/new", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 
-	http.ListenAndServe(":3000", r)
+	err := updateDB()
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
