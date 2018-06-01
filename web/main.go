@@ -120,8 +120,15 @@ func main() {
 	r.Get("/game/{id}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 	r.Get("/game/{id}/{move}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 	r.Post("/game/{id}/move/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
-	r.Post("/game/new", func(w http.ResponseWriter, r *http.Request) {
 
+	r.Post("/game/new", func(w http.ResponseWriter, r *http.Request) {
+		slug, err := createGame(db)
+		if err != nil {
+			log.Panic(err)
+			return
+		}
+
+		http.Redirect(w, r, fmt.Sprintf("/game/%s", slug), http.StatusTemporaryRedirect)
 	})
 
 	err = updateDB(db)

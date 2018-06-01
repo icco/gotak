@@ -10,6 +10,7 @@ def main(s):
 
     j = new_job_set()
     j.add('go_get', lambda: go_get(tree, package=root_package))
+
     deps = j.result('go_get')
 
     j.add('go_fmt', lambda: go_vet(s))

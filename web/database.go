@@ -29,7 +29,7 @@ func updateDB(db *sql.DB) error {
 	return nil
 }
 
-func createGame(db sql.DB) error {
+func createGame(db *sql.DB) (string, error) {
 
 	// Game Slug
 	worker := sanic.NewWorker7()
@@ -39,8 +39,8 @@ func createGame(db sql.DB) error {
 	query := `INSERT INTO games (slug) VALUES ($1)`
 	_, err := db.Exec(query, slug)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return slug, nil
 }
