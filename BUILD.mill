@@ -9,15 +9,12 @@ def main(s):
     tree = go_create_tree(s, root_package)
 
     j = new_job_set()
-    j.add('go_get', lambda: go_get(s, package=root_package))
-
-    sub_prjs = [ '', '/web', '/cmd/gotak', '/cmd/parse-ptn']
-    for i in sub_prjs:
-        j.add('go_get:'+i, lambda: go_get(s, package=(root_package+i)))
+    j.add('go_get', lambda: go_get(tree, package=root_package))
+    deps = j.result('go_get')
 
     j.add('go_fmt', lambda: go_vet(s))
     j.add('go_vet', lambda: go_fmt(s))
-    j.add('go_build', lambda: go_build(tree, package=root_package))
-    j.add('go_test', lambda: go_test(tree, package=root_package))
+    j.add('go_build', lambda: go_build(deps, package=root_package))
+    j.add('go_test', lambda: go_test(deps, package=root_package, extra_deps={ '.': ['**/test_games/**'] }))
 
     return j
