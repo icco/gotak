@@ -13,7 +13,7 @@ import (
 // Game is the datastructure for a single game. Most data is stored in the meta
 // field.
 type Game struct {
-	Id    int64
+	ID    int64
 	Slug  string
 	Turns []*Turn
 	Board *Board

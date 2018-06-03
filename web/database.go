@@ -60,7 +60,7 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 	}
 
 	game := &gotak.Game{
-		Id:   id,
+		ID:   id,
 		Slug: slug,
 	}
 
