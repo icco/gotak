@@ -11,19 +11,12 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/unrolled/render.v1"
 	"gopkg.in/unrolled/secure.v1"
 )
 
 var (
-	requestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "http_request_duration_seconds",
-		Help:    "Time (in seconds) spent serving HTTP requests.",
-		Buckets: prometheus.DefBuckets,
-	}, []string{"method", "route", "status_code", "ws"})
-
 	// Renderer is a renderer for all occasions. These are our preferred default options.
 	// See:
 	//  - https://github.com/unrolled/render/blob/v1/README.md
@@ -118,7 +111,21 @@ func main() {
 	r.Get("/healthz", healthCheckHandler)
 	r.Mount("/metrics", promhttp.Handler())
 
-	r.Get("/game/{id}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
+	r.HandleFunc("/game/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		// Get DB Entry
+		slug := chi.URLParamFromCtx(ctx, "slug")
+		game, err := getGame(db, slug)
+		if err != nil {
+			log.Panic(err)
+			return
+		}
+
+		// Write out game
+		log.Printf("%+v", game)
+	})
+
 	r.Get("/game/{id}/{move}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 	r.Post("/game/{id}/move/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 
