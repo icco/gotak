@@ -114,10 +114,10 @@ func main() {
 
 	r.HandleFunc("/game/{slug}", getGameHandler)
 
-	r.Get("/game/{id}/{move}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
-	r.Post("/game/{id}/move/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
+	r.Get("/game/{slug}/{move}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 
 	r.Post("/game/new", newGameHandler)
+	r.Post("/game/{slug}/move", newMoveHandler)
 
 	err = updateDB(db)
 	if err != nil {
@@ -129,6 +129,7 @@ func main() {
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
+	return
 }
 
 func newGameHandler(w http.ResponseWriter, r *http.Request) {
@@ -147,6 +148,27 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/game/%s", slug), http.StatusTemporaryRedirect)
 }
 
+func newMoveHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := getDB()
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get DB Entry
+	slug := chi.URLParamFromCtx(ctx, "slug")
+	game, err := getGame(db, slug)
+	if err != nil {
+		log.Printf("%+v : %+v", slug, err)
+		return
+	}
+
+	Renderer.JSON(w, http.StatusOK, game)
+	return
+}
+
 func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
@@ -160,12 +182,14 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParamFromCtx(ctx, "slug")
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Panic(err)
+		log.Printf("%+v : %+v", slug, err)
 		return
 	}
 
 	// Write out game
 	log.Printf("%+v", game)
+	Renderer.JSON(w, http.StatusOK, game)
+	return
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {

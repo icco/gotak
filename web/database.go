@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 
 	"github.com/golang-migrate/migrate"
 	"github.com/golang-migrate/migrate/database/postgres"
@@ -68,7 +69,56 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 		Slug: slug,
 	}
 
-	// TODO: Get Turns and Meta
+	// Get Turns
+	query = `SELECT player, turn, text FROM moves WHERE game_id = $1`
+	rows, err := db.Query(query, game.ID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	var currentTurn *gotak.Turn
+
+	for rows.Next() {
+		var player int
+		var turnNumber int64
+		var text string
+		err = rows.Scan(&player, &turnNumber, &text)
+		if err != nil {
+			return nil, err
+		}
+
+		if currentTurn == nil {
+			currentTurn = &gotak.Turn{Number: turnNumber}
+		}
+
+		mv, err := gotak.NewMove(text)
+		if err != nil {
+			return nil, err
+		}
+
+		if player == gotak.PlayerWhite {
+			if turnNumber > 1 {
+				currentTurn.First = mv
+			} else {
+				currentTurn.Second = mv
+			}
+
+		}
+
+		if player == gotak.PlayerBlack {
+			if turnNumber > 1 {
+				currentTurn.Second = mv
+			} else {
+				currentTurn.First = mv
+			}
+		}
+
+		if currentTurn.First != nil && currentTurn.Second != nil {
+			game.Turns = append(game.Turns, currentTurn)
+			currentTurn = nil
+		}
+	}
 
 	return game, nil
 }
