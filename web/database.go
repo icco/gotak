@@ -119,8 +119,6 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 			}
 		}
 
-		log.Printf("%+v", currentTurn)
-
 		if player == gotak.PlayerBlack {
 			if turnNumber > 1 {
 				currentTurn.Second = mv

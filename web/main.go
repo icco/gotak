@@ -218,8 +218,6 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Write out game
-	log.Printf("%+v", game)
 	Renderer.JSON(w, http.StatusOK, game)
 	return
 }
