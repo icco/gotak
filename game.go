@@ -44,6 +44,31 @@ func (g *Game) GetMeta(key string) (string, error) {
 	return "", fmt.Errorf("No such meta key '%s'", key)
 }
 
+// GetTurn returns or creates a turn, given a turn number.
+func (g *Game) GetTurn(number int64) *Turn {
+	for _, t := range g.Turns {
+		if t != nil && t.Number == number {
+			return t
+		}
+	}
+
+	return &Turn{Number: number}
+}
+
+// UpdateTurn adds or updates a turn.
+func (g *Game) UpdateTurn(turn *Turn) {
+	for i, t := range g.Turns {
+		if t != nil && t.Number == turn.Number {
+			g.Turns[i] = turn
+			return
+		}
+	}
+
+	g.Turns = append(g.Turns, turn)
+
+	return
+}
+
 // DoTurn takes raw input, validates
 func (g *Game) DoTurn(mvOneStr, mvTwoStr string) error {
 	mvOne, err := NewMove(mvOneStr)

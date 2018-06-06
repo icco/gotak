@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -159,6 +160,37 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get DB Entry
 	slug := chi.URLParamFromCtx(ctx, "slug")
+	id, err := getGameID(db, slug)
+	if err != nil {
+		log.Printf("%+v : %+v", slug, err)
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var data struct {
+		Player int    `json:"player"`
+		Text   string `json:"move"`
+		Turn   int64  `json:"turn"`
+	}
+
+	err = decoder.Decode(&data)
+	if err != nil {
+		log.Printf("%+v : %+v", r.Body, err)
+		return
+	}
+
+	if data.Text == "" {
+		log.Printf("empty data")
+		return
+	}
+
+	err = insertMove(db, id, data.Player, data.Text, data.Turn)
+	if err != nil {
+		log.Printf("insert: %+v", err)
+		return
+	}
+
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Printf("%+v : %+v", slug, err)

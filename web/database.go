@@ -51,15 +51,31 @@ func createGame(db *sql.DB) (string, error) {
 	return slug, nil
 }
 
-func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
+func insertMove(db *sql.DB, gameID int64, player int, text string, turnNumber int64) error {
+	query := `INSERT INTO moves (game_id, player, text, turn) VALUES ($1, $2, $3, $4)`
+	_, err := db.Exec(query, gameID, player, text, turnNumber)
+
+	return err
+}
+
+func getGameID(db *sql.DB, slug string) (int64, error) {
 	query := `SELECT id FROM games WHERE slug = $1`
 	stmt, err := db.Prepare(query)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	var id int64
 	err = stmt.QueryRow(slug).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
+	id, err := getGameID(db, slug)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +86,7 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 	}
 
 	// Get Turns
-	query = `SELECT player, turn, text FROM moves WHERE game_id = $1`
+	query := `SELECT player, turn, text FROM moves WHERE game_id = $1`
 	rows, err := db.Query(query, game.ID)
 	if err != nil {
 		log.Fatal(err)
@@ -88,9 +104,7 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 			return nil, err
 		}
 
-		if currentTurn == nil {
-			currentTurn = &gotak.Turn{Number: turnNumber}
-		}
+		currentTurn = game.GetTurn(turnNumber)
 
 		mv, err := gotak.NewMove(text)
 		if err != nil {
@@ -103,8 +117,9 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 			} else {
 				currentTurn.Second = mv
 			}
-
 		}
+
+		log.Printf("%+v", currentTurn)
 
 		if player == gotak.PlayerBlack {
 			if turnNumber > 1 {
@@ -114,10 +129,7 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 			}
 		}
 
-		if currentTurn.First != nil && currentTurn.Second != nil {
-			game.Turns = append(game.Turns, currentTurn)
-			currentTurn = nil
-		}
+		game.UpdateTurn(currentTurn)
 	}
 
 	return game, nil
