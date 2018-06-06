@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"html/template"
 	"log"
@@ -101,7 +100,7 @@ func main() {
 		r.Use(SSLMiddleware)
 	}
 
-	db, err := sql.Open("postgres", "postgres://localhost/gotak?sslmode=disable")
+	db, err := getDB()
 	if err != nil {
 		log.Panic(err)
 		return
@@ -111,33 +110,14 @@ func main() {
 	r.Get("/healthz", healthCheckHandler)
 	r.Mount("/metrics", promhttp.Handler())
 
-	r.HandleFunc("/game/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+	r.Get("/", rootHandler)
 
-		// Get DB Entry
-		slug := chi.URLParamFromCtx(ctx, "slug")
-		game, err := getGame(db, slug)
-		if err != nil {
-			log.Panic(err)
-			return
-		}
-
-		// Write out game
-		log.Printf("%+v", game)
-	})
+	r.HandleFunc("/game/{slug}", getGameHandler)
 
 	r.Get("/game/{id}/{move}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 	r.Post("/game/{id}/move/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
 
-	r.Post("/game/new", func(w http.ResponseWriter, r *http.Request) {
-		slug, err := createGame(db)
-		if err != nil {
-			log.Panic(err)
-			return
-		}
-
-		http.Redirect(w, r, fmt.Sprintf("/game/%s", slug), http.StatusTemporaryRedirect)
-	})
+	r.Post("/game/new", newGameHandler)
 
 	err = updateDB(db)
 	if err != nil {
@@ -146,6 +126,46 @@ func main() {
 	}
 
 	log.Fatal(http.ListenAndServe(":"+port, r))
+}
+
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+}
+
+func newGameHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := getDB()
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	slug, err := createGame(db)
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/game/%s", slug), http.StatusTemporaryRedirect)
+}
+
+func getGameHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := getDB()
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get DB Entry
+	slug := chi.URLParamFromCtx(ctx, "slug")
+	game, err := getGame(db, slug)
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	// Write out game
+	log.Printf("%+v", game)
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {

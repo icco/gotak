@@ -11,6 +11,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+func getDB() (*sql.DB, error) {
+	return sql.Open("postgres", "postgres://localhost/gotak?sslmode=disable")
+}
+
 func updateDB(db *sql.DB) error {
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {

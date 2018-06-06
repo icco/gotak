@@ -7,24 +7,35 @@ import (
 )
 
 func TestHealthCheckHandler(t *testing.T) {
-	// Create a request to pass to our handler. We don't have any query parameters for now, so we'll
-	// pass 'nil' as the third parameter.
-	req, err := http.NewRequest("GET", "/healthz", nil)
-	if err != nil {
-		t.Fatal(err)
+	twoHundreds := map[string]http.HandlerFunc{
+		"/healthz": healthCheckHandler,
+		"/":        rootHandler,
 	}
 
-	// We create a ResponseRecorder (which satisfies http.ResponseWriter) to record the response.
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(healthCheckHandler)
+	for route, handler := range twoHundreds {
+		t.Run(route, func(t *testing.T) {
 
-	// Our handlers satisfy http.Handler, so we can call their ServeHTTP method
-	// directly and pass in our Request and ResponseRecorder.
-	handler.ServeHTTP(rr, req)
+			// Create a request to pass to our handler. We don't have any query parameters for now, so we'll
+			// pass 'nil' as the third parameter.
+			req, err := http.NewRequest("GET", route, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	// Check the status code is what we expect.
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
-			status, http.StatusOK)
+			// We create a ResponseRecorder (which satisfies http.ResponseWriter) to
+			// record the response.
+			rr := httptest.NewRecorder()
+			handler := http.HandlerFunc(handler)
+
+			// Our handlers satisfy http.Handler, so we can call their ServeHTTP method
+			// directly and pass in our Request and ResponseRecorder.
+			handler.ServeHTTP(rr, req)
+
+			// Check the status code is what we expect.
+			if status := rr.Code; status != http.StatusOK {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+		})
 	}
 }
