@@ -15,6 +15,7 @@ func TestParseMove(t *testing.T) {
 		"4a4>121",
 		"1a4+1C",
 		"1d2<1",
+		"1d2<1S",
 	}
 
 	for _, mv := range tests {
@@ -100,6 +101,30 @@ func TestParseDropCapStones(t *testing.T) {
 			}
 
 			if m.Stone != StoneCap {
+				t.Errorf("stone is wrong")
+			}
+
+			if m.Square == "" {
+				t.Errorf("square is empty")
+			}
+		})
+	}
+}
+
+func TestParseDropStandingStones(t *testing.T) {
+	tests := []string{
+		"Sc3",
+	}
+
+	for _, mv := range tests {
+		t.Run(mv, func(t *testing.T) {
+
+			m, err := NewMove(mv)
+			if err != nil {
+				t.Errorf("error creating move: %+v", err)
+			}
+
+			if m.Stone != StoneStanding {
 				t.Errorf("stone is wrong")
 			}
 
