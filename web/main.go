@@ -140,7 +140,11 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug, err := createGame(db)
+	var data map[string]int
+	decoder := json.NewDecoder(r.Body)
+	decoder.Decode(&data)
+
+	slug, err := createGame(db, data["size"])
 	if err != nil {
 		log.Panic(err)
 		return

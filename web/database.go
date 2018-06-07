@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log"
+	"strconv"
 
 	"github.com/golang-migrate/migrate"
 	"github.com/golang-migrate/migrate/database/postgres"
@@ -35,7 +36,10 @@ func updateDB(db *sql.DB) error {
 	return nil
 }
 
-func createGame(db *sql.DB) (string, error) {
+func createGame(db *sql.DB, size int) (string, error) {
+	if size < 4 {
+		size = 6
+	}
 
 	// Game Slug
 	worker := sanic.NewWorker7()
@@ -48,7 +52,19 @@ func createGame(db *sql.DB) (string, error) {
 		return "", err
 	}
 
-	return slug, nil
+	return slug, updateTag(db, slug, "Size", strconv.Itoa(size))
+}
+
+func updateTag(db *sql.DB, slug, key, value string) error {
+	id, err := getGameID(db, slug)
+	if err != nil {
+		return err
+	}
+
+	query := `INSERT INTO tags(game_id, key, value) VALUES ($1, $2, $3)`
+	_, err = db.Exec(query, id, key, value)
+
+	return err
 }
 
 func insertMove(db *sql.DB, gameID int64, player int, text string, turnNumber int64) error {
@@ -85,8 +101,21 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 		Slug: slug,
 	}
 
-	// Get Turns
-	query := `SELECT player, turn, text FROM moves WHERE game_id = $1`
+	err = getTurns(db, game)
+	if err != nil {
+		return game, err
+	}
+
+	err = getMeta(db, game)
+	if err != nil {
+		return game, err
+	}
+
+	return game, nil
+}
+
+func getTurns(db *sql.DB, game *gotak.Game) error {
+	query := `SELECT player, turn, text FROM moves WHERE game_id = $1 ORDER BY created_at`
 	rows, err := db.Query(query, game.ID)
 	if err != nil {
 		log.Fatal(err)
@@ -101,14 +130,14 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 		var text string
 		err = rows.Scan(&player, &turnNumber, &text)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		currentTurn = game.GetTurn(turnNumber)
 
 		mv, err := gotak.NewMove(text)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if player == gotak.PlayerWhite {
@@ -130,5 +159,30 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 		game.UpdateTurn(currentTurn)
 	}
 
-	return game, nil
+	return nil
+}
+
+func getMeta(db *sql.DB, game *gotak.Game) error {
+	query := `SELECT key, value FROM tags WHERE game_id = $1 ORDER BY created_at`
+	rows, err := db.Query(query, game.ID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key string
+		var value string
+		err = rows.Scan(&key, &value)
+		if err != nil {
+			return err
+		}
+
+		err = game.UpdateMeta(key, value)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

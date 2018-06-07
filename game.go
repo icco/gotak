@@ -44,6 +44,25 @@ func (g *Game) GetMeta(key string) (string, error) {
 	return "", fmt.Errorf("No such meta key '%s'", key)
 }
 
+// UpdateMeta adds or updates a tag on a game.
+func (g *Game) UpdateMeta(key, value string) error {
+	newTag := &Tag{
+		Key:   key,
+		Value: value,
+	}
+
+	for i, t := range g.Meta {
+		if t != nil && t.Key == key {
+			g.Meta[i] = newTag
+			return nil
+		}
+	}
+
+	g.Meta = append(g.Meta, newTag)
+
+	return nil
+}
+
 // GetTurn returns or creates a turn, given a turn number.
 func (g *Game) GetTurn(number int64) *Turn {
 	for _, t := range g.Turns {
