@@ -122,8 +122,6 @@ func getTurns(db *sql.DB, game *gotak.Game) error {
 	}
 	defer rows.Close()
 
-	var currentTurn *gotak.Turn
-
 	for rows.Next() {
 		var player int
 		var turnNumber int64

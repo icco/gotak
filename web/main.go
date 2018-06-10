@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi"
@@ -240,7 +241,11 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	turnNum := chi.URLParamFromCtx(ctx, "turn")
+	turnNum, err := strconv.ParseInt(chi.URLParamFromCtx(ctx, "turn"), 10, 0)
+	if err != nil {
+		log.Printf("parsing turn: %+v", err)
+		return
+	}
 	turn, err := game.GetTurn(turnNum)
 	if err != nil {
 		log.Printf("%+v : %+v", slug, err)
