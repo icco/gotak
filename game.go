@@ -91,8 +91,6 @@ func (g *Game) UpdateTurn(turn *Turn) {
 	}
 
 	g.Turns = append(g.Turns, turn)
-
-	return
 }
 
 // DoTurn takes raw input, validates

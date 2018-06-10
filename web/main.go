@@ -128,7 +128,6 @@ func main() {
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	return
 }
 
 func newGameHandler(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +199,6 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Renderer.JSON(w, http.StatusOK, game)
-	return
 }
 
 func getGameHandler(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +219,6 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Renderer.JSON(w, http.StatusOK, game)
-	return
 }
 
 func getTurnHandler(w http.ResponseWriter, r *http.Request) {
@@ -253,7 +250,6 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Renderer.JSON(w, http.StatusOK, turn)
-	return
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
