@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/golang-migrate/migrate"
@@ -14,7 +16,12 @@ import (
 )
 
 func getDB() (*sql.DB, error) {
-	return sql.Open("postgres", "postgres://localhost/gotak?sslmode=disable")
+	dbUrl := os.Getenv("DATABASE_URL")
+	if dbUrl == "" {
+		return nil, fmt.Errorf("DATABASE_URL is empty!")
+	}
+
+	return sql.Open("postgres", dbUrl)
 }
 
 func updateDB(db *sql.DB) error {
