@@ -75,7 +75,7 @@ func (g *Game) GetTurn(number int64) (*Turn, error) {
 	}
 
 	if float64(number) > max+1 {
-		return nil, fmt.Errorf("%d cannot be greater than one more than the current max turn number %d", number, max)
+		return nil, fmt.Errorf("%v cannot be greater than one more than the current max turn number %v", number, max)
 	}
 
 	return &Turn{Number: number}, nil
