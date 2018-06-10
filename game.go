@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -64,14 +65,20 @@ func (g *Game) UpdateMeta(key, value string) error {
 }
 
 // GetTurn returns or creates a turn, given a turn number.
-func (g *Game) GetTurn(number int64) *Turn {
+func (g *Game) GetTurn(number int64) (*Turn, error) {
+	max := float64(0)
 	for _, t := range g.Turns {
+		max = math.Max(max, float64(t.Number))
 		if t != nil && t.Number == number {
-			return t
+			return t, nil
 		}
 	}
 
-	return &Turn{Number: number}
+	if float64(number) > max+1 {
+		return nil, fmt.Errorf("%d cannot be greater than one more than the current max turn number %d", number, max)
+	}
+
+	return &Turn{Number: number}, nil
 }
 
 // UpdateTurn adds or updates a turn.

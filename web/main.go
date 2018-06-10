@@ -112,11 +112,8 @@ func main() {
 	r.Mount("/metrics", promhttp.Handler())
 
 	r.Get("/", rootHandler)
-
 	r.HandleFunc("/game/{slug}", getGameHandler)
-
-	r.Get("/game/{slug}/{move}/?", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("welcome")) })
-
+	r.Get("/game/{slug}/{turn}", getTurnHandler)
 	r.Post("/game/new", newGameHandler)
 	r.Post("/game/{slug}/move", newMoveHandler)
 
@@ -223,6 +220,34 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Renderer.JSON(w, http.StatusOK, game)
+	return
+}
+
+func getTurnHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := getDB()
+	if err != nil {
+		log.Panic(err)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Get DB Entry
+	slug := chi.URLParamFromCtx(ctx, "slug")
+	game, err := getGame(db, slug)
+	if err != nil {
+		log.Printf("%+v : %+v", slug, err)
+		return
+	}
+
+	turnNum := chi.URLParamFromCtx(ctx, "turn")
+	turn, err := game.GetTurn(turnNum)
+	if err != nil {
+		log.Printf("%+v : %+v", slug, err)
+		return
+	}
+
+	Renderer.JSON(w, http.StatusOK, turn)
 	return
 }
 

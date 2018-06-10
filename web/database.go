@@ -115,7 +115,7 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 }
 
 func getTurns(db *sql.DB, game *gotak.Game) error {
-	query := `SELECT player, turn, text FROM moves WHERE game_id = $1 ORDER BY created_at`
+	query := `SELECT player, turn, text FROM moves WHERE game_id = $1 ORDER BY turn, created_at`
 	rows, err := db.Query(query, game.ID)
 	if err != nil {
 		log.Fatal(err)
@@ -133,7 +133,10 @@ func getTurns(db *sql.DB, game *gotak.Game) error {
 			return err
 		}
 
-		currentTurn = game.GetTurn(turnNumber)
+		currentTurn, err := game.GetTurn(turnNumber)
+		if err != nil {
+			return err
+		}
 
 		mv, err := gotak.NewMove(text)
 		if err != nil {
