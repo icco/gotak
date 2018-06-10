@@ -1,12 +1,11 @@
 FROM golang:1.10-alpine
 
-WORKDIR /go/src/app
+WORKDIR /go/src/github.com/icco/gotak/
 COPY . .
 
 RUN apk add --no-cache git
 
 RUN go get -d -v ./...
-RUN go install -v ./web/...
-RUN ls -alht *
+RUN go install -v ./...
 
-CMD ["cd /go/src/app/web && web"]
+CMD ["web"]
