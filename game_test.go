@@ -8,6 +8,12 @@ import (
 	"testing"
 )
 
+func assertNotEqual(t *testing.T, context string, a interface{}, b interface{}) {
+	if a == b {
+		t.Errorf("%s: %+v == %+v", context, a, b)
+	}
+}
+
 func TestParse(t *testing.T) {
 	gopath := build.Default.GOPATH
 	dir := path.Join(gopath, "src", "github.com", "icco", "gotak", "test_games")
@@ -50,8 +56,14 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func assertNotEqual(t *testing.T, context string, a interface{}, b interface{}) {
-	if a == b {
-		t.Errorf("%s: %+v == %+v", context, a, b)
+func TestGameOver(t *testing.T) {
+	game, err := NewGame(6, 1, "test")
+	if err != nil {
+		t.Errorf("%+v", err)
+	}
+
+	_, over := game.GameOver()
+	if over {
+		t.Errorf("Game over on empty board")
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/deckarep/golang-set"
 )
 
 // Game is the datastructure for a single game. Most data is stored in the meta
@@ -19,6 +21,28 @@ type Game struct {
 	Turns []*Turn
 	Board *Board
 	Meta  []*Tag
+}
+
+func NewGame(size, id int64, slug string) (*Game, error) {
+	g := &Game{
+		ID:    id,
+		Slug:  slug,
+		Board: &Board{Size: size},
+		Turns: []*Turn{},
+		Meta:  []*Tag{},
+	}
+
+	err := g.Board.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	err = g.UpdateMeta("Size", strconv.FormatInt(size, 10))
+	if err != nil {
+		return nil, err
+	}
+
+	return g, nil
 }
 
 // PrintCurrentState is an attempt to render a tak game as text.
@@ -32,6 +56,30 @@ func (g *Game) PrintCurrentState() {
 // GameOver determines if a game is over and who won. A game is over if a
 // player has a continuous path from one side of the board to the other.
 func (g *Game) GameOver() (int, bool) {
+	edges := mapset.NewSet()
+	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
+	for x := int64(0); x < g.Board.Size; x++ {
+		for y := int64(1); y <= g.Board.Size; y++ {
+			location := letters[x] + strconv.FormatInt(y, 10)
+			if y == 1 || y == g.Board.Size {
+				edges.Add(location)
+			}
+
+			if x == 0 || x == g.Board.Size-1 {
+				edges.Add(location)
+			}
+		}
+	}
+
+	g.Board.IterateOverSquares(func(l string, s []*Stone) error {
+		if edges.Contains(l) {
+			log.Printf("%s: %+v", l, s)
+			// Walk chain starting with current square.
+		}
+
+		return nil
+	})
+
 	return 0, false
 }
 

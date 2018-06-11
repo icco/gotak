@@ -36,7 +36,7 @@ func (b *Board) IterateOverSquares(f SquareFunc) error {
 // Init creates a board once a board size is set.
 func (b *Board) Init() error {
 	if b.Size < 4 || b.Size >= 10 {
-		return fmt.Errorf("%d is not a valid board size", b.Size)
+		return fmt.Errorf("%v is not a valid board size", b.Size)
 	}
 
 	b.Squares = map[string][]*Stone{}
