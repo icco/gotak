@@ -23,14 +23,16 @@ type Game struct {
 
 // PrintCurrentState is an attempt to render a tak game as text.
 func (g *Game) PrintCurrentState() {
-	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
-	for x := int64(0); x < g.Board.Size; x++ {
-		for y := int64(1); y <= g.Board.Size; y++ {
-			location := letters[x] + strconv.FormatInt(y, 10)
-			fmt.Printf("%v", g.Board.Squares[location])
-		}
-		fmt.Println("")
-	}
+	g.Board.IterateOverSquares(func(l string, s []*Stone) error {
+		fmt.Printf("%v", s)
+		return nil
+	})
+}
+
+// GameOver determines if a game is over and who won. A game is over if a
+// player has a continuous path from one side of the board to the other.
+func (g *Game) GameOver() (int, bool) {
+	return 0, false
 }
 
 // GetMeta does a linear search for the key specified and returns the value. It

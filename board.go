@@ -11,6 +11,28 @@ type Board struct {
 	Squares map[string][]*Stone
 }
 
+// SquareFunc is a function that takes a string and a stone, does something,
+// and returns an errorif there is an issue.
+type SquareFunc func(string, []*Stone) error
+
+// IterateOverSquares takes a SquareFunc, and applies it to every square in a
+// board. If the SquareFunc returns an error, the iteration stops and the
+// function returns.
+func (b *Board) IterateOverSquares(f SquareFunc) error {
+	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
+	for x := int64(0); x < b.Size; x++ {
+		for y := int64(1); y <= b.Size; y++ {
+			location := letters[x] + strconv.FormatInt(y, 10)
+			err := f(location, b.Squares[location])
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // Init creates a board once a board size is set.
 func (b *Board) Init() error {
 	if b.Size < 4 || b.Size >= 10 {
@@ -18,13 +40,10 @@ func (b *Board) Init() error {
 	}
 
 	b.Squares = map[string][]*Stone{}
-	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
-	for x := int64(0); x < b.Size; x++ {
-		for y := int64(1); y <= b.Size; y++ {
-			location := letters[x] + strconv.FormatInt(y, 10)
-			b.Squares[location] = []*Stone{}
-		}
-	}
+	b.IterateOverSquares(func(l string, s []*Stone) error {
+		b.Squares[l] = []*Stone{}
+		return nil
+	})
 
 	return nil
 }
