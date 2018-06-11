@@ -23,6 +23,7 @@ type Game struct {
 	Meta  []*Tag
 }
 
+// NewGame is a factory for Game structs. It initializes all fields.
 func NewGame(size, id int64, slug string) (*Game, error) {
 	g := &Game{
 		ID:    id,
@@ -55,6 +56,8 @@ func (g *Game) PrintCurrentState() {
 
 // GameOver determines if a game is over and who won. A game is over if a
 // player has a continuous path from one side of the board to the other.
+//
+// TODO: Do this in a more efficient and less bruteforce manner.
 func (g *Game) GameOver() (int, bool) {
 	edges := mapset.NewSet()
 	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
