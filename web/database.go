@@ -103,9 +103,19 @@ func getGame(db *sql.DB, slug string) (*gotak.Game, error) {
 		return nil, err
 	}
 
-	game := &gotak.Game{
-		ID:   id,
-		Slug: slug,
+	// Get Size
+	var size int64
+	query := `SELECT value FROM tags WHERE game_id = $1 and key = 'Size' ORDER BY created_at LIMIT 1`
+	row := db.QueryRow(query, id)
+	err = row.Scan(&size)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init game
+	game, err := gotak.NewGame(size, id, slug)
+	if err != nil {
+		return game, err
 	}
 
 	err = getTurns(db, game)
