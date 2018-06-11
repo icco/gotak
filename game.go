@@ -75,6 +75,10 @@ func (g *Game) GameOver() (int, bool) {
 		if edges.Contains(l) {
 			log.Printf("%s: %+v", l, s)
 			// Walk chain starting with current square.
+			stn := g.Board.TopStone(l)
+			if stn != nil {
+				// Continue walk
+			}
 		}
 
 		return nil

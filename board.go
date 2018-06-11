@@ -52,6 +52,15 @@ func (b *Board) String() string {
 	return fmt.Sprintf("%+v", b.Squares)
 }
 
+// TopStone returns the top stone for a square.
+func (b *Board) TopStone(square string) *Stone {
+	if len(b.Squares[square]) > 0 {
+		return b.Squares[square][len(b.Squares)-1]
+	}
+
+	return nil
+}
+
 // DoMove modifies the boards state based off of a move.
 //
 // Move notation is from https://www.reddit.com/r/Tak/wiki/portable_tak_notation
