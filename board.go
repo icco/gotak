@@ -83,6 +83,7 @@ func Translate(square, direction string) string {
 	return strings.Join([]string{horizantal, vertical}, "")
 }
 
+// IsEdge determines if the passed in space is a board edge.
 func (b *Board) IsEdge(l string) bool {
 	//y := 1
 
