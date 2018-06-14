@@ -1,6 +1,7 @@
 package gotak
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -126,5 +127,20 @@ func TestMovingOnce(t *testing.T) {
 
 	if len(b.Squares["a1"]) != 0 {
 		t.Errorf("not all pieces were removed when moving: %+v", b.Squares)
+	}
+}
+
+func TestTranslate(t *testing.T) {
+	for _, r := range []string{
+		"a1,>,b1",
+		"c3,-,c2",
+		"c3,+,c4",
+		"c3,<,b3",
+	} {
+		row := strings.Split(r, ",")
+		a := Translate(row[0], row[1])
+		if a != row[2] {
+			t.Errorf("a1 > != b1: %+v", a)
+		}
 	}
 }

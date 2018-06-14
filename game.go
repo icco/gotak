@@ -64,22 +64,22 @@ func (g *Game) GameOver() (int, bool) {
 	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
 
 	for x := int64(0); x < g.Board.Size; x++ {
-		y := 1
+		y := int64(1)
 		location := letters[x] + strconv.FormatInt(y, 10)
 		startEdges.Add(location)
 
-		y := g.Board.Size
-		location := letters[x] + strconv.FormatInt(y, 10)
+		y = g.Board.Size
+		location = letters[x] + strconv.FormatInt(y, 10)
 		endEdges.Add(location)
 	}
 
 	for y := int64(1); y <= g.Board.Size; y++ {
-		x := 0
+		x := int64(0)
 		location := letters[x] + strconv.FormatInt(y, 10)
 		startEdges.Add(location)
 
-		x := g.Board.Size - 1
-		location := letters[x] + strconv.FormatInt(y, 10)
+		x = g.Board.Size - 1
+		location = letters[x] + strconv.FormatInt(y, 10)
 		endEdges.Add(location)
 	}
 
