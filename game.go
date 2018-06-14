@@ -56,36 +56,32 @@ func (g *Game) PrintCurrentState() {
 
 // GameOver determines if a game is over and who won. A game is over if a
 // player has a continuous path from one side of the board to the other.
-//
-// TODO: Do this in a more efficient and less bruteforce manner.
 func (g *Game) GameOver() (int, bool) {
-	edges := mapset.NewSet()
-	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
-	for x := int64(0); x < g.Board.Size; x++ {
-		for y := int64(1); y <= g.Board.Size; y++ {
-			location := letters[x] + strconv.FormatInt(y, 10)
-			if y == 1 || y == g.Board.Size {
-				edges.Add(location)
-			}
+	endEdges := mapset.NewSet()
+	startEdges := mapset.NewSet()
 
-			if x == 0 || x == g.Board.Size-1 {
-				edges.Add(location)
-			}
-		}
+	// TODO: A prettier way to deal with letters.
+	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
+
+	for x := int64(0); x < g.Board.Size; x++ {
+		y := 1
+		location := letters[x] + strconv.FormatInt(y, 10)
+		startEdges.Add(location)
+
+		y := g.Board.Size
+		location := letters[x] + strconv.FormatInt(y, 10)
+		endEdges.Add(location)
 	}
 
-	g.Board.IterateOverSquares(func(l string, s []*Stone) error {
-		if edges.Contains(l) {
-			log.Printf("%s: %+v", l, s)
-			// Walk chain starting with current square.
-			stn := g.Board.TopStone(l)
-			if stn != nil {
-				// Continue walk
-			}
-		}
+	for y := int64(1); y <= g.Board.Size; y++ {
+		x := 0
+		location := letters[x] + strconv.FormatInt(y, 10)
+		startEdges.Add(location)
 
-		return nil
-	})
+		x := g.Board.Size - 1
+		location := letters[x] + strconv.FormatInt(y, 10)
+		endEdges.Add(location)
+	}
 
 	return 0, false
 }

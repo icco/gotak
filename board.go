@@ -61,6 +61,64 @@ func (b *Board) TopStone(square string) *Stone {
 	return nil
 }
 
+func Move(square, direction string) string {
+	parts := strings.Split(square, "")
+	vertical := parts[1]
+	horizantal := parts[0]
+
+	switch direction {
+	case "n":
+		vertical += 1
+	case "e":
+		horizantal += 1
+	case "s":
+		vertical -= 1
+	case "w":
+		horizantal -= 1
+	}
+
+	return strings.Join("", horizantal, vertical)
+}
+
+func (b *Board) IsEdge(l string) bool {
+	y := 1
+
+	y := g.Board.Size
+
+	x := 0
+	x := g.Board.Size - 1
+
+}
+
+// FindRoad starts at square l and uses a flood fill algorithm to find a road.
+func (b *Board) FindRoad(l string) bool {
+	// Flood-fill (node, target-color, replacement-color):
+	//  1. If target-color is equal to replacement-color, return.
+	//  2. If color of node is not equal to target-color, return.
+	//  3. Set Q to the empty queue.
+	queue := []string{}
+	//  4. Add node to Q.
+	queue = append(queue, l)
+	//  5. For each element N of Q:
+	//  6.     Set w and e equal to N.
+	for _, n := range queue {
+		w := n
+		e := n
+		//  7.     Move w to the west until the color of the node to the west of w no
+		//  longer matches target-color.
+		for w := n; w > 0; w-- {
+		}
+		//  8.     Move e to the east until the color of the node to the east of e no
+		//  longer matches target-color.
+		//  9.     For each node n between w and e:
+		// 10.         Set the color of n to replacement-color.
+		// 11.         If the color of the node to the north of n is target-color, add that node to Q.
+		// 12.         If the color of the node to the south of n is target-color, add that node to Q.
+		// 13. Continue looping until Q is exhausted.
+	}
+	// 14. Return.
+}
+
 // DoMove modifies the boards state based off of a move.
 //
 // Move notation is from https://www.reddit.com/r/Tak/wiki/portable_tak_notation
