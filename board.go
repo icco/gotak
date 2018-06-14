@@ -85,15 +85,27 @@ func Translate(square, direction string) string {
 
 // IsEdge determines if the passed in space is a board edge.
 func (b *Board) IsEdge(l string) bool {
-	//y := 1
+	parts := strings.Split(l, "")
 
-	//y := g.Board.Size
+	horizantal := parts[0]
+	if horizantal == "a" {
+		return true
+	}
 
-	//x := 0
+	if horizantal == string([]byte("a")[0]+byte(b.Size)-1) {
+		return true
+	}
 
-	//x := g.Board.Size - 1
+	vertical, _ := strconv.Atoi(parts[1])
+	if vertical == 1 {
+		return true
+	}
 
-	return true
+	if int64(vertical) == b.Size {
+		return true
+	}
+
+	return false
 }
 
 // FindRoad starts at square l and uses a flood fill algorithm to find a road.

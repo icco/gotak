@@ -141,7 +141,30 @@ func TestTranslate(t *testing.T) {
 			row := strings.Split(r, ",")
 			a := Translate(row[0], row[1])
 			if a != row[2] {
-				t.Errorf("a1 > != b1: %+v", a)
+				t.Errorf("%s %s != %s: %+v", row[0], row[1], row[2], a)
+			}
+		})
+	}
+}
+
+func TestIsEdge(t *testing.T) {
+	b := &Board{
+		Size: 6,
+	}
+	b.Init()
+	for s, e := range map[string]bool{
+		"a1": true,
+		"a3": true,
+		"c3": false,
+		"c6": true,
+		"f1": true,
+		"f6": true,
+		"e2": false,
+	} {
+		t.Run(s, func(t *testing.T) {
+			a := b.IsEdge(s)
+			if a != e {
+				t.Errorf("%v != %v", a, e)
 			}
 		})
 	}
