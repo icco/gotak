@@ -137,10 +137,12 @@ func TestTranslate(t *testing.T) {
 		"c3,+,c4",
 		"c3,<,b3",
 	} {
-		row := strings.Split(r, ",")
-		a := Translate(row[0], row[1])
-		if a != row[2] {
-			t.Errorf("a1 > != b1: %+v", a)
-		}
+		t.Run(r, func(t *testing.T) {
+			row := strings.Split(r, ",")
+			a := Translate(row[0], row[1])
+			if a != row[2] {
+				t.Errorf("a1 > != b1: %+v", a)
+			}
+		})
 	}
 }
