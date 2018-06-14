@@ -50,3 +50,6 @@ const PlayerWhite int = 1
 
 // PlayerBlack is the person moving the black or dark colored stones.
 const PlayerBlack int = 2
+
+// PlayerNone is an empty square.
+const PlayerNone int = 0

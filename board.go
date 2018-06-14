@@ -62,6 +62,16 @@ func (b *Board) TopStone(square string) *Stone {
 	return nil
 }
 
+func (b *Board) Color(square string) int {
+	stn := b.TopStone(square)
+
+	if stn != nil {
+		return stn.Player
+	}
+
+	return PlayerNone
+}
+
 // Translate takes a square and a direction, and returns the square identifier
 // as if you had moved in that direction.
 func Translate(square, direction string) string {
@@ -130,14 +140,30 @@ func (b *Board) IsEdge(l string) bool {
 //   13. Continue looping until Q is exhausted.
 //   14. Return.
 func (b *Board) FindRoad(l string) bool {
-	queue := []string{}
-	queue = append(queue, l)
+	queue := []string{l}
+	visited := []string{l}
 	for _, n := range queue {
 		var w string
 		var e string
-		for w = n; !b.IsEdge(w); Translate(w, MoveLeft) {
+		inbetween := []string{}
+		for w = n; !b.IsEdge(w) && b.Color(w) == b.Color(l); Translate(w, MoveLeft) {
+			inbetween = append(inbetween, w)
 		}
-		for e = n; !b.IsEdge(e); Translate(w, MoveRight) {
+		for e = n; !b.IsEdge(e) && b.Color(e) == b.Color(l); Translate(w, MoveRight) {
+			inbetween = append(inbetween, e)
+		}
+
+		for _, s := range inbetween {
+			visited = append(visited, s)
+			nextUp := Translate(s, MoveUp)
+			if b.Color(nextUp) == b.Color(l) {
+				queue = append(queue, s)
+			}
+
+			nextDown := Translate(s, MoveDown)
+			if b.Color(nextDown) == b.Color(l) {
+				queue = append(queue, s)
+			}
 		}
 	}
 
