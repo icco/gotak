@@ -62,6 +62,7 @@ func (b *Board) TopStone(square string) *Stone {
 	return nil
 }
 
+// Color returns the player integer responding to the top most stone of the square's stack.
 func (b *Board) Color(square string) int {
 	stn := b.TopStone(square)
 
