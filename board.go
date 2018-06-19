@@ -2,6 +2,7 @@ package gotak
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -62,7 +63,8 @@ func (b *Board) TopStone(square string) *Stone {
 	return nil
 }
 
-// Color returns the player integer responding to the top most stone of the square's stack.
+// Color returns the player integer responding to the top most stone of the
+// square's stack.
 func (b *Board) Color(square string) int {
 	stn := b.TopStone(square)
 
@@ -140,22 +142,28 @@ func (b *Board) IsEdge(l string) bool {
 //   12.         If the color of the node to the south of n is target-color, add that node to Q.
 //   13. Continue looping until Q is exhausted.
 //   14. Return.
-func (b *Board) FindRoad(l string) bool {
+func (b *Board) FindRoad(l string, validEndEdges []string) bool {
+	if b.Color(l) == PlayerNone {
+		return false
+	}
+
+	// Sort here so we can search later.
+	sort.Strings(validEndEdges)
+
 	queue := []string{l}
-	visited := []string{l}
 	for _, n := range queue {
 		var w string
 		var e string
 		inbetween := []string{}
-		for w = n; !b.IsEdge(w) && b.Color(w) == b.Color(l); Translate(w, MoveLeft) {
+		for w = n; !b.IsEdge(w) && b.Color(w) == b.Color(l); w = Translate(w, MoveLeft) {
 			inbetween = append(inbetween, w)
 		}
-		for e = n; !b.IsEdge(e) && b.Color(e) == b.Color(l); Translate(w, MoveRight) {
+
+		for e = n; !b.IsEdge(e) && b.Color(e) == b.Color(l); e = Translate(e, MoveRight) {
 			inbetween = append(inbetween, e)
 		}
 
 		for _, s := range inbetween {
-			visited = append(visited, s)
 			nextUp := Translate(s, MoveUp)
 			if b.Color(nextUp) == b.Color(l) {
 				queue = append(queue, s)
@@ -164,6 +172,10 @@ func (b *Board) FindRoad(l string) bool {
 			nextDown := Translate(s, MoveDown)
 			if b.Color(nextDown) == b.Color(l) {
 				queue = append(queue, s)
+			}
+
+			if sort.SearchStrings(validEndEdges, s) < len(validEndEdges) {
+				return true
 			}
 		}
 	}
