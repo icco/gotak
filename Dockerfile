@@ -5,7 +5,6 @@ COPY . .
 
 RUN apk add --no-cache git
 
-RUN go get -d -v ./...
-RUN go install -v ./...
+RUN go install -v ./web
 
 CMD ["/go/bin/web"]
