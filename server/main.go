@@ -4,15 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
+	"contrib.go.opencensus.io/exporter/stackdriver"
+	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
+	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/go-chi/cors"
+	"github.com/sirupsen/logrus"
+	"go.opencensus.io/plugin/ochttp"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/trace"
 	"gopkg.in/unrolled/render.v1"
 	"gopkg.in/unrolled/secure.v1"
 )
@@ -34,52 +39,13 @@ var (
 		Funcs:                     []template.FuncMap{template.FuncMap{}},
 	})
 
-	// SecureMiddlewareOptions is a set of defaults for securing web apps.
-	// SSLRedirect is handeled by a different middleware because it does not
-	// support whitelisting paths.
-	SecureMiddlewareOptions = secure.Options{
-		HostsProxyHeaders:    []string{"X-Forwarded-Host"},
-		SSLRedirect:          false, // No way to whitelist for healthcheck :/
-		SSLProxyHeaders:      map[string]string{"X-Forwarded-Proto": "https"},
-		STSSeconds:           315360000,
-		STSIncludeSubdomains: true,
-		STSPreload:           true,
-		FrameDeny:            true,
-		ContentTypeNosniff:   true,
-		BrowserXssFilter:     true,
-		IsDevelopment:        os.Getenv("TAK_ENV") == "local",
+	log = &logrus.Logger{
+		Out:       os.Stderr,
+		Formatter: new(logrus.JSONFormatter),
+		Hooks:     make(logrus.LevelHooks),
+		Level:     logrus.DebugLevel,
 	}
 )
-
-// SSLMiddleware redirects for all paths besides /healthz and /metrics. This is
-// a slight modification of the code in
-// https://github.com/unrolled/secure/blob/v1/secure.go
-func SSLMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/healthz" && r.URL.Path != "/metrics" {
-			ssl := strings.EqualFold(r.URL.Scheme, "https") || r.TLS != nil
-			if !ssl {
-				for k, v := range SecureMiddlewareOptions.SSLProxyHeaders {
-					if r.Header.Get(k) == v {
-						ssl = true
-						break
-					}
-				}
-			}
-
-			if !ssl && !SecureMiddlewareOptions.IsDevelopment {
-				url := r.URL
-				url.Scheme = "https"
-				url.Host = r.Host
-
-				http.Redirect(w, r, url.String(), http.StatusMovedPermanently)
-				return
-			}
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
 
 func main() {
 	port := "8080"
@@ -88,19 +54,28 @@ func main() {
 	}
 	log.Printf("Starting up on %s", port)
 
-	secureMiddleware := secure.New(SecureMiddlewareOptions)
+	sd, err := stackdriver.NewExporter(stackdriver.Options{
+		ProjectID:               "icco-cloud",
+		MetricPrefix:            "graphql",
+		MonitoredResource:       monitoredresource.Autodetect(),
+		DefaultMonitoringLabels: &stackdriver.Labels{},
+		DefaultTraceAttributes:  map[string]interface{}{"/http/host": "graphql.natwelch.com"},
+	})
+
+	if err != nil {
+		log.Fatalf("Failed to create the Stackdriver exporter: %v", err)
+	}
+	defer sd.Flush()
+
+	view.RegisterExporter(sd)
+	trace.RegisterExporter(sd)
+	trace.ApplyConfig(trace.Config{
+		DefaultSampler: trace.AlwaysSample(),
+	})
+
+	isDev := os.Getenv("NAT_ENV") != "production"
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	// Turnstile and security when not local
-	if !SecureMiddlewareOptions.IsDevelopment {
-		r.Use(secureMiddleware.Handler)
-		r.Use(SSLMiddleware)
-	}
 
 	db, err := getDB()
 	if err != nil {
@@ -108,15 +83,58 @@ func main() {
 		return
 	}
 
-	// Metrics
-	r.Get("/healthz", healthCheckHandler)
-	r.Mount("/metrics", promhttp.Handler())
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Recoverer)
+	r.Use(NewStructuredLogger(log))
 
-	r.Get("/", rootHandler)
-	r.HandleFunc("/game/{slug}", getGameHandler)
-	r.Get("/game/{slug}/{turn}", getTurnHandler)
-	r.Post("/game/new", newGameHandler)
-	r.Post("/game/{slug}/move", newMoveHandler)
+	r.Use(cors.New(cors.Options{
+		AllowCredentials:   true,
+		OptionsPassthrough: true,
+		AllowedOrigins:     []string{"*"},
+		AllowedMethods:     []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:     []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:     []string{"Link"},
+		MaxAge:             300, // Maximum value not ignored by any of major browsers
+	}).Handler)
+
+	r.NotFound(notFoundHandler)
+
+	// Stuff that does not ssl redirect
+	r.Group(func(r chi.Router) {
+		r.Use(secure.New(secure.Options{
+			BrowserXssFilter:   true,
+			ContentTypeNosniff: true,
+			FrameDeny:          true,
+			HostsProxyHeaders:  []string{"X-Forwarded-Host"},
+			IsDevelopment:      isDev,
+			SSLProxyHeaders:    map[string]string{"X-Forwarded-Proto": "https"},
+		}).Handler)
+
+		r.Get("/healthz", healthCheckHandler)
+	})
+
+	// Everything that does SSL only
+	r.Group(func(r chi.Router) {
+		r.Use(secure.New(secure.Options{
+			BrowserXssFilter:     true,
+			ContentTypeNosniff:   true,
+			FrameDeny:            true,
+			HostsProxyHeaders:    []string{"X-Forwarded-Host"},
+			IsDevelopment:        isDev,
+			SSLProxyHeaders:      map[string]string{"X-Forwarded-Proto": "https"},
+			SSLRedirect:          !isDev,
+			STSIncludeSubdomains: true,
+			STSPreload:           true,
+			STSSeconds:           315360000,
+		}).Handler)
+
+		r.Get("/", rootHandler)
+		r.HandleFunc("/game/{slug}", getGameHandler)
+		r.Get("/game/{slug}/{turn}", getTurnHandler)
+		r.Post("/game/new", newGameHandler)
+		r.Post("/game/{slug}/move", newMoveHandler)
+	})
 
 	err = updateDB(db)
 	if err != nil {
@@ -124,7 +142,15 @@ func main() {
 		return
 	}
 
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	h := &ochttp.Handler{
+		Handler:     r,
+		Propagation: &propagation.HTTPFormat{},
+	}
+	if err := view.Register(ochttp.DefaultServerViews...); err != nil {
+		log.Fatal("Failed to register ochttp.DefaultServerViews")
+	}
+
+	log.Fatal(http.ListenAndServe(":"+port, h))
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -258,5 +284,11 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 		"revision": os.Getenv("GIT_REVISION"),
 		"tag":      os.Getenv("GIT_TAG"),
 		"branch":   os.Getenv("GIT_BRANCH"),
+	})
+}
+
+func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	Renderer.JSON(w, http.StatusNotFound, map[string]string{
+		"error": "404: This page could not be found",
 	})
 }
