@@ -5,7 +5,6 @@ go:
 
 before_script:
   - go get github.com/golang/lint/golint
-  - go get honnef.co/go/tools/cmd/megacheck
   - go get github.com/fzipp/gocyclo
   - psql -c 'create database travis_ci_test;' -U postgres
 addons:
@@ -21,5 +20,4 @@ env:
 script:
   - go test -v -race -cover ./...
   - go vet ./...
-  - megacheck ./...
   - golint -set_exit_status
