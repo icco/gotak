@@ -4,10 +4,13 @@ require (
 	contrib.go.opencensus.io/exporter/stackdriver v0.8.0
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 	github.com/deckarep/golang-set v1.7.1
+	github.com/felixge/httpsnoop v1.0.0
 	github.com/go-chi/chi v3.3.3+incompatible
 	github.com/go-chi/cors v1.0.0
 	github.com/golang-migrate/migrate v3.5.4+incompatible
 	github.com/golang/protobuf v1.2.0
+	github.com/hellofresh/logging-go v0.3.0
+	github.com/icco/logrus-stackdriver-formatter v0.1.1-0.20181229063138-933aa6fd9d09
 	github.com/ifo/sanic v0.0.0-20180325220412-3c19d12f362c
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/lib/pq v1.0.0

@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
-	"github.com/sirupsen/logrus"
+	"github.com/icco/gotak"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/trace"
@@ -39,12 +39,7 @@ var (
 		Funcs:                     []template.FuncMap{template.FuncMap{}},
 	})
 
-	log = &logrus.Logger{
-		Out:       os.Stderr,
-		Formatter: new(logrus.JSONFormatter),
-		Hooks:     make(logrus.LevelHooks),
-		Level:     logrus.DebugLevel,
-	}
+	log = gotak.InitLogging()
 )
 
 func main() {
@@ -63,7 +58,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Fatalf("Failed to create the Stackdriver exporter: %v", err)
+		log.WithError(err).Fatalf("Failed to create the Stackdriver exporter: %v", err)
 	}
 	defer sd.Flush()
 
@@ -86,7 +81,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
-	r.Use(NewStructuredLogger(log))
+	r.Use(gotak.LoggingMiddleware())
 
 	r.Use(cors.New(cors.Options{
 		AllowCredentials:   true,
