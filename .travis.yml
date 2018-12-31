@@ -1,13 +1,22 @@
 language: go
-
+sudo: false
 go:
-  - "1.x"
+  - "1.11.x"
 
 before_script:
   - go get github.com/golang/lint/golint
   - go get honnef.co/go/tools/cmd/megacheck
   - go get github.com/fzipp/gocyclo
-
+  - psql -c 'create database travis_ci_test;' -U postgres
+addons:
+  postgresql: 9.6
+services:
+  - postgresql
+install: true
+env:
+  global:
+    - GO111MODULE=on
+    - DATABASE_URL="postgres://postgres@localhost/travis_ci_test?sslmode=disable"
 
 script:
   - go test -v -race -cover ./...
