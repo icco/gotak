@@ -49,12 +49,13 @@ func main() {
 	}
 	log.Printf("Starting up on %s", port)
 
+	labels := &stackdriver.Labels{}
+	labels.Set("app", "gotak", "The name of the app.")
 	sd, err := stackdriver.NewExporter(stackdriver.Options{
 		ProjectID:               "icco-cloud",
-		MetricPrefix:            "graphql",
 		MonitoredResource:       monitoredresource.Autodetect(),
-		DefaultMonitoringLabels: &stackdriver.Labels{},
-		DefaultTraceAttributes:  map[string]interface{}{"/http/host": "graphql.natwelch.com"},
+		DefaultMonitoringLabels: labels,
+		DefaultTraceAttributes:  map[string]interface{}{"/http/host": "gotak.app"},
 	})
 
 	if err != nil {
