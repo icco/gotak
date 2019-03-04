@@ -20,6 +20,8 @@ require (
 	github.com/prometheus/common v0.0.0-20181120120127-aeab699e26f4
 	github.com/prometheus/procfs v0.0.0-20181005140218-185b4288413d
 	github.com/sirupsen/logrus v1.2.0
+	github.com/unrolled/render v1.0.0
+	github.com/unrolled/secure v1.0.0
 	go.opencensus.io v0.18.0
 	gopkg.in/unrolled/render.v1 v1.0.0-20180914162206-b9786414de4d
 	gopkg.in/unrolled/secure.v1 v1.0.0-20181022170031-4b6b7cf51606

@@ -15,11 +15,11 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/icco/gotak"
+	"github.com/unrolled/render"
+	"github.com/unrolled/secure"
 	"go.opencensus.io/plugin/ochttp"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/trace"
-	"gopkg.in/unrolled/render.v1"
-	"gopkg.in/unrolled/secure.v1"
 )
 
 var (
@@ -128,6 +128,7 @@ func main() {
 		r.Get("/", rootHandler)
 		r.HandleFunc("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
+		r.Get("/game/new", newGameHandler)
 		r.Post("/game/new", newGameHandler)
 		r.Post("/game/{slug}/move", newMoveHandler)
 	})
@@ -159,13 +160,23 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data map[string]int
-	decoder := json.NewDecoder(r.Body)
-	decoder.Decode(&data)
+	boardSize := 8
 
-	slug, err := createGame(db, data["size"])
+	var data map[string]string
+	decoder := json.NewDecoder(r.Body)
+	err = decoder.Decode(&data)
+
+	if err == nil && data != nil && data["size"] != "" {
+		i, err := strconv.Atoi(data["size"])
+		if err == nil && i > 0 {
+			boardSize = i
+		}
+	}
+
+	slug, err := createGame(db, boardSize)
 	if err != nil {
-		log.Panic(err)
+		log.Error(err)
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 
