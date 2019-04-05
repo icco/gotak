@@ -15,12 +15,12 @@ import (
 )
 
 func getDB() (*sql.DB, error) {
-	dbUrl := os.Getenv("DATABASE_URL")
-	if dbUrl == "" {
-		return nil, fmt.Errorf("DATABASE_URL is empty!")
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
 
-	return sql.Open("postgres", dbUrl)
+	return sql.Open("postgres", dbURL)
 }
 
 func updateDB(db *sql.DB) error {
