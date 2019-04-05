@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/icco/gotak"
+	sdLogging "github.com/icco/logrus-stackdriver-formatter"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.opencensus.io/plugin/ochttp"
@@ -82,7 +83,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
-	r.Use(gotak.LoggingMiddleware())
+	r.Use(sdLogging.LoggingMiddleware(log))
 
 	r.Use(cors.New(cors.Options{
 		AllowCredentials:   true,
