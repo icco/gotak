@@ -4,8 +4,8 @@ go:
   - "1.12.x"
 
 before_script:
-  - go get github.com/golang/lint/golint
-  - go get github.com/fzipp/gocyclo
+  - go get -u -d -v golang.org/x/lint/golint
+  - go get -u -d -v github.com/fzipp/gocyclo
   - psql -c 'create database travis_ci_test;' -U postgres
 addons:
   postgresql: 9.6
