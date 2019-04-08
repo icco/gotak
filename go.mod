@@ -3,13 +3,11 @@ module github.com/icco/gotak
 go 1.12
 
 require (
-	contrib.go.opencensus.io/exporter/stackdriver v0.10.0
+	contrib.go.opencensus.io/exporter/stackdriver v0.10.1
 	github.com/deckarep/golang-set v1.7.1
-	github.com/felixge/httpsnoop v1.0.0
 	github.com/go-chi/chi v4.0.2+incompatible
 	github.com/go-chi/cors v1.0.0
 	github.com/golang-migrate/migrate v3.5.4+incompatible
-	github.com/hellofresh/logging-go v0.3.0
 	github.com/icco/logrus-stackdriver-formatter v0.3.0
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.4.0
