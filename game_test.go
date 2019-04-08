@@ -2,7 +2,6 @@ package gotak
 
 import (
 	"fmt"
-	"go/build"
 	"io/ioutil"
 	"path"
 	"testing"
@@ -15,8 +14,7 @@ func assertNotEqual(t *testing.T, context string, a interface{}, b interface{}) 
 }
 
 func TestParse(t *testing.T) {
-	gopath := build.Default.GOPATH
-	dir := path.Join(gopath, "src", "github.com", "icco", "gotak", "test_games")
+	dir := path.Join(".", "test_games")
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		t.Errorf("%+v", err)
