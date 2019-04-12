@@ -152,6 +152,23 @@ func main() {
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(`
+<html>
+  <head>
+    <title>GoTak</title>
+  </head>
+  <body>
+    <h1>GoTak</h1>
+    <ul>
+      <li>Get "/game/{slug}"</li>
+      <li>Get "/game/{slug}/{turn}"</li>
+      <li>Get "/game/new"</li>
+      <li>Post "/game/new"</li>
+      <li>Post "/game/{slug}/move"</li>
+    </ul>
+  </body>
+</html>
+  `))
 }
 
 func newGameHandler(w http.ResponseWriter, r *http.Request) {
