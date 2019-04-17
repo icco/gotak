@@ -100,7 +100,6 @@ $ptn-bg-radius: 0.2em;
   html:not(.board-3d) & {
     transform: none !important;
   }
-
 }
 
 .board {
@@ -110,8 +109,7 @@ $ptn-bg-radius: 0.2em;
   will-change: width, height;
 
   html.animate-ui & {
-    transition: width $time-smooth $natural,
-      height $time-smooth $natural;
+    transition: width $time-smooth $natural, height $time-smooth $natural;
   }
 
   .squares,
@@ -136,7 +134,7 @@ $ptn-bg-radius: 0.2em;
 
     &:before,
     &:after {
-      content: '';
+      content: "";
       display: block;
       @include position-fill;
       opacity: 0;
@@ -155,21 +153,29 @@ $ptn-bg-radius: 0.2em;
       &.selected:hover:after {
         opacity: 0.25 !important;
       }
-      &.p1.selected:after { background-color: $primary-color-100 }
-      &.p2.selected:after { background-color: $primary-color-700 }
+      &.p1.selected:after {
+        background-color: $primary-color-100;
+      }
+      &.p2.selected:after {
+        background-color: $primary-color-700;
+      }
 
       html.can-hover & {
         &:hover:after {
           opacity: 0.35 !important;
         }
-        &.p1:hover:after { background-color: $primary-color-100 }
-        &.p2:hover:after { background-color: $primary-color-700 }
+        &.p1:hover:after {
+          background-color: $primary-color-100;
+        }
+        &.p2:hover:after {
+          background-color: $primary-color-700;
+        }
       }
       html.can-hover.p1 &:not(.placed):hover:after {
-        background-color: $primary-color-100
+        background-color: $primary-color-100;
       }
       html.can-hover.p2 &:not(.placed):hover:after {
-        background-color: $primary-color-700
+        background-color: $primary-color-700;
       }
     }
 
@@ -213,18 +219,24 @@ $ptn-bg-radius: 0.2em;
 
         html.animate-board & {
           transition: opacity $time-smooth/2 linear,
-            background-color $time-smooth linear,
-            left $time-smooth/2 $natural,
-            right $time-smooth/2 $natural,
-            top $time-smooth/2 $natural,
+            background-color $time-smooth linear, left $time-smooth/2 $natural,
+            right $time-smooth/2 $natural, top $time-smooth/2 $natural,
             bottom $time-smooth/2 $natural;
         }
       }
 
-      .up { top: 0; }
-      .down { bottom: 0; }
-      .left { left: 0; }
-      .right { right: 0; }
+      .up {
+        top: 0;
+      }
+      .down {
+        bottom: 0;
+      }
+      .left {
+        left: 0;
+      }
+      .right {
+        right: 0;
+      }
     }
 
     html.show-roads &.up .road .up,
@@ -251,8 +263,12 @@ $ptn-bg-radius: 0.2em;
         bottom $time-smooth/2 $natural $time-smooth/2;
     }
 
-    &.p1 .road > div { background-color: $primary-color-100 }
-    &.p2 .road > div { background-color: $primary-color-700 }
+    &.p1 .road > div {
+      background-color: $primary-color-100;
+    }
+    &.p2 .road > div {
+      background-color: $primary-color-700;
+    }
   }
 
   .pieces {
@@ -266,8 +282,7 @@ $ptn-bg-radius: 0.2em;
     will-change: transform, opacity;
 
     html.animate-board & {
-      transition: transform $time-smooth $natural,
-        opacity $time-smooth linear;
+      transition: transform $time-smooth $natural, opacity $time-smooth linear;
     }
 
     &.unplayed {
@@ -275,8 +290,7 @@ $ptn-bg-radius: 0.2em;
         opacity: 0;
       }
       html.animate-board & {
-        transition: transform $time-smooth $natural,
-          opacity $time-smooth/2;
+        transition: transform $time-smooth $natural, opacity $time-smooth/2;
       }
       html.animate-board.show-unplayed-pieces & {
         transition: transform $time-smooth $natural,
@@ -284,12 +298,13 @@ $ptn-bg-radius: 0.2em;
       }
     }
 
-    .stone, .captive {
+    .stone,
+    .captive {
       border: 1px solid $blackish;
 
       html.board-shadows & {
         border-color: rgba(0, 0, 0, 0);
-        box-shadow: 0 0.5px 2.5px rgba(0,0,0,0.5);
+        box-shadow: 0 0.5px 2.5px rgba(0, 0, 0, 0.5);
       }
 
       &.p1 {
@@ -303,8 +318,12 @@ $ptn-bg-radius: 0.2em;
     }
 
     &.immovable {
-      .stone { opacity: 0; }
-      .captive { opacity: 1; }
+      .stone {
+        opacity: 0;
+      }
+      .captive {
+        opacity: 1;
+      }
     }
 
     .stone {
@@ -331,10 +350,12 @@ $ptn-bg-radius: 0.2em;
         transform: rotate(-45deg);
 
         html.board-shadows & {
-          box-shadow: -1px 1px 2px 0 rgba(0,0,0,0.14), -1px 1px 5px 0 rgba(0,0,0,0.12), -1px 1px 1px -2px rgba(0,0,0,0.4);
+          box-shadow: -1px 1px 2px 0 rgba(0, 0, 0, 0.14),
+            -1px 1px 5px 0 rgba(0, 0, 0, 0.12),
+            -1px 1px 1px -2px rgba(0, 0, 0, 0.4);
 
           @media (max-width: $mobile) {
-            box-shadow: -1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: -1px 1px 2px rgba(0, 0, 0, 0.5);
           }
         }
       }
@@ -343,10 +364,12 @@ $ptn-bg-radius: 0.2em;
         transform: rotate(45deg);
 
         html.board-shadows & {
-          box-shadow: 1px 1px 2px 0 rgba(0,0,0,0.14), 1px 1px 5px 0 rgba(0,0,0,0.12), 1px 1px 1px -2px rgba(0,0,0,0.4);
+          box-shadow: 1px 1px 2px 0 rgba(0, 0, 0, 0.14),
+            1px 1px 5px 0 rgba(0, 0, 0, 0.12),
+            1px 1px 1px -2px rgba(0, 0, 0, 0.4);
 
           @media (max-width: $mobile) {
-            box-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
           }
         }
       }
@@ -422,7 +445,8 @@ $ptn-bg-radius: 0.2em;
       opacity: 1;
     }
 
-    > .player1, > .player2 {
+    > .player1,
+    > .player2 {
       position: absolute;
       top: 0;
       width: 50%;
@@ -431,7 +455,7 @@ $ptn-bg-radius: 0.2em;
       will-change: width;
 
       &:before {
-        content: '';
+        content: "";
         position: absolute;
         bottom: -0.5em;
         width: 0;
@@ -441,13 +465,15 @@ $ptn-bg-radius: 0.2em;
       }
 
       html.animate-board & {
-        &, &:before {
+        &,
+        &:before {
           transition: width $time-smooth $natural;
         }
       }
     }
 
-    .name, .score {
+    .name,
+    .score {
       padding: 0 0.5em;
     }
 
@@ -554,10 +580,12 @@ $ptn-bg-radius: 0.2em;
         display: none;
       }
 
-      &:hover, &.active {
+      &:hover,
+      &.active {
         background-color: rgba($branch-color, 0.75);
       }
-      &.active:hover, &:active {
+      &.active:hover,
+      &:active {
         background-color: $branch-color;
       }
     }
@@ -592,14 +620,13 @@ $ptn-bg-radius: 0.2em;
     }
 
     html.animate-ui &.visible {
-      transition: opacity $time-smooth linear,
-        transform $time-smooth $natural;
+      transition: opacity $time-smooth linear, transform $time-smooth $natural;
     }
 
     > .branch {
       @include unselectable;
       position: relative;
-      max-width: calc(100vw - #{$edge*2});
+      max-width: calc(100vw - #{$edge * 2});
       overflow-wrap: break-word;
       padding: 0.75em;
       white-space: nowrap;
@@ -626,7 +653,6 @@ $ptn-bg-radius: 0.2em;
   }
 }
 
-
 .labels {
   @include unselectable;
   color: $primary-color-100;
@@ -642,8 +668,7 @@ $ptn-bg-radius: 0.2em;
     will-change: opacity, right;
 
     html.animate-ui & {
-      transition: opacity $time-smooth linear,
-        right $time-smooth $natural;
+      transition: opacity $time-smooth linear, right $time-smooth $natural;
     }
 
     html.show-axis-labels & {
@@ -663,8 +688,7 @@ $ptn-bg-radius: 0.2em;
     will-change: opacity, margin-top;
 
     html.animate-ui & {
-      transition: opacity $time-smooth linear,
-        margin-top $time-smooth $natural;
+      transition: opacity $time-smooth linear, margin-top $time-smooth $natural;
     }
 
     html.show-axis-labels & {
@@ -684,7 +708,6 @@ $ptn-bg-radius: 0.2em;
   }
 }
 
-
 .unplayed-bg {
   @include position-fill;
   border-radius: 0 $ptn-bg-radius $ptn-bg-radius 0;
@@ -699,13 +722,12 @@ $ptn-bg-radius: 0.2em;
   }
 }
 
-
 @for $size from 3 through 9 {
   .size-#{$size} {
     .square,
     .piece {
-      width: percentage(1/$size);
-      height: percentage(1/$size);
+      width: percentage(1 / $size);
+      height: percentage(1 / $size);
     }
   }
 
@@ -758,7 +780,6 @@ $ptn-bg-radius: 0.2em;
   }
 
   button.play {
-
     i {
       transition: opacity $time-smooth linear;
 
@@ -779,7 +800,8 @@ $ptn-bg-radius: 0.2em;
   }
 
   @media (max-width: 430px) {
-    button.prev_move, button.next_move {
+    button.prev_move,
+    button.next_move {
       display: none;
     }
   }
@@ -789,7 +811,8 @@ $ptn-bg-radius: 0.2em;
   white-space: nowrap;
 
   @media (min-width: 431px) {
-    button.prev_move, button.next_move {
+    button.prev_move,
+    button.next_move {
       opacity: 0;
       pointer-events: none;
     }
