@@ -17,13 +17,23 @@ export default class Board extends React.Component {
         const squareShade = i % 2 && j % 2 ? "light" : "dark";
         squareRows.push(this.renderSquare(i * size + j, squareShade));
       }
-      board.push(<div className="board-row">{squareRows}</div>);
+      board.push(
+        <div className="board-row" key={"row-" + i}>
+          {squareRows}
+        </div>
+      );
     }
 
-    return <div>{board}</div>;
+    return <div className="board">{board}</div>;
   }
 
   renderSquare(i, squareShade) {
-    return <Square shade={squareShade} onClick={() => this.props.onClick(i)} />;
+    return (
+      <Square
+        shade={squareShade}
+        onClick={() => this.props.onClick(i)}
+        key={"square-" + i}
+      />
+    );
   }
 }
