@@ -1,12 +1,13 @@
-import React from 'react';
+import React from "react";
 
-import '../css/square.css';
+import "../css/square.css";
 
 export default function Square(props) {
-    return (
-      <div className={"square " + props.shade}
+  return (
+    <div
+      className={"square " + props.shade}
       onClick={props.onClick}
-      style={props.style} />
-    );
-  
+      style={props.style}
+    />
+  );
 }
