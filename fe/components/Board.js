@@ -14,7 +14,8 @@ export default class Board extends React.Component {
     for (let i = 0; i < size; i++) {
       const squareRows = [];
       for (let j = 0; j < size; j++) {
-        const squareShade = i % 2 && j % 2 ? "light" : "dark";
+        const squareShade =
+          (i % 2 && j % 2) || (!(i % 2) && !(j % 2)) ? "light" : "dark";
         squareRows.push(this.renderSquare(i * size + j, squareShade));
       }
       board.push(
