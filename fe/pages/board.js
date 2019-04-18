@@ -1,4 +1,5 @@
 import "../css/board.scss";
+import "../css/base.scss";
 
 export default () => (
   <div id="viewer">
