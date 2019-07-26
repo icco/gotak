@@ -2,6 +2,8 @@ import React from "react";
 
 import Square from "./square.js";
 
+import "../css/board.scss";
+
 export default class Board extends React.Component {
   render() {
     let size = this.props.size;
@@ -32,9 +34,14 @@ export default class Board extends React.Component {
     return (
       <Square
         shade={squareShade}
-        onClick={() => this.props.onClick(i)}
+        onClick={() => this.onClick(i)}
         key={"square-" + i}
+        style={{}}
       />
     );
+  }
+
+  onClick(i) {
+    console.log("clicked", i)
   }
 }
