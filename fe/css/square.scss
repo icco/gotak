@@ -1,0 +1,27 @@
+.square {
+  background: transparent;
+  border: 1px solid transparent;
+  display: block;
+  float: left;
+  font-size: 24px;
+  font-weight: bold;
+  height: 48px;
+  line-height: 34px;
+  margin-right: -1px;
+  margin-top: -1px;
+  padding: 0;
+  text-align: center;
+  width: 48px;
+}
+
+.square:focus {
+  outline: none;
+}
+
+.dark {
+  background-color: #85abc7;
+}
+
+.light {
+  background-color: #5389b0;
+}
