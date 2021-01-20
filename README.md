@@ -1,6 +1,6 @@
 # gotak
 
-[![Build Status](https://travis-ci.org/icco/gotak.svg?branch=master)](https://travis-ci.org/icco/gotak) [![GoDoc](https://godoc.org/github.com/icco/gotak?status.svg)](https://godoc.org/github.com/icco/gotak) [![Go Report Card](https://goreportcard.com/badge/github.com/icco/gotak)](https://goreportcard.com/report/github.com/icco/gotak)
+[![Build Status](https://travis-ci.org/icco/gotak.svg?branch=main)](https://travis-ci.org/icco/gotak) [![GoDoc](https://godoc.org/github.com/icco/gotak?status.svg)](https://godoc.org/github.com/icco/gotak) [![Go Report Card](https://goreportcard.com/badge/github.com/icco/gotak)](https://goreportcard.com/report/github.com/icco/gotak)
 
 A Tak server.
 
