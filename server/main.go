@@ -8,19 +8,14 @@ import (
 	"os"
 	"strconv"
 
-	"contrib.go.opencensus.io/exporter/stackdriver"
-	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
-	"contrib.go.opencensus.io/exporter/stackdriver/propagation"
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/icco/gotak"
-	sdLogging "github.com/icco/logrus-stackdriver-formatter"
+	"github.com/icco/gutil/logging"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
-	"go.opencensus.io/plugin/ochttp"
-	"go.opencensus.io/stats/view"
-	"go.opencensus.io/trace"
+	"go.uber.org/zap"
 )
 
 var (
@@ -40,7 +35,7 @@ var (
 		Funcs:                     []template.FuncMap{template.FuncMap{}},
 	})
 
-	log = gotak.InitLogging()
+	log = logging.Must(logging.NewLogger("gotak"))
 )
 
 func main() {
@@ -48,42 +43,19 @@ func main() {
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
 		port = fromEnv
 	}
-	log.Printf("Starting up on %s", port)
-
-	labels := &stackdriver.Labels{}
-	labels.Set("app", "gotak", "The name of the app.")
-	sd, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID:               "icco-cloud",
-		MonitoredResource:       monitoredresource.Autodetect(),
-		DefaultMonitoringLabels: labels,
-		DefaultTraceAttributes:  map[string]interface{}{"/http/host": "gotak.app"},
-	})
-
-	if err != nil {
-		log.WithError(err).Fatalf("Failed to create the Stackdriver exporter: %v", err)
-	}
-	defer sd.Flush()
-
-	view.RegisterExporter(sd)
-	trace.RegisterExporter(sd)
-	trace.ApplyConfig(trace.Config{
-		DefaultSampler: trace.AlwaysSample(),
-	})
+	log.Infow("Starting up", "host", fmt.Sprintf("http://localhost:%s", port))
 
 	isDev := os.Getenv("NAT_ENV") != "production"
 
 	r := chi.NewRouter()
+	r.Use(middleware.RealIP)
+	r.Use(logging.Middleware(log.Desugar(), cron.GCPProject))
 
 	db, err := getDB()
 	if err != nil {
-		log.Panic(err)
+		log.Panicw("could not get db", zap.Error(err))
 		return
 	}
-
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
-	r.Use(sdLogging.LoggingMiddleware(log))
 
 	r.Use(cors.New(cors.Options{
 		AllowCredentials:   true,
@@ -148,7 +120,7 @@ func main() {
 		ochttp.ServerRequestCountView,
 		ochttp.ServerResponseCountByStatusCode,
 	}...); err != nil {
-		log.Fatal("Failed to register ochttp.DefaultServerViews")
+		log.Fatal("failed to register ochttp.DefaultServerViews")
 	}
 
 	log.Fatal(http.ListenAndServe(":"+port, h))
@@ -177,17 +149,15 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
-		log.Panic(err)
+		log.Errorw("could not get db", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
 		return
 	}
 
 	boardSize := 8
 
 	var data map[string]string
-	decoder := json.NewDecoder(r.Body)
-	err = decoder.Decode(&data)
-
-	if err == nil && data != nil && data["size"] != "" {
+	if err := json.NewDecoder(r.Body).decoder.Decode(&data); err == nil && data != nil && data["size"] != "" {
 		i, err := strconv.Atoi(data["size"])
 		if err == nil && i > 0 {
 			boardSize = i
@@ -196,7 +166,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 
 	slug, err := createGame(db, boardSize)
 	if err != nil {
-		log.Error(err)
+		log.Errorw("could not create game", zap.Error(err))
 		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
@@ -207,7 +177,8 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
-		log.Panic(err)
+		log.Errorw("could not get db", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
 		return
 	}
 
@@ -217,11 +188,10 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParamFromCtx(ctx, "slug")
 	id, err := getGameID(db, slug)
 	if err != nil {
-		log.Printf("%+v : %+v", slug, err)
+		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
-
-	decoder := json.NewDecoder(r.Body)
 
 	var data struct {
 		Player int    `json:"player"`
@@ -229,26 +199,26 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		Turn   int64  `json:"turn"`
 	}
 
-	err = decoder.Decode(&data)
-	if err != nil {
-		log.Printf("%+v : %+v", r.Body, err)
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		log.Errorw("could not read body", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 
 	if data.Text == "" {
-		log.Printf("empty data")
+		log.Errorw("empty request", "data", data)
+		Renderer.JSON(w, 400, map[string]string{"error": "empty request"})
 		return
 	}
 
-	err = insertMove(db, id, data.Player, data.Text, data.Turn)
-	if err != nil {
-		log.Printf("insert: %+v", err)
+	if err := insertMove(db, id, data.Player, data.Text, data.Turn); err != nil {
+		log.Errorw("bad insert", "data", data, zap.Error(err))
 		return
 	}
 
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Printf("%+v : %+v", slug, err)
+		log.Errorw("bad get game", "slug", slug, zap.Error(err))
 		return
 	}
 
@@ -258,7 +228,8 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
-		log.Panic(err)
+		log.Errorw("could not get db", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
 		return
 	}
 
@@ -268,7 +239,8 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParamFromCtx(ctx, "slug")
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Printf("%+v : %+v", slug, err)
+		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -278,7 +250,8 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
-		log.Panic(err)
+		log.Errorw("could not get db", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
 		return
 	}
 
@@ -288,18 +261,21 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParamFromCtx(ctx, "slug")
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Printf("%+v : %+v", slug, err)
+		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 
 	turnNum, err := strconv.ParseInt(chi.URLParamFromCtx(ctx, "turn"), 10, 0)
 	if err != nil {
-		log.Printf("parsing turn: %+v", err)
+		log.Errorw("could not get turn", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 	turn, err := game.GetTurn(turnNum)
 	if err != nil {
-		log.Printf("%+v : %+v", slug, err)
+		log.Errorw("could not get turn", "turn", turnNum, zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 
