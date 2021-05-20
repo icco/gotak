@@ -10,14 +10,12 @@ require (
 	github.com/docker/docker v20.10.2+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-chi/chi/v5 v5.0.3
 	github.com/go-chi/cors v1.2.0
+	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang-migrate/migrate v3.5.4+incompatible
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/hellofresh/logging-go v0.4.0 // indirect
 	github.com/icco/gutil v0.0.0-20210424022412-a2a8a04ef1f6
-	github.com/icco/logrus-stackdriver-formatter v0.3.0
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/lib/pq v1.10.2
@@ -25,7 +23,7 @@ require (
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/unrolled/render v1.2.0
 	github.com/unrolled/secure v1.0.9
 	go.uber.org/multierr v1.7.0 // indirect
