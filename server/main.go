@@ -35,7 +35,7 @@ var (
 		Funcs:                     []template.FuncMap{template.FuncMap{}},
 	})
 
-	log = logging.Must(logging.NewLogger("gotak"))
+	log = logging.Must(logging.NewLogger(gotak.Service))
 )
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
-	r.Use(logging.Middleware(log.Desugar(), cron.GCPProject))
+	r.Use(logging.Middleware(log.Desugar(), gotak.GCPProject))
 
 	db, err := getDB()
 	if err != nil {
@@ -106,24 +106,12 @@ func main() {
 		r.Post("/game/{slug}/move", newMoveHandler)
 	})
 
-	err = updateDB(db)
-	if err != nil {
+	if err := updateDB(db); err != nil {
 		log.Panic(err)
 		return
 	}
 
-	h := &ochttp.Handler{
-		Handler:     r,
-		Propagation: &propagation.HTTPFormat{},
-	}
-	if err := view.Register([]*view.View{
-		ochttp.ServerRequestCountView,
-		ochttp.ServerResponseCountByStatusCode,
-	}...); err != nil {
-		log.Fatal("failed to register ochttp.DefaultServerViews")
-	}
-
-	log.Fatal(http.ListenAndServe(":"+port, h))
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
