@@ -145,7 +145,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	boardSize := 8
 
 	var data map[string]string
-	if err := json.NewDecoder(r.Body).decoder.Decode(&data); err == nil && data != nil && data["size"] != "" {
+	if err := json.NewDecoder(r.Body).Decode(&data); err == nil && data != nil && data["size"] != "" {
 		i, err := strconv.Atoi(data["size"])
 		if err == nil && i > 0 {
 			boardSize = i
