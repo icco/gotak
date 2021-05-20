@@ -268,7 +268,7 @@ func parseTurn(line string) (*Turn, error) {
 		numberVal := fields[0]
 		numberVal = strings.TrimRight(numberVal, ".")
 		if regexp.MustCompile("[^0-9]+").MatchString(numberVal) {
-			log.Printf("%+v is not a number, ignoring line.", numberVal)
+			log.Warnw("not a number, ignoring line", "number", numberVal)
 			return nil, nil
 		}
 		num, err := strconv.ParseInt(numberVal, 10, 64)
