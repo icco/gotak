@@ -1,6 +1,6 @@
 package gotak
 
-import ()
+import "github.com/icco/gutil/logging"
 
 const (
 	// GCPProject is the project this runs in.
