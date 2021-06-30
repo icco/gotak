@@ -15,7 +15,7 @@ require (
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang-migrate/migrate v3.5.4+incompatible
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/icco/gutil v0.0.0-20210424022412-a2a8a04ef1f6
+	github.com/icco/gutil v0.0.0-20210607003632-0fb9226bd58b
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/lib/pq v1.10.2
@@ -24,11 +24,10 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/unrolled/render v1.2.0
+	github.com/unrolled/render v1.4.0
 	github.com/unrolled/secure v1.0.9
-	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.16.0
-	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015 // indirect
-	gopkg.in/yaml.v2 v2.2.8 // indirect
+	go.uber.org/atomic v1.8.0 // indirect
+	go.uber.org/zap v1.18.1
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	gotest.tools/v3 v3.0.3 // indirect
 )
