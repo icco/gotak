@@ -10,7 +10,6 @@ require (
 	github.com/docker/docker v20.10.2+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.0
 	github.com/gogo/protobuf v1.2.1 // indirect
@@ -27,8 +26,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/unrolled/render v1.4.1
 	github.com/unrolled/secure v1.0.9
-	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.20.0
 	gotest.tools/v3 v3.0.3 // indirect
 )
