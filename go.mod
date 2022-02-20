@@ -3,7 +3,6 @@ module github.com/icco/gotak
 go 1.12
 
 require (
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v1.0.0-RC1.0.20220111155622-771af0772772 // indirect
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/containerd/containerd v1.4.3 // indirect
 	github.com/deckarep/golang-set v1.8.0
