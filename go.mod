@@ -16,7 +16,7 @@ require (
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang-migrate/migrate v3.5.4+incompatible
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/icco/gutil v0.0.0-20220220010526-7c82f1ebf02d
+	github.com/icco/gutil v0.0.0-20220221170217-9aa326c389ec
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/lib/pq v1.10.4
