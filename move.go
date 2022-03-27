@@ -121,7 +121,7 @@ func (m *Move) parseMove() error {
 	}
 
 	if totalDropped != m.MoveCount {
-		return fmt.Errorf("Did not drop same pieces picked up: %d != %d", totalDropped, m.MoveCount)
+		return fmt.Errorf("did not drop same pieces picked up: %d != %d", totalDropped, m.MoveCount)
 	}
 
 	m.Stone = parts[5]
