@@ -94,7 +94,7 @@ func (g *Game) GetMeta(key string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("No such meta key '%s'", key)
+	return "", fmt.Errorf("no such meta key %q", key)
 }
 
 // UpdateMeta adds or updates a tag on a game.
@@ -120,9 +120,11 @@ func (g *Game) UpdateMeta(key, value string) error {
 func (g *Game) GetTurn(number int64) (*Turn, error) {
 	max := float64(0)
 	for _, t := range g.Turns {
-		max = math.Max(max, float64(t.Number))
-		if t != nil && t.Number == number {
-			return t, nil
+		if t != nil {
+			max = math.Max(max, float64(t.Number))
+			if t.Number == number {
+				return t, nil
+			}
 		}
 	}
 
@@ -261,7 +263,7 @@ func parseTurn(line string) (*Turn, error) {
 	if cleanLine != "" {
 		fields := strings.Fields(cleanLine)
 		if len(fields) < 3 || len(fields) > 4 {
-			return turn, fmt.Errorf("Line doesn't have correct number of parts: %+v", fields)
+			return turn, fmt.Errorf("line does not have correct number of parts: %+v", fields)
 		}
 
 		// TODO: Support branches. Right now we discard things that are not ints.

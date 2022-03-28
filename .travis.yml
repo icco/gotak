@@ -2,20 +2,28 @@
 language: go
 sudo: false
 go:
-  - "1.16"
+  - "1.17"
 env:
   - GO111MODULE=on
 before_script:
-  - psql -c 'create database travis_ci_test;' -U postgres
+  - psql -c 'create database travis_ci_test;' -U $PGUSER -p $PGPORT
 addons:
-  postgresql: 9.6
+  postgresql: "11"
+  apt:
+    packages:
+    - postgresql-11
+    - postgresql-client-11
+env:
+  global:
+  - PGPORT=5433
+  - PGUSER=travis
 services:
   - postgresql
 script:
   - go test -v -cover ./...
   - go vet ./...
   - go install honnef.co/go/tools/cmd/staticcheck@latest
-  - staticcheck -go 1.16 ./...
+  - staticcheck -go 1.17 ./...
   - go get -v -u -d github.com/fzipp/gocyclo/cmd/gocyclo
   - go run github.com/fzipp/gocyclo/cmd/gocyclo -avg .
 notifications:
