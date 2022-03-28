@@ -109,12 +109,12 @@ func (b *Board) IsEdge(l string) bool {
 		return true
 	}
 
-	vertical, _ := strconv.Atoi(parts[1])
+	vertical, _ := strconv.ParseInt(parts[1], 10, 64)
 	if vertical == 1 {
 		return true
 	}
 
-	if int64(vertical) == b.Size {
+	if vertical == b.Size {
 		return true
 	}
 
