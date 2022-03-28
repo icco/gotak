@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/icco/gotak"
 	"github.com/icco/gutil/logging"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.uber.org/zap"
@@ -35,7 +36,8 @@ var (
 		Funcs:                     []template.FuncMap{template.FuncMap{}},
 	})
 
-	log = logging.Must(logging.NewLogger(gotak.Service))
+	log       = logging.Must(logging.NewLogger(gotak.Service))
+	ugcPolicy = bluemonday.StrictPolicy()
 )
 
 func main() {
@@ -173,7 +175,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get DB Entry
-	slug := chi.URLParamFromCtx(ctx, "slug")
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 	id, err := getGameID(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
@@ -224,7 +226,7 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get DB Entry
-	slug := chi.URLParamFromCtx(ctx, "slug")
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
@@ -246,7 +248,7 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get DB Entry
-	slug := chi.URLParamFromCtx(ctx, "slug")
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
@@ -254,15 +256,16 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	turnNum, err := strconv.ParseInt(chi.URLParamFromCtx(ctx, "turn"), 10, 0)
+	turnStr := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "turn"))
+	turnNum, err := strconv.ParseInt(turnStr, 10, 0)
 	if err != nil {
-		log.Errorw("could not get turn", zap.Error(err))
+		log.Errorw("could not parse turn", "slug", slug, "turn", turnStr, zap.Error(err))
 		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
 	turn, err := game.GetTurn(turnNum)
 	if err != nil {
-		log.Errorw("could not get turn", "turn", turnNum, zap.Error(err))
+		log.Errorw("could not get turn", "slug", slug, "turn", turnNum, zap.Error(err))
 		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
