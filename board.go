@@ -222,7 +222,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 	}
 
 	if mv.isMove() {
-		begin := len(b.Squares[mv.Square]) - int(mv.MoveCount)
+		begin := int64(len(b.Squares[mv.Square])) - mv.MoveCount
 		stones := b.Squares[mv.Square][begin:]
 		b.Squares[mv.Square] = b.Squares[mv.Square][:begin]
 
