@@ -6,7 +6,7 @@ go:
 env:
   - GO111MODULE=on
 before_script:
-  - psql -c 'create database travis_ci_test;' -U postgres
+  - psql -c 'create database travis_ci_test;' -U $PGUSER -p $PGPORT
 addons:
   postgresql: "11"
   apt:
