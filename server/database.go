@@ -8,9 +8,10 @@ import (
 
 	"github.com/golang-migrate/migrate"
 	"github.com/golang-migrate/migrate/database/postgres"
-	_ "github.com/golang-migrate/migrate/source/file"
 	"github.com/icco/gotak"
 	"github.com/ifo/sanic"
+
+	_ "github.com/golang-migrate/migrate/source/file"
 	_ "github.com/lib/pq"
 )
 
