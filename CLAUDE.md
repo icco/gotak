@@ -29,6 +29,9 @@ go run ./server
 
 # Generate Swagger documentation (after making API changes)
 swag init -g server/main.go -o server/docs
+
+# Install swag tool globally (if not already installed)
+go install github.com/swaggo/swag/cmd/swag@latest
 ```
 
 ### Database Operations
@@ -65,6 +68,7 @@ This is a Tak game server implementation with the following key components:
   - `POST /game/{slug}/move` - Submit move
 - **Database layer** with PostgreSQL for game persistence
 - **Middleware stack** includes CORS, security headers, logging, and request validation
+- **CI/CD**: Automated Swagger documentation updates via GitHub Actions
 
 ### Key Technical Details
 - Uses PTN (Portable Tak Notation) for move representation
@@ -85,3 +89,10 @@ This is a Tak game server implementation with the following key components:
 - Comprehensive test coverage for core game logic
 - Test games in `test_games/` directory with real PTN files
 - Unit tests for move parsing, board state, and game rules
+
+### CI/CD and Documentation
+- **GitHub Actions**: 
+  - CodeQL security analysis on push/PR to main
+  - Automatic Swagger documentation updates on API changes
+- **Swagger Documentation**: Auto-generated API docs served at `/swagger/`
+- **Workflow triggers**: Documentation updates when Go files in `server/` or core game files change
