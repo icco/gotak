@@ -1,0 +1,46 @@
+name: Update Swagger Documentation
+on:
+  push:
+    branches:
+      - main
+jobs:
+  update-swagger-docs:
+    name: Update Swagger Docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+          cache: true
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+      - name: Generate Swagger documentation
+        run: swag init -g server/main.go -o server/docs
+      - name: Check if docs changed
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain server/docs/)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Swagger docs have changed"
+            git status --porcelain server/docs/
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes to Swagger docs"
+          fi
+      - name: Commit updated docs
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        run: "git config --local user.email \"action@github.com\"\ngit config --local user.name \"GitHub Action\"\ngit add server/docs/\ngit commit -m \"docs: auto-update Swagger documentation\n\n\U0001F916 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\"\n"
+      - name: Push changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main

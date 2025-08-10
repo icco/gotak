@@ -14,9 +14,12 @@ import (
 	"github.com/icco/gotak"
 	"github.com/icco/gutil/logging"
 	"github.com/microcosm-cc/bluemonday"
+	"github.com/swaggo/http-swagger"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.uber.org/zap"
+
+	_ "github.com/icco/gotak/server/docs"
 )
 
 var (
@@ -39,6 +42,17 @@ var (
 	log       = logging.Must(logging.NewLogger(gotak.Service))
 	ugcPolicy = bluemonday.StrictPolicy()
 )
+
+// @title GoTak API
+// @version 1.0
+// @description A Tak game server API
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.url http://github.com/icco/gotak
+// @license.name MIT
+// @license.url https://github.com/icco/gotak/blob/main/LICENSE
+// @host localhost:8080
+// @BasePath /
 
 func main() {
 	port := "8080"
@@ -101,6 +115,9 @@ func main() {
 		}).Handler)
 
 		r.Get("/", rootHandler)
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("http://localhost:8080/swagger/doc.json"),
+		))
 		r.HandleFunc("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
 		r.Get("/game/new", newGameHandler)
@@ -116,6 +133,13 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
+// @Summary Get API information
+// @Description Returns basic API information and available endpoints
+// @Tags info
+// @Accept json
+// @Produce html
+// @Success 200 {string} string "HTML page with API information"
+// @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`
 <html>
@@ -136,6 +160,22 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
   `))
 }
 
+// CreateGameRequest represents the request body for creating a new game
+type CreateGameRequest struct {
+	Size string `json:"size" example:"8" description:"Board size (4-9)"`
+}
+
+// @Summary Create a new game
+// @Description Creates a new Tak game with the specified board size
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param game body CreateGameRequest false "Game configuration"
+// @Success 307 {object} map[string]string "Redirect to game URL"
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /game/new [get]
+// @Router /game/new [post]
 func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
@@ -146,9 +186,9 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 
 	boardSize := 8
 
-	var data map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&data); err == nil && data != nil && data["size"] != "" {
-		i, err := strconv.Atoi(data["size"])
+	var data CreateGameRequest
+	if err := json.NewDecoder(r.Body).Decode(&data); err == nil && data.Size != "" {
+		i, err := strconv.Atoi(data.Size)
 		if err == nil && i > 0 {
 			boardSize = i
 		}
@@ -164,6 +204,24 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/game/%s", slug), http.StatusTemporaryRedirect)
 }
 
+// MoveRequest represents the request body for making a move
+type MoveRequest struct {
+	Player int    `json:"player" example:"1" description:"Player number (1 or 2)"`
+	Text   string `json:"move" example:"c3" description:"Move in PTN notation"`
+	Turn   int64  `json:"turn" example:"1" description:"Turn number"`
+}
+
+// @Summary Make a move in a game
+// @Description Submit a move for a specific game
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param slug path string true "Game slug identifier"
+// @Param move body MoveRequest true "Move details"
+// @Success 200 {object} gotak.Game
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /game/{slug}/move [post]
 func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
@@ -183,11 +241,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data struct {
-		Player int    `json:"player"`
-		Text   string `json:"move"`
-		Turn   int64  `json:"turn"`
-	}
+	var data MoveRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		log.Errorw("could not read body", zap.Error(err))
@@ -215,6 +269,15 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	Renderer.JSON(w, http.StatusOK, game)
 }
 
+// @Summary Get game state
+// @Description Returns the current state of a game
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param slug path string true "Game slug identifier"
+// @Success 200 {object} gotak.Game
+// @Failure 500 {object} map[string]string
+// @Router /game/{slug} [get]
 func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
@@ -237,6 +300,16 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	Renderer.JSON(w, http.StatusOK, game)
 }
 
+// @Summary Get specific turn
+// @Description Returns the state of a game at a specific turn
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param slug path string true "Game slug identifier"
+// @Param turn path int true "Turn number"
+// @Success 200 {object} gotak.Turn
+// @Failure 500 {object} map[string]string
+// @Router /game/{slug}/{turn} [get]
 func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
@@ -273,6 +346,13 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	Renderer.JSON(w, http.StatusOK, turn)
 }
 
+// @Summary Health check
+// @Description Returns service health status
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /healthz [get]
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	Renderer.JSON(w, http.StatusOK, map[string]string{
 		"healthy":  "true",

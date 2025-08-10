@@ -1,7 +1,0 @@
-{
-  "project": "gotak",
-  "ignorePatterns": [
-    ".git/**",
-    "*~"
-  ]
-}
