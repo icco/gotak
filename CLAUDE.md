@@ -26,6 +26,9 @@ go run ./cmd/parse-ptn
 
 # Start the web server
 go run ./server
+
+# Generate Swagger documentation (after making API changes)
+swag init -g server/main.go -o server/docs
 ```
 
 ### Database Operations
@@ -53,6 +56,9 @@ This is a Tak game server implementation with the following key components:
 
 ### Server Architecture
 - **REST API** with endpoints:
+  - `GET /` - API information page
+  - `GET /healthz` - Health check endpoint
+  - `GET /swagger/*` - Swagger UI documentation
   - `GET /game/{slug}` - Get current game state
   - `GET /game/{slug}/{turn}` - Get game state at specific turn
   - `POST /game/new` - Create new game
