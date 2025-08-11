@@ -57,7 +57,7 @@ func (b *Board) String() string {
 // TopStone returns the top stone for a square.
 func (b *Board) TopStone(square string) *Stone {
 	if len(b.Squares[square]) > 0 {
-		return b.Squares[square][len(b.Squares)-1]
+		return b.Squares[square][len(b.Squares[square])-1]
 	}
 
 	return nil
@@ -122,65 +122,79 @@ func (b *Board) IsEdge(l string) bool {
 }
 
 // FindRoad starts at square l and uses a flood fill algorithm to find a road.
-//
-// The flood fill algorithm we use is based on the following:
-//
-//  Flood-fill (node, target-color, replacement-color):
-//    1. If target-color is equal to replacement-color, return.
-//    2. If color of node is not equal to target-color, return.
-//    3. Set Q to the empty queue.
-//    4. Add node to Q.
-//    5. For each element N of Q:
-//    6.     Set w and e equal to N.
-//    7.     Move w to the west until the color of the node to the west of w no
-//             longer matches target-color.
-//    8.     Move e to the east until the color of the node to the east of e no
-//             longer matches target-color.
-//    9.     For each node n between w and e:
-//   10.         Set the color of n to replacement-color.
-//   11.         If the color of the node to the north of n is target-color, add that node to Q.
-//   12.         If the color of the node to the south of n is target-color, add that node to Q.
-//   13. Continue looping until Q is exhausted.
-//   14. Return.
-func (b *Board) FindRoad(l string, validEndEdges []string) bool {
-	if b.Color(l) == PlayerNone {
+// Returns true if a road exists from the starting square to any of the valid end edges.
+func (b *Board) FindRoad(startSquare string, validEndEdges []string) bool {
+	if b.Color(startSquare) == PlayerNone {
 		return false
 	}
 
-	// Sort here so we can search later.
-	sort.Strings(validEndEdges)
+	playerColor := b.Color(startSquare)
+	visited := make(map[string]bool)
+	queue := []string{startSquare}
+	visited[startSquare] = true
 
-	queue := []string{l}
-	for _, n := range queue {
-		var w string
-		var e string
-		inbetween := []string{}
-		for w = n; !b.IsEdge(w) && b.Color(w) == b.Color(l); w = Translate(w, MoveLeft) {
-			inbetween = append(inbetween, w)
+	// Convert validEndEdges to map for faster lookup
+	endEdgeMap := make(map[string]bool)
+	for _, edge := range validEndEdges {
+		endEdgeMap[edge] = true
+	}
+
+	// BFS to find connected road squares
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		// Check if we reached a valid end edge
+		if endEdgeMap[current] {
+			return true
 		}
 
-		for e = n; !b.IsEdge(e) && b.Color(e) == b.Color(l); e = Translate(e, MoveRight) {
-			inbetween = append(inbetween, e)
-		}
-
-		for _, s := range inbetween {
-			nextUp := Translate(s, MoveUp)
-			if b.Color(nextUp) == b.Color(l) {
-				queue = append(queue, s)
+		// Check all four directions
+		directions := []string{MoveUp, MoveDown, MoveLeft, MoveRight}
+		for _, dir := range directions {
+			next := Translate(current, dir)
+			
+			// Skip if out of bounds or already visited
+			if !b.isValidSquare(next) || visited[next] {
+				continue
 			}
 
-			nextDown := Translate(s, MoveDown)
-			if b.Color(nextDown) == b.Color(l) {
-				queue = append(queue, s)
+			// Skip if different color or standing stone (can't be part of road)
+			if b.Color(next) != playerColor {
+				continue
 			}
 
-			if sort.SearchStrings(validEndEdges, s) < len(validEndEdges) {
-				return true
+			topStone := b.TopStone(next)
+			if topStone == nil || topStone.Type == StoneStanding {
+				continue
 			}
+
+			visited[next] = true
+			queue = append(queue, next)
 		}
 	}
 
 	return false
+}
+
+// isValidSquare checks if a square identifier is valid for this board
+func (b *Board) isValidSquare(square string) bool {
+	if len(square) < 2 {
+		return false
+	}
+	
+	col := square[0]
+	if col < 'a' || col >= byte('a')+byte(b.Size) {
+		return false
+	}
+	
+	rowStr := square[1:]
+	row, err := strconv.ParseInt(rowStr, 10, 64)
+	if err != nil || row < 1 || row > b.Size {
+		return false
+	}
+	
+	return true
 }
 
 // DoMove modifies the boards state based off of a move.

@@ -45,6 +45,44 @@ func NewGame(size, id int64, slug string) (*Game, error) {
 	return g, nil
 }
 
+// GetMaxStonesForBoardSize returns the maximum number of stones per player based on board size
+func (g *Game) GetMaxStonesForBoardSize() int64 {
+	switch g.Board.Size {
+	case 3:
+		return 10
+	case 4:
+		return 15
+	case 5:
+		return 21
+	case 6:
+		return 30
+	case 7:
+		return 40
+	case 8:
+		return 50
+	case 9:
+		return 50 // Assuming 9x9 uses same as 8x8
+	default:
+		return 21 // Default to 5x5 count
+	}
+}
+
+// GetCapstoneCount returns the number of capstones per player based on board size
+func (g *Game) GetCapstoneCount() int64 {
+	switch g.Board.Size {
+	case 3, 4:
+		return 0
+	case 5, 6:
+		return 1
+	case 7:
+		return 1 // Rules say "?" for 7x7, assuming 1
+	case 8, 9:
+		return 2
+	default:
+		return 1
+	}
+}
+
 // PrintCurrentState is an attempt to render a tak game as text.
 func (g *Game) PrintCurrentState() {
 	g.Board.IterateOverSquares(func(l string, s []*Stone) error {
@@ -56,30 +94,104 @@ func (g *Game) PrintCurrentState() {
 // GameOver determines if a game is over and who won. A game is over if a
 // player has a continuous path from one side of the board to the other.
 func (g *Game) GameOver() (int, bool) {
-	endEdges := mapset.NewSet()
-	startEdges := mapset.NewSet()
-
-	// TODO: A prettier way to deal with letters.
 	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
 
-	for x := int64(0); x < g.Board.Size; x++ {
-		y := int64(1)
-		location := letters[x] + strconv.FormatInt(y, 10)
-		startEdges.Add(location)
+	// Check for road wins for both players
+	for player := PlayerWhite; player <= PlayerBlack; player++ {
+		// Check horizontal roads (left to right)
+		leftEdge := []string{}
+		rightEdge := []string{}
+		for y := int64(1); y <= g.Board.Size; y++ {
+			leftEdge = append(leftEdge, letters[0]+strconv.FormatInt(y, 10))
+			rightEdge = append(rightEdge, letters[g.Board.Size-1]+strconv.FormatInt(y, 10))
+		}
 
-		y = g.Board.Size
-		location = letters[x] + strconv.FormatInt(y, 10)
-		endEdges.Add(location)
+		// Check if any left edge square can reach any right edge square
+		for _, startSquare := range leftEdge {
+			if g.Board.Color(startSquare) == player {
+				topStone := g.Board.TopStone(startSquare)
+				if topStone != nil && (topStone.Type == StoneFlat || topStone.Type == StoneCap) {
+					if g.Board.FindRoad(startSquare, rightEdge) {
+						return player, true
+					}
+				}
+			}
+		}
+
+		// Check vertical roads (bottom to top)
+		bottomEdge := []string{}
+		topEdge := []string{}
+		for x := int64(0); x < g.Board.Size; x++ {
+			bottomEdge = append(bottomEdge, letters[x]+"1")
+			topEdge = append(topEdge, letters[x]+strconv.FormatInt(g.Board.Size, 10))
+		}
+
+		// Check if any bottom edge square can reach any top edge square
+		for _, startSquare := range bottomEdge {
+			if g.Board.Color(startSquare) == player {
+				topStone := g.Board.TopStone(startSquare)
+				if topStone != nil && (topStone.Type == StoneFlat || topStone.Type == StoneCap) {
+					if g.Board.FindRoad(startSquare, topEdge) {
+						return player, true
+					}
+				}
+			}
+		}
 	}
 
-	for y := int64(1); y <= g.Board.Size; y++ {
-		x := int64(0)
-		location := letters[x] + strconv.FormatInt(y, 10)
-		startEdges.Add(location)
+	// Check for flat win conditions
+	totalSquares := g.Board.Size * g.Board.Size
+	occupiedSquares := int64(0)
+	whiteFlatCount := int64(0)
+	blackFlatCount := int64(0)
+	whiteStoneCount := int64(0)
+	blackStoneCount := int64(0)
 
-		x = g.Board.Size - 1
-		location = letters[x] + strconv.FormatInt(y, 10)
-		endEdges.Add(location)
+	err := g.Board.IterateOverSquares(func(location string, stones []*Stone) error {
+		if len(stones) > 0 {
+			occupiedSquares++
+			topStone := stones[len(stones)-1]
+			
+			if topStone.Player == PlayerWhite {
+				whiteStoneCount++
+				if topStone.Type == StoneFlat {
+					whiteFlatCount++
+				}
+			} else if topStone.Player == PlayerBlack {
+				blackStoneCount++
+				if topStone.Type == StoneFlat {
+					blackFlatCount++
+				}
+			}
+		}
+		return nil
+	})
+	
+	if err != nil {
+		return 0, false
+	}
+
+	// Game ends if board is full
+	if occupiedSquares == totalSquares {
+		if whiteFlatCount > blackFlatCount {
+			return PlayerWhite, true
+		} else if blackFlatCount > whiteFlatCount {
+			return PlayerBlack, true
+		}
+		// Tie game
+		return 0, true
+	}
+
+	// Check if either player has run out of stones
+	maxStones := g.GetMaxStonesForBoardSize()
+	if whiteStoneCount >= maxStones || blackStoneCount >= maxStones {
+		if whiteFlatCount > blackFlatCount {
+			return PlayerWhite, true
+		} else if blackFlatCount > whiteFlatCount {
+			return PlayerBlack, true
+		}
+		// Tie game
+		return 0, true
 	}
 
 	return 0, false
