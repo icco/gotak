@@ -43,7 +43,7 @@ func NewGame(size, id int64, slug string) (*Game, error) {
 	return g, nil
 }
 
-// GetMaxStonesForBoardSize returns the maxTurnimum number of stones per player based on board size
+// GetMaxStonesForBoardSize returns the maximum number of stones per player based on board size
 func (g *Game) GetMaxStonesForBoardSize() int64 {
 	switch g.Board.Size {
 	case 3:
@@ -241,7 +241,7 @@ func (g *Game) GetTurn(number int64) (*Turn, error) {
 	}
 
 	if float64(number) > maxTurn+1 {
-		return nil, fmt.Errorf("%v cannot be greater than one more than the current maxTurn turn number %v", number, maxTurn)
+		return nil, fmt.Errorf("%v cannot be greater than one more than the current max turn number %v", number, maxTurn)
 	}
 
 	return &Turn{Number: number}, nil
