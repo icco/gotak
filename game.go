@@ -43,7 +43,7 @@ func NewGame(size, id int64, slug string) (*Game, error) {
 	return g, nil
 }
 
-// GetMaxStonesForBoardSize returns the maxTurnimum number of stones per player based on board size
+// GetMaxStonesForBoardSize returns the maximum number of stones per player based on board size
 func (g *Game) GetMaxStonesForBoardSize() int64 {
 	switch g.Board.Size {
 	case 3:
