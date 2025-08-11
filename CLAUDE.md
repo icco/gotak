@@ -96,3 +96,4 @@ This is a Tak game server implementation with the following key components:
   - Automatic Swagger documentation updates on API changes
 - **Swagger Documentation**: Auto-generated API docs served at `/swagger/`
 - **Workflow triggers**: Documentation updates when Go files in `server/` or core game files change
+- simple commands are always best, prefer them to long command strings with && or || #

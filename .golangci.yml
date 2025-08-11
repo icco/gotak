@@ -2,7 +2,6 @@ run:
   timeout: 5m
   issues-exit-code: 1
   tests: true
-
 linters:
   enable:
     - errcheck
@@ -37,7 +36,6 @@ linters:
     - gomnd
     - nlreturn
     - wsl
-
 linters-settings:
   gocyclo:
     min-complexity: 15
@@ -54,8 +52,8 @@ linters-settings:
       - name: exported
         disabled: false
         arguments:
-          - "checkPrivateReceivers"
-          - "sayRepetitiveInsteadOfStutters"
+          - checkPrivateReceivers
+          - sayRepetitiveInsteadOfStutters
   gosec:
     excludes:
       - G104 # Audit errors not checked
@@ -64,12 +62,11 @@ linters-settings:
       - standard
       - default
       - prefix(github.com/icco/gotak)
-
 issues:
   exclude-use-default: false
   exclude:
     # gosec: Ignore errors in examples and tests
-    - "G104: Errors unhandled\\."
+    - 'G104: Errors unhandled\.'
   exclude-rules:
     # Exclude some lints from running on tests files.
     - path: _test\.go
