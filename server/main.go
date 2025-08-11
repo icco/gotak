@@ -51,8 +51,8 @@ type SwaggerSpec struct {
 
 // PathInfo represents endpoint information from swagger
 type PathInfo struct {
-	Summary     string `json:"summary"`
-	Description string `json:"description"`
+	Summary     string   `json:"summary"`
+	Description string   `json:"description"`
 	Tags        []string `json:"tags"`
 }
 
@@ -63,7 +63,7 @@ type PathInfo struct {
 // @contact.url http://github.com/icco/gotak
 // @license.name MIT
 // @license.url https://github.com/icco/gotak/blob/main/LICENSE
-// @host localhost:8080
+// @host gotak.app
 // @BasePath /
 
 func main() {
@@ -71,7 +71,7 @@ func main() {
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
 		port = fromEnv
 	}
-	log.Infow("Starting up", "host", fmt.Sprintf("http://localhost:%s", port))
+	log.Infow("Starting up", "host", "https://gotak.app")
 
 	isDev := os.Getenv("NAT_ENV") != "production"
 
@@ -128,7 +128,7 @@ func main() {
 
 		r.Get("/", rootHandler)
 		r.Get("/swagger/*", httpSwagger.Handler(
-			httpSwagger.URL("http://localhost:8080/swagger/doc.json"),
+			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
 		))
 		r.HandleFunc("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
@@ -211,11 +211,11 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
       <div class="path">%s</div>
       <div class="description">%s</div>
       <div>`, method, path, info.Description)
-			
+
 			for _, tag := range info.Tags {
 				html += fmt.Sprintf(`<span class="tag">%s</span>`, tag)
 			}
-			
+
 			html += `</div>
     </div>`
 		}
@@ -254,7 +254,7 @@ func writeStaticHomePage(w http.ResponseWriter) {
     </ul>
   </body>
 </html>`
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := w.Write([]byte(html)); err != nil {
 		log.Errorw("failed to write response", zap.Error(err))
