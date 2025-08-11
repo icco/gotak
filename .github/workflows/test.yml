@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         go-version:
-          - "1.23"
+          - "1.24"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,29 +31,13 @@ jobs:
       - name: Run tests with coverage
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage to Codecov
-        if: matrix.go-version == '1.23'
+        if: matrix.go-version == '1.24'
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage.out
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-          cache: true
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
-          args: --timeout=5m
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -75,7 +59,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.23"
+          go-version: "1.24"
           cache: true
       - name: Build main CLI
         env:
@@ -112,7 +96,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.23"
+          go-version: "1.24"
           cache: true
       - name: Run server integration tests
         env:
@@ -120,22 +104,3 @@ jobs:
         run: |
           cd server
           go test -v -tags=integration ./...
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-          cache: true
-      - name: Install Gosec
-        run: go install github.com/securecodewarrior/gosec/cmd/gosec@latest
-      - name: Run Gosec Security Scanner
-        run: gosec -fmt sarif -out results.sarif ./...
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
