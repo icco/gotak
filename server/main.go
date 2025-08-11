@@ -141,7 +141,7 @@ func main() {
 // @Success 200 {string} string "HTML page with API information"
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`
+	_, _ = w.Write([]byte(`
 <html>
   <head>
     <title>GoTak</title>

@@ -2,7 +2,7 @@ package gotak
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 )
@@ -15,7 +15,7 @@ func assertNotEqual(t *testing.T, context string, a interface{}, b interface{}) 
 
 func TestParse(t *testing.T) {
 	dir := path.Join(".", "test_games")
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
@@ -23,7 +23,7 @@ func TestParse(t *testing.T) {
 	for _, fi := range files {
 		// Run the following test for each file
 		t.Run(fi.Name(), func(t *testing.T) {
-			file, err := ioutil.ReadFile(fmt.Sprintf("test_games/%s", fi.Name()))
+			file, err := os.ReadFile(fmt.Sprintf("test_games/%s", fi.Name()))
 			if err != nil {
 				t.Errorf("%s: %+v", fi.Name(), err)
 			}

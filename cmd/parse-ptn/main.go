@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -19,7 +18,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	file, err := ioutil.ReadFile(string(opts.Filename))
+	file, err := os.ReadFile(string(opts.Filename))
 	if err != nil {
 		log.Panicf("%+v", err)
 	}
