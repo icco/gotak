@@ -22,10 +22,10 @@ type Move struct {
 }
 
 // (stone)(square)
-var placeRegex = regexp.MustCompile(`^(C|S|F)?([a-z][0-9]+)$`)
+var placeRegex = regexp.MustCompile(`^([CSF])?([a-z]\d+)$`)
 
 // (count)(square)(direction)(drop counts)(stone)
-var moveRegex = regexp.MustCompile(`^([1-9]*)([a-z][0-9]+)([<>+\-])([0-9]*)(C|S|F)?$`)
+var moveRegex = regexp.MustCompile(`^([1-9]*)([a-z]\d+)([<>+\-])(\d*)([CSF])?$`)
 
 // Directions
 const (

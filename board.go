@@ -79,32 +79,32 @@ func (b *Board) Color(square string) int {
 func Translate(square, direction string) string {
 	parts := strings.Split(square, "")
 	vertical := parts[1]
-	horizantal := parts[0]
+	horizontal := parts[0]
 
 	switch direction {
 	case "n", MoveUp:
 		vertical = string([]byte(vertical)[0] + 1)
 	case "e", MoveRight:
-		horizantal = string([]byte(horizantal)[0] + 1)
+		horizontal = string([]byte(horizontal)[0] + 1)
 	case "s", MoveDown:
 		vertical = string([]byte(vertical)[0] - 1)
 	case "w", MoveLeft:
-		horizantal = string([]byte(horizantal)[0] - 1)
+		horizontal = string([]byte(horizontal)[0] - 1)
 	}
 
-	return strings.Join([]string{horizantal, vertical}, "")
+	return strings.Join([]string{horizontal, vertical}, "")
 }
 
 // IsEdge determines if the passed in space is a board edge.
 func (b *Board) IsEdge(l string) bool {
 	parts := strings.Split(l, "")
 
-	horizantal := parts[0]
-	if horizantal == "a" {
+	horizontal := parts[0]
+	if horizontal == "a" {
 		return true
 	}
 
-	if horizantal == string([]byte("a")[0]+byte(b.Size)-1) {
+	if horizontal == string([]byte("a")[0]+byte(b.Size)-1) {
 		return true
 	}
 
@@ -152,7 +152,7 @@ func (b *Board) FindRoad(startSquare string, validEndEdges []string) bool {
 		directions := []string{MoveUp, MoveDown, MoveLeft, MoveRight}
 		for _, dir := range directions {
 			next := Translate(current, dir)
-			
+
 			// Skip if out of bounds or already visited
 			if !b.isValidSquare(next) || visited[next] {
 				continue
@@ -181,18 +181,18 @@ func (b *Board) isValidSquare(square string) bool {
 	if len(square) < 2 {
 		return false
 	}
-	
+
 	col := square[0]
 	if col < 'a' || col >= byte('a')+byte(b.Size) {
 		return false
 	}
-	
+
 	rowStr := square[1:]
 	row, err := strconv.ParseInt(rowStr, 10, 64)
 	if err != nil || row < 1 || row > b.Size {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -223,6 +223,8 @@ func (b *Board) isValidSquare(square string) bool {
 // stone is a flat stone the F identifier is never needed, flat stones are
 // always assumed. If the top stone is a standing stone or capstone, the S or C
 // can be used, though it is not required and infrequently used.
+//
+//nolint:gocyclo // Move validation logic is inherently complex
 func (b *Board) DoMove(mv *Move, player int) error {
 	if mv.isPlace() {
 		// Check if square is empty
@@ -270,7 +272,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 
 		for i := 0; i < len(mv.MoveDropCounts); i++ {
 			nextSpace := Translate(currentSpace, mv.MoveDirection)
-			
+
 			// Validate next space is on board
 			if !b.isValidSquare(nextSpace) {
 				return fmt.Errorf("move would go off board: %s", nextSpace)
@@ -284,15 +286,15 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		stoneIndex := int64(0)
 		for i, targetSquare := range squares {
 			dropCount := mv.MoveDropCounts[i]
-			
+
 			for j := int64(0); j < dropCount; j++ {
 				if stoneIndex >= int64(len(stones)) {
 					return fmt.Errorf("not enough stones to drop")
 				}
-				
+
 				st := stones[stoneIndex]
 				stoneIndex++
-				
+
 				// Check if we're trying to place on a standing stone or capstone
 				targetTopStone := b.TopStone(targetSquare)
 				if targetTopStone != nil {
@@ -300,7 +302,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 					if targetTopStone.Type == StoneCap {
 						return fmt.Errorf("cannot place stone on capstone at %s", targetSquare)
 					}
-					
+
 					// Can only flatten standing stones with a capstone by itself
 					if targetTopStone.Type == StoneStanding {
 						if st.Type != StoneCap {
@@ -314,7 +316,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 						targetTopStone.Type = StoneFlat
 					}
 				}
-				
+
 				b.Squares[targetSquare] = append(b.Squares[targetSquare], st)
 			}
 		}

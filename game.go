@@ -43,7 +43,7 @@ func NewGame(size, id int64, slug string) (*Game, error) {
 	return g, nil
 }
 
-// GetMaxStonesForBoardSize returns the maximum number of stones per player based on board size
+// GetMaxStonesForBoardSize returns the maxTurnimum number of stones per player based on board size
 func (g *Game) GetMaxStonesForBoardSize() int64 {
 	switch g.Board.Size {
 	case 3:
@@ -91,6 +91,8 @@ func (g *Game) PrintCurrentState() {
 
 // GameOver determines if a game is over and who won. A game is over if a
 // player has a continuous path from one side of the board to the other.
+//
+//nolint:gocyclo // Game over logic is inherently complex
 func (g *Game) GameOver() (int, bool) {
 	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
 
@@ -149,7 +151,7 @@ func (g *Game) GameOver() (int, bool) {
 		if len(stones) > 0 {
 			occupiedSquares++
 			topStone := stones[len(stones)-1]
-			
+
 			if topStone.Player == PlayerWhite {
 				whiteStoneCount++
 				if topStone.Type == StoneFlat {
@@ -164,7 +166,7 @@ func (g *Game) GameOver() (int, bool) {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		return 0, false
 	}
@@ -181,8 +183,8 @@ func (g *Game) GameOver() (int, bool) {
 	}
 
 	// Check if either player has run out of stones
-	maxStones := g.GetMaxStonesForBoardSize()
-	if whiteStoneCount >= maxStones || blackStoneCount >= maxStones {
+	maxTurnStones := g.GetMaxStonesForBoardSize()
+	if whiteStoneCount >= maxTurnStones || blackStoneCount >= maxTurnStones {
 		if whiteFlatCount > blackFlatCount {
 			return PlayerWhite, true
 		} else if blackFlatCount > whiteFlatCount {
@@ -228,18 +230,18 @@ func (g *Game) UpdateMeta(key, value string) error {
 
 // GetTurn returns or creates a turn, given a turn number.
 func (g *Game) GetTurn(number int64) (*Turn, error) {
-	max := float64(0)
+	maxTurn := float64(0)
 	for _, t := range g.Turns {
 		if t != nil {
-			max = math.Max(max, float64(t.Number))
+			maxTurn = math.Max(maxTurn, float64(t.Number))
 			if t.Number == number {
 				return t, nil
 			}
 		}
 	}
 
-	if float64(number) > max+1 {
-		return nil, fmt.Errorf("%v cannot be greater than one more than the current max turn number %v", number, max)
+	if float64(number) > maxTurn+1 {
+		return nil, fmt.Errorf("%v cannot be greater than one more than the current maxTurn turn number %v", number, maxTurn)
 	}
 
 	return &Turn{Number: number}, nil
@@ -278,7 +280,7 @@ func (g *Game) DoTurn(mvOneStr, mvTwoStr string) error {
 		if !mvTwo.isPlace() || mvTwo.Stone != StoneFlat {
 			return fmt.Errorf("first move must be flat stone placement")
 		}
-		
+
 		// Player 1 (white) places black stone, Player 2 (black) places white stone
 		err = g.Board.DoMove(mvOne, PlayerBlack)
 		if err != nil {
@@ -318,20 +320,20 @@ func (g *Game) DoSingleMove(moveStr string, player int) error {
 
 	// Validate it's the correct player's turn
 	turnNumber := int64(len(g.Turns))
-	
+
 	// First turn special handling
 	if turnNumber == 0 {
 		// First turn: each player places opponent's stone
 		if !mv.isPlace() || mv.Stone != StoneFlat {
 			return fmt.Errorf("first move must be flat stone placement")
 		}
-		
+
 		// Place opponent's color
 		opponentPlayer := PlayerWhite
 		if player == PlayerWhite {
 			opponentPlayer = PlayerBlack
 		}
-		
+
 		err = g.Board.DoMove(mv, opponentPlayer)
 		if err != nil {
 			return fmt.Errorf("first move error: %v", err)
@@ -467,7 +469,7 @@ func parseTurn(line string) (*Turn, error) {
 		// TODO: Support branches. Right now we discard things that are not ints.
 		numberVal := fields[0]
 		numberVal = strings.TrimRight(numberVal, ".")
-		if regexp.MustCompile("[^0-9]+").MatchString(numberVal) {
+		if regexp.MustCompile("\\D+").MatchString(numberVal) {
 			log.Warnw("not a number, ignoring line", "number", numberVal)
 			return nil, nil
 		}

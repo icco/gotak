@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/icco/gotak"
 	"github.com/icco/gutil/logging"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/swaggo/http-swagger"
@@ -19,6 +19,7 @@ import (
 	"github.com/unrolled/secure"
 	"go.uber.org/zap"
 
+	"github.com/icco/gotak"
 	_ "github.com/icco/gotak/server/docs"
 )
 
@@ -130,7 +131,15 @@ func main() {
 		return
 	}
 
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	server := &http.Server{
+		Addr:           ":" + port,
+		Handler:        r,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
+	log.Fatal(server.ListenAndServe())
 }
 
 // @Summary Get API information
@@ -141,7 +150,7 @@ func main() {
 // @Success 200 {string} string "HTML page with API information"
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	_, _ = w.Write([]byte(`
+	if _, err := w.Write([]byte(`
 <html>
   <head>
     <title>GoTak</title>
@@ -157,7 +166,9 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
     </ul>
   </body>
 </html>
-  `))
+  `)); err != nil {
+		log.Errorw("failed to write response", zap.Error(err))
+	}
 }
 
 // CreateGameRequest represents the request body for creating a new game
@@ -180,7 +191,9 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -197,7 +210,9 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	slug, err := createGame(db, boardSize)
 	if err != nil {
 		log.Errorw("could not create game", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -226,7 +241,9 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -237,7 +254,9 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -245,20 +264,26 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		log.Errorw("could not read body", zap.Error(err))
-		Renderer.JSON(w, 400, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 400, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
 	if data.Text == "" {
 		log.Errorw("empty request", "data", data)
-		Renderer.JSON(w, 400, map[string]string{"error": "empty move text"})
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "empty move text"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
 	// Validate player
 	if data.Player != gotak.PlayerWhite && data.Player != gotak.PlayerBlack {
 		log.Errorw("invalid player", "player", data.Player)
-		Renderer.JSON(w, 400, map[string]string{"error": "invalid player"})
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid player"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -266,7 +291,9 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	winner, gameOver := game.GameOver()
 	if gameOver {
 		log.Errorw("game already over", "winner", winner)
-		Renderer.JSON(w, 400, map[string]string{"error": fmt.Sprintf("game is over, winner: %d", winner)})
+		if err := Renderer.JSON(w, 400, map[string]string{"error": fmt.Sprintf("game is over, winner: %d", winner)}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -274,7 +301,9 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	err = replayMoves(game)
 	if err != nil {
 		log.Errorw("could not replay moves", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -282,7 +311,9 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	err = game.DoSingleMove(data.Text, data.Player)
 	if err != nil {
 		log.Errorw("invalid move", "move", data.Text, "player", data.Player, zap.Error(err))
-		Renderer.JSON(w, 400, map[string]string{"error": fmt.Sprintf("invalid move: %v", err)})
+		if err := Renderer.JSON(w, 400, map[string]string{"error": fmt.Sprintf("invalid move: %v", err)}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -291,10 +322,12 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	if currentTurn == 0 {
 		currentTurn = 1
 	}
-	
+
 	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
 		log.Errorw("could not insert move", "data", data, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "could not save move"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save move"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -311,11 +344,15 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	game, err = getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not reload game", "slug", slug, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
-	Renderer.JSON(w, http.StatusOK, game)
+	if err := Renderer.JSON(w, http.StatusOK, game); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }
 
 // @Summary Get game state
@@ -331,7 +368,9 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -342,11 +381,15 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
-	Renderer.JSON(w, http.StatusOK, game)
+	if err := Renderer.JSON(w, http.StatusOK, game); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }
 
 // @Summary Get specific turn
@@ -363,7 +406,9 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -374,7 +419,9 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
@@ -382,17 +429,23 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	turnNum, err := strconv.ParseInt(turnStr, 10, 0)
 	if err != nil {
 		log.Errorw("could not parse turn", "slug", slug, "turn", turnStr, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 	turn, err := game.GetTurn(turnNum)
 	if err != nil {
 		log.Errorw("could not get turn", "slug", slug, "turn", turnNum, zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
 		return
 	}
 
-	Renderer.JSON(w, http.StatusOK, turn)
+	if err := Renderer.JSON(w, http.StatusOK, turn); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }
 
 // @Summary Health check
@@ -403,16 +456,20 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} map[string]string
 // @Router /healthz [get]
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	Renderer.JSON(w, http.StatusOK, map[string]string{
+	if err := Renderer.JSON(w, http.StatusOK, map[string]string{
 		"healthy":  "true",
 		"revision": os.Getenv("GIT_REVISION"),
 		"tag":      os.Getenv("GIT_TAG"),
 		"branch":   os.Getenv("GIT_BRANCH"),
-	})
+	}); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {
-	Renderer.JSON(w, http.StatusNotFound, map[string]string{
+	if err := Renderer.JSON(w, http.StatusNotFound, map[string]string{
 		"error": "404: This page could not be found",
-	})
+	}); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }

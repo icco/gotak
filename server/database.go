@@ -8,11 +8,11 @@ import (
 
 	"github.com/golang-migrate/migrate"
 	"github.com/golang-migrate/migrate/database/postgres"
-	"github.com/icco/gotak"
-	"github.com/ifo/sanic"
-
 	_ "github.com/golang-migrate/migrate/source/file"
+	"github.com/ifo/sanic"
 	_ "github.com/lib/pq"
+
+	"github.com/icco/gotak"
 )
 
 func getDB() (*sql.DB, error) {

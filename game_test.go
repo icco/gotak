@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func assertNotEqual(t *testing.T, context string, a interface{}, b interface{}) {
+func assertNotEqual(t *testing.T, context string, a, b interface{}) {
 	if a == b {
 		t.Errorf("%s: %+v == %+v", context, a, b)
 	}

@@ -4,8 +4,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/icco/gotak"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/icco/gotak"
 )
 
 var opts struct {
@@ -29,14 +30,21 @@ func main() {
 	}
 
 	for i, t := range g.Turns {
-		//log.Printf("%+v", t.Debug())
+		// log.Printf("%+v", t.Debug())
 		if i == 0 {
-			_ = g.Board.DoMove(t.First, gotak.PlayerBlack)
-			_ = g.Board.DoMove(t.Second, gotak.PlayerWhite)
-
+			if err := g.Board.DoMove(t.First, gotak.PlayerBlack); err != nil {
+				log.Printf("Error making first move: %v", err)
+			}
+			if err := g.Board.DoMove(t.Second, gotak.PlayerWhite); err != nil {
+				log.Printf("Error making second move: %v", err)
+			}
 		} else {
-			_ = g.Board.DoMove(t.First, gotak.PlayerWhite)
-			_ = g.Board.DoMove(t.Second, gotak.PlayerBlack)
+			if err := g.Board.DoMove(t.First, gotak.PlayerWhite); err != nil {
+				log.Printf("Error making white move: %v", err)
+			}
+			if err := g.Board.DoMove(t.Second, gotak.PlayerBlack); err != nil {
+				log.Printf("Error making black move: %v", err)
+			}
 		}
 	}
 	log.Printf("Game: %+v", g)
