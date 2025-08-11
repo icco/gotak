@@ -79,7 +79,7 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(logging.Middleware(log.Desugar(), gotak.GCPProject))
 
-	db, err := getDB()
+	_, err := getDB()
 	if err != nil {
 		log.Panicw("could not get db", zap.Error(err))
 		return
@@ -137,10 +137,7 @@ func main() {
 		r.Post("/game/{slug}/move", newMoveHandler)
 	})
 
-	if err := updateDB(db); err != nil {
-		log.Panic(err)
-		return
-	}
+	// GORM auto-migration is handled in getDB()
 
 	server := &http.Server{
 		Addr:           ":" + port,
