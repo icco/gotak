@@ -6,11 +6,14 @@ import (
 	"github.com/icco/gotak"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	// Use in-memory SQLite for testing
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Use in-memory SQLite for testing with silent logger to avoid test output pollution
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
@@ -368,7 +371,9 @@ func TestGameWorkflow(t *testing.T) {
 
 func TestAutoMigrate(t *testing.T) {
 	// Test that AutoMigrate works correctly
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
