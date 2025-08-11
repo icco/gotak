@@ -158,12 +158,3 @@ See [CLAUDE.md](./CLAUDE.md) for detailed development commands and architecture 
 - [Taktician](https://github.com/nelhage/taktician) - Tak AI implementation
 - [Tak Subreddit Wiki](https://www.reddit.com/r/Tak/wiki/) - Rules and notation references
 
-## Future Enhancements
-
-- Player authentication and accounts
-- Real-time game updates (WebSockets)
-- Game spectating and replay features
-- Player ranking and statistics
-- Tournament support
-- AI opponent integration
-- Game analysis tools

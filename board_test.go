@@ -171,7 +171,7 @@ func TestIsEdge(t *testing.T) {
 }
 
 func TestFindRoad(t *testing.T) {
-	// TODO: Write a test using TPS
+	// TODO(#39): Write a test using TPS
 }
 
 func TestValidSquareIntegerOverflowPrevention(t *testing.T) {

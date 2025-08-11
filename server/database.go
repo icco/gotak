@@ -37,7 +37,7 @@ func updateDB(db *sql.DB) error {
 		return err
 	}
 
-	// TODO: Return err if it's not the "no change" error
+	// TODO(#41): Return err if it's not the "no change" error
 	_ = m.Up()
 
 	return nil

@@ -466,7 +466,7 @@ func parseTurn(line string) (*Turn, error) {
 			return turn, fmt.Errorf("line does not have correct number of parts: %+v", fields)
 		}
 
-		// TODO: Support branches. Right now we discard things that are not ints.
+		// TODO(#40): Support branches. Right now we discard things that are not ints.
 		numberVal := fields[0]
 		numberVal = strings.TrimRight(numberVal, ".")
 		if regexp.MustCompile(`\D+`).MatchString(numberVal) {
