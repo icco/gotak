@@ -173,3 +173,35 @@ func TestIsEdge(t *testing.T) {
 func TestFindRoad(t *testing.T) {
 	// TODO: Write a test using TPS
 }
+
+func TestValidSquareIntegerOverflowPrevention(t *testing.T) {
+	b := &Board{
+		Size: 256,
+	}
+	_ = b.Init()
+
+	if b.isValidSquare("a1") {
+		t.Errorf("isValidSquare should return false for board size > 255 to prevent integer overflow")
+	}
+
+	b.Size = 159
+	if b.isValidSquare("a1") {
+		t.Errorf("isValidSquare should return false for board size that would cause overflow ('a' + size > 255)")
+	}
+
+	b.Size = 158
+	if !b.isValidSquare("a1") {
+		t.Errorf("isValidSquare should return true for board size that doesn't cause overflow")
+	}
+
+	b.Size = 9
+	if !b.isValidSquare("a1") {
+		t.Errorf("isValidSquare should return true for normal board size")
+	}
+	if !b.isValidSquare("i9") {
+		t.Errorf("isValidSquare should return true for valid square at max board size")
+	}
+	if b.isValidSquare("j1") {
+		t.Errorf("isValidSquare should return false for column beyond board size")
+	}
+}
