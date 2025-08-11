@@ -20,6 +20,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error moving: %+v", err)
 	}
-	g.Board.DoMove(mv, gotak.PlayerWhite)
+	if err := g.Board.DoMove(mv, gotak.PlayerWhite); err != nil {
+		log.Fatalf("Error making move: %+v", err)
+	}
 	g.PrintCurrentState()
 }

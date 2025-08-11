@@ -8,11 +8,11 @@ import (
 
 	"github.com/golang-migrate/migrate"
 	"github.com/golang-migrate/migrate/database/postgres"
-	"github.com/icco/gotak"
-	"github.com/ifo/sanic"
-
 	_ "github.com/golang-migrate/migrate/source/file"
+	"github.com/ifo/sanic"
 	_ "github.com/lib/pq"
+
+	"github.com/icco/gotak"
 )
 
 func getDB() (*sql.DB, error) {
@@ -38,7 +38,7 @@ func updateDB(db *sql.DB) error {
 	}
 
 	// TODO: Return err if it's not the "no change" error
-	m.Up()
+	_ = m.Up()
 
 	return nil
 }
@@ -137,7 +137,9 @@ func getTurns(db *sql.DB, game *gotak.Game) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	for rows.Next() {
 		var player int
@@ -186,7 +188,9 @@ func getMeta(db *sql.DB, game *gotak.Game) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	for rows.Next() {
 		var key string
@@ -203,4 +207,49 @@ func getMeta(db *sql.DB, game *gotak.Game) error {
 	}
 
 	return nil
+}
+
+// replayMoves replays all moves in a game to restore board state
+func replayMoves(game *gotak.Game) error {
+	// Reset board
+	err := game.Board.Init()
+	if err != nil {
+		return err
+	}
+
+	// Replay all moves in order
+	for _, turn := range game.Turns {
+		if turn.First != nil {
+			if turn.Number == 1 {
+				// First turn: white places black stone
+				err = game.Board.DoMove(turn.First, gotak.PlayerBlack)
+			} else {
+				err = game.Board.DoMove(turn.First, gotak.PlayerWhite)
+			}
+			if err != nil {
+				return fmt.Errorf("error replaying turn %d first move: %v", turn.Number, err)
+			}
+		}
+
+		if turn.Second != nil {
+			if turn.Number == 1 {
+				// First turn: black places white stone
+				err = game.Board.DoMove(turn.Second, gotak.PlayerWhite)
+			} else {
+				err = game.Board.DoMove(turn.Second, gotak.PlayerBlack)
+			}
+			if err != nil {
+				return fmt.Errorf("error replaying turn %d second move: %v", turn.Number, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// updateGameStatus updates the game status in the database
+func updateGameStatus(db *sql.DB, slug, status string, winner int) error {
+	query := `UPDATE games SET status = $1, winner = $2 WHERE slug = $3`
+	_, err := db.Exec(query, status, winner, slug)
+	return err
 }

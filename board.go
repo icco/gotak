@@ -2,7 +2,6 @@ package gotak
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -42,7 +41,7 @@ func (b *Board) Init() error {
 	}
 
 	b.Squares = map[string][]*Stone{}
-	b.IterateOverSquares(func(l string, s []*Stone) error {
+	_ = b.IterateOverSquares(func(l string, s []*Stone) error {
 		b.Squares[l] = []*Stone{}
 		return nil
 	})
@@ -57,7 +56,7 @@ func (b *Board) String() string {
 // TopStone returns the top stone for a square.
 func (b *Board) TopStone(square string) *Stone {
 	if len(b.Squares[square]) > 0 {
-		return b.Squares[square][len(b.Squares)-1]
+		return b.Squares[square][len(b.Squares[square])-1]
 	}
 
 	return nil
@@ -80,32 +79,32 @@ func (b *Board) Color(square string) int {
 func Translate(square, direction string) string {
 	parts := strings.Split(square, "")
 	vertical := parts[1]
-	horizantal := parts[0]
+	horizontal := parts[0]
 
 	switch direction {
 	case "n", MoveUp:
 		vertical = string([]byte(vertical)[0] + 1)
 	case "e", MoveRight:
-		horizantal = string([]byte(horizantal)[0] + 1)
+		horizontal = string([]byte(horizontal)[0] + 1)
 	case "s", MoveDown:
 		vertical = string([]byte(vertical)[0] - 1)
 	case "w", MoveLeft:
-		horizantal = string([]byte(horizantal)[0] - 1)
+		horizontal = string([]byte(horizontal)[0] - 1)
 	}
 
-	return strings.Join([]string{horizantal, vertical}, "")
+	return strings.Join([]string{horizontal, vertical}, "")
 }
 
 // IsEdge determines if the passed in space is a board edge.
 func (b *Board) IsEdge(l string) bool {
 	parts := strings.Split(l, "")
 
-	horizantal := parts[0]
-	if horizantal == "a" {
+	horizontal := parts[0]
+	if horizontal == "a" {
 		return true
 	}
 
-	if horizantal == string([]byte("a")[0]+byte(b.Size)-1) {
+	if horizontal == string([]byte("a")[0]+byte(b.Size)-1) {
 		return true
 	}
 
@@ -122,65 +121,79 @@ func (b *Board) IsEdge(l string) bool {
 }
 
 // FindRoad starts at square l and uses a flood fill algorithm to find a road.
-//
-// The flood fill algorithm we use is based on the following:
-//
-//  Flood-fill (node, target-color, replacement-color):
-//    1. If target-color is equal to replacement-color, return.
-//    2. If color of node is not equal to target-color, return.
-//    3. Set Q to the empty queue.
-//    4. Add node to Q.
-//    5. For each element N of Q:
-//    6.     Set w and e equal to N.
-//    7.     Move w to the west until the color of the node to the west of w no
-//             longer matches target-color.
-//    8.     Move e to the east until the color of the node to the east of e no
-//             longer matches target-color.
-//    9.     For each node n between w and e:
-//   10.         Set the color of n to replacement-color.
-//   11.         If the color of the node to the north of n is target-color, add that node to Q.
-//   12.         If the color of the node to the south of n is target-color, add that node to Q.
-//   13. Continue looping until Q is exhausted.
-//   14. Return.
-func (b *Board) FindRoad(l string, validEndEdges []string) bool {
-	if b.Color(l) == PlayerNone {
+// Returns true if a road exists from the starting square to any of the valid end edges.
+func (b *Board) FindRoad(startSquare string, validEndEdges []string) bool {
+	if b.Color(startSquare) == PlayerNone {
 		return false
 	}
 
-	// Sort here so we can search later.
-	sort.Strings(validEndEdges)
+	playerColor := b.Color(startSquare)
+	visited := make(map[string]bool)
+	queue := []string{startSquare}
+	visited[startSquare] = true
 
-	queue := []string{l}
-	for _, n := range queue {
-		var w string
-		var e string
-		inbetween := []string{}
-		for w = n; !b.IsEdge(w) && b.Color(w) == b.Color(l); w = Translate(w, MoveLeft) {
-			inbetween = append(inbetween, w)
+	// Convert validEndEdges to map for faster lookup
+	endEdgeMap := make(map[string]bool)
+	for _, edge := range validEndEdges {
+		endEdgeMap[edge] = true
+	}
+
+	// BFS to find connected road squares
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		// Check if we reached a valid end edge
+		if endEdgeMap[current] {
+			return true
 		}
 
-		for e = n; !b.IsEdge(e) && b.Color(e) == b.Color(l); e = Translate(e, MoveRight) {
-			inbetween = append(inbetween, e)
-		}
+		// Check all four directions
+		directions := []string{MoveUp, MoveDown, MoveLeft, MoveRight}
+		for _, dir := range directions {
+			next := Translate(current, dir)
 
-		for _, s := range inbetween {
-			nextUp := Translate(s, MoveUp)
-			if b.Color(nextUp) == b.Color(l) {
-				queue = append(queue, s)
+			// Skip if out of bounds or already visited
+			if !b.isValidSquare(next) || visited[next] {
+				continue
 			}
 
-			nextDown := Translate(s, MoveDown)
-			if b.Color(nextDown) == b.Color(l) {
-				queue = append(queue, s)
+			// Skip if different color or standing stone (can't be part of road)
+			if b.Color(next) != playerColor {
+				continue
 			}
 
-			if sort.SearchStrings(validEndEdges, s) < len(validEndEdges) {
-				return true
+			topStone := b.TopStone(next)
+			if topStone == nil || topStone.Type == StoneStanding {
+				continue
 			}
+
+			visited[next] = true
+			queue = append(queue, next)
 		}
 	}
 
 	return false
+}
+
+// isValidSquare checks if a square identifier is valid for this board
+func (b *Board) isValidSquare(square string) bool {
+	if len(square) < 2 {
+		return false
+	}
+
+	col := square[0]
+	if col < 'a' || col >= byte('a')+byte(b.Size) {
+		return false
+	}
+
+	rowStr := square[1:]
+	row, err := strconv.ParseInt(rowStr, 10, 64)
+	if err != nil || row < 1 || row > b.Size {
+		return false
+	}
+
+	return true
 }
 
 // DoMove modifies the boards state based off of a move.
@@ -210,8 +223,19 @@ func (b *Board) FindRoad(l string, validEndEdges []string) bool {
 // stone is a flat stone the F identifier is never needed, flat stones are
 // always assumed. If the top stone is a standing stone or capstone, the S or C
 // can be used, though it is not required and infrequently used.
+//
+//nolint:gocyclo // Move validation logic is inherently complex
 func (b *Board) DoMove(mv *Move, player int) error {
 	if mv.isPlace() {
+		// Check if square is empty
+		if len(b.Squares[mv.Square]) > 0 {
+			topStone := b.TopStone(mv.Square)
+			// Can't place on standing stones or capstones
+			if topStone.Type == StoneStanding || topStone.Type == StoneCap {
+				return fmt.Errorf("cannot place stone on %s at %s", topStone.Type, mv.Square)
+			}
+		}
+
 		stone := &Stone{
 			Player: player,
 			Type:   mv.Stone,
@@ -222,36 +246,78 @@ func (b *Board) DoMove(mv *Move, player int) error {
 	}
 
 	if mv.isMove() {
+		// Validate move count doesn't exceed carry limit (board size)
+		if mv.MoveCount > b.Size {
+			return fmt.Errorf("cannot carry %d stones, carry limit is %d", mv.MoveCount, b.Size)
+		}
+
+		// Check if we control the stack
+		topStone := b.TopStone(mv.Square)
+		if topStone == nil || topStone.Player != player {
+			return fmt.Errorf("player %d does not control stack at %s", player, mv.Square)
+		}
+
+		// Check if we have enough stones to move
+		if int64(len(b.Squares[mv.Square])) < mv.MoveCount {
+			return fmt.Errorf("not enough stones at %s to move %d", mv.Square, mv.MoveCount)
+		}
+
 		begin := int64(len(b.Squares[mv.Square])) - mv.MoveCount
-		stones := b.Squares[mv.Square][begin:]
+		stones := make([]*Stone, mv.MoveCount)
+		copy(stones, b.Squares[mv.Square][begin:])
 		b.Squares[mv.Square] = b.Squares[mv.Square][:begin]
 
 		squares := []string{}
-
 		currentSpace := mv.Square
-		nextSpace := ""
+
 		for i := 0; i < len(mv.MoveDropCounts); i++ {
-			switch mv.MoveDirection {
-			case MoveLeft:
-				nextSpace = string(currentSpace[0]-1) + string(currentSpace[1])
-			case MoveRight:
-				nextSpace = string(currentSpace[0]+1) + string(currentSpace[1])
-			case MoveUp:
-				nextSpace = string(currentSpace[0]) + string(currentSpace[1]+1)
-			case MoveDown:
-				nextSpace = string(currentSpace[0]) + string(currentSpace[1]-1)
+			nextSpace := Translate(currentSpace, mv.MoveDirection)
+
+			// Validate next space is on board
+			if !b.isValidSquare(nextSpace) {
+				return fmt.Errorf("move would go off board: %s", nextSpace)
 			}
 
 			currentSpace = nextSpace
 			squares = append(squares, nextSpace)
 		}
 
-		// pop and shift
-		for i, s := range squares {
-			for j := int64(0); j < mv.MoveDropCounts[i]; j++ {
-				st := stones[0]
-				b.Squares[s] = append(b.Squares[s], st)
-				stones = stones[1:]
+		// Handle capstone flattening and placement validation
+		stoneIndex := int64(0)
+		for i, targetSquare := range squares {
+			dropCount := mv.MoveDropCounts[i]
+
+			for j := int64(0); j < dropCount; j++ {
+				if stoneIndex >= int64(len(stones)) {
+					return fmt.Errorf("not enough stones to drop")
+				}
+
+				st := stones[stoneIndex]
+				stoneIndex++
+
+				// Check if we're trying to place on a standing stone or capstone
+				targetTopStone := b.TopStone(targetSquare)
+				if targetTopStone != nil {
+					// Can't place on capstones
+					if targetTopStone.Type == StoneCap {
+						return fmt.Errorf("cannot place stone on capstone at %s", targetSquare)
+					}
+
+					// Can only flatten standing stones with a capstone by itself
+					if targetTopStone.Type == StoneStanding {
+						if st.Type != StoneCap {
+							return fmt.Errorf("only capstones can flatten standing stones at %s", targetSquare)
+						}
+						// Must be the only stone being placed (capstone by itself)
+						if dropCount != 1 || stoneIndex != int64(len(stones)) {
+							return fmt.Errorf("capstone must move by itself to flatten standing stone at %s", targetSquare)
+						}
+						// Flatten the standing stone
+						targetTopStone.Type = StoneFlat
+					}
+				}
+
+				b.Squares[targetSquare] = append(b.Squares[targetSquare], st)
 			}
 		}
 	}

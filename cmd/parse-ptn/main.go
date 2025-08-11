@@ -1,12 +1,12 @@
 package main
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 
-	"github.com/icco/gotak"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/icco/gotak"
 )
 
 var opts struct {
@@ -19,7 +19,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	file, err := ioutil.ReadFile(string(opts.Filename))
+	file, err := os.ReadFile(string(opts.Filename))
 	if err != nil {
 		log.Panicf("%+v", err)
 	}
@@ -30,14 +30,21 @@ func main() {
 	}
 
 	for i, t := range g.Turns {
-		//log.Printf("%+v", t.Debug())
+		// log.Printf("%+v", t.Debug())
 		if i == 0 {
-			g.Board.DoMove(t.First, gotak.PlayerBlack)
-			g.Board.DoMove(t.Second, gotak.PlayerWhite)
-
+			if err := g.Board.DoMove(t.First, gotak.PlayerBlack); err != nil {
+				log.Printf("Error making first move: %v", err)
+			}
+			if err := g.Board.DoMove(t.Second, gotak.PlayerWhite); err != nil {
+				log.Printf("Error making second move: %v", err)
+			}
 		} else {
-			g.Board.DoMove(t.First, gotak.PlayerWhite)
-			g.Board.DoMove(t.Second, gotak.PlayerBlack)
+			if err := g.Board.DoMove(t.First, gotak.PlayerWhite); err != nil {
+				log.Printf("Error making white move: %v", err)
+			}
+			if err := g.Board.DoMove(t.Second, gotak.PlayerBlack); err != nil {
+				log.Printf("Error making black move: %v", err)
+			}
 		}
 	}
 	log.Printf("Game: %+v", g)
