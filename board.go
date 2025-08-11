@@ -183,7 +183,15 @@ func (b *Board) isValidSquare(square string) bool {
 	}
 
 	col := square[0]
-	if col < 'a' || col >= byte('a')+byte(b.Size) {
+	if col < 'a' {
+		return false
+	}
+	
+	if b.Size > 255 || int64('a')+b.Size > 255 {
+		return false
+	}
+	
+	if col >= byte('a')+byte(b.Size) {
 		return false
 	}
 
