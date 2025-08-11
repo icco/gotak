@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/deckarep/golang-set"
 )
 
 // Game is the datastructure for a single game. Most data is stored in the meta

@@ -2,7 +2,6 @@ package gotak
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 )

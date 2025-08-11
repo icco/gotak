@@ -234,7 +234,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get DB Entry
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
-	id, err := getGameID(db, slug)
+	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
 		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
@@ -245,24 +245,73 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		log.Errorw("could not read body", zap.Error(err))
-		Renderer.JSON(w, 500, map[string]string{"error": err.Error()})
+		Renderer.JSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
 
 	if data.Text == "" {
 		log.Errorw("empty request", "data", data)
-		Renderer.JSON(w, 400, map[string]string{"error": "empty request"})
+		Renderer.JSON(w, 400, map[string]string{"error": "empty move text"})
 		return
 	}
 
-	if err := insertMove(db, id, data.Player, data.Text, data.Turn); err != nil {
-		log.Errorw("bad insert", "data", data, zap.Error(err))
+	// Validate player
+	if data.Player != gotak.PlayerWhite && data.Player != gotak.PlayerBlack {
+		log.Errorw("invalid player", "player", data.Player)
+		Renderer.JSON(w, 400, map[string]string{"error": "invalid player"})
 		return
 	}
 
-	game, err := getGame(db, slug)
+	// Check if game is already over
+	winner, gameOver := game.GameOver()
+	if gameOver {
+		log.Errorw("game already over", "winner", winner)
+		Renderer.JSON(w, 400, map[string]string{"error": fmt.Sprintf("game is over, winner: %d", winner)})
+		return
+	}
+
+	// Replay existing moves to get current board state
+	err = replayMoves(game)
 	if err != nil {
-		log.Errorw("bad get game", "slug", slug, zap.Error(err))
+		log.Errorw("could not replay moves", zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"})
+		return
+	}
+
+	// Validate and execute the move
+	err = game.DoSingleMove(data.Text, data.Player)
+	if err != nil {
+		log.Errorw("invalid move", "move", data.Text, "player", data.Player, zap.Error(err))
+		Renderer.JSON(w, 400, map[string]string{"error": fmt.Sprintf("invalid move: %v", err)})
+		return
+	}
+
+	// Store the move in database
+	currentTurn := int64(len(game.Turns))
+	if currentTurn == 0 {
+		currentTurn = 1
+	}
+	
+	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
+		log.Errorw("could not insert move", "data", data, zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "could not save move"})
+		return
+	}
+
+	// Check if game is now over and update status
+	winner, gameOver = game.GameOver()
+	if gameOver {
+		err = updateGameStatus(db, game.Slug, "finished", winner)
+		if err != nil {
+			log.Errorw("could not update game status", zap.Error(err))
+		}
+	}
+
+	// Reload game to get updated state
+	game, err = getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not reload game", "slug", slug, zap.Error(err))
+		Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"})
 		return
 	}
 
