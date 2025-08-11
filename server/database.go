@@ -218,8 +218,15 @@ func replayMoves(game *gotak.Game) error {
 
 // updateGameStatus updates the game status in the database
 func updateGameStatus(db *gorm.DB, slug, status string, winner int) error {
-	return db.Model(&Game{}).Where("slug = ?", slug).Updates(Game{
+	result := db.Model(&Game{}).Where("slug = ?", slug).Updates(Game{
 		Status: status,
 		Winner: winner,
-	}).Error
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
