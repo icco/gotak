@@ -1,82 +1,17 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/ifo/sanic"
-	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	"moul.io/zapgorm2"
 
 	"github.com/icco/gotak"
 )
-
-// zapGormLogger adapts zap logger for GORM
-type zapGormLogger struct {
-	logger *zap.Logger
-	level  logger.LogLevel
-}
-
-// NewZapGormLogger creates a new GORM logger using zap
-func NewZapGormLogger(zapLogger *zap.Logger, level logger.LogLevel) logger.Interface {
-	return &zapGormLogger{
-		logger: zapLogger,
-		level:  level,
-	}
-}
-
-func (l *zapGormLogger) LogMode(level logger.LogLevel) logger.Interface {
-	return &zapGormLogger{
-		logger: l.logger,
-		level:  level,
-	}
-}
-
-func (l *zapGormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	if l.level >= logger.Info {
-		l.logger.Sugar().Infof(msg, data...)
-	}
-}
-
-func (l *zapGormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	if l.level >= logger.Warn {
-		l.logger.Sugar().Warnf(msg, data...)
-	}
-}
-
-func (l *zapGormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	if l.level >= logger.Error {
-		l.logger.Sugar().Errorf(msg, data...)
-	}
-}
-
-func (l *zapGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
-	if l.level <= logger.Silent {
-		return
-	}
-
-	elapsed := time.Since(begin)
-	sql, rows := fc()
-
-	fields := []zap.Field{
-		zap.String("sql", sql),
-		zap.Duration("elapsed", elapsed),
-		zap.Int64("rows", rows),
-	}
-
-	if err != nil && l.level >= logger.Error {
-		l.logger.Error("database query failed", append(fields, zap.Error(err))...)
-	} else if elapsed > 200*time.Millisecond && l.level >= logger.Warn {
-		l.logger.Warn("slow database query", fields...)
-	} else if l.level >= logger.Info {
-		l.logger.Info("database query", fields...)
-	}
-}
 
 func getDB() (*gorm.DB, error) {
 	dbURL := os.Getenv("DATABASE_URL")
@@ -84,9 +19,9 @@ func getDB() (*gorm.DB, error) {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
 
-	// Configure GORM to use our zap logger
+	// Configure GORM to use zapgorm2 logger
 	config := &gorm.Config{
-		Logger: NewZapGormLogger(log.Desugar(), logger.Warn),
+		Logger: zapgorm2.New(log.Desugar()),
 	}
 
 	db, err := gorm.Open(postgres.Open(dbURL), config)
