@@ -3,7 +3,6 @@
     "info": {
         "description": "A Tak game server API",
         "title": "GoTak API",
-        "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
             "url": "http://github.com/icco/gotak"

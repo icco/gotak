@@ -106,17 +106,16 @@ info:
   license:
     name: MIT
     url: https://github.com/icco/gotak/blob/main/LICENSE
-  termsOfService: http://swagger.io/terms/
   title: GoTak API
   version: "1.0"
 paths:
   /:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns basic API information and available endpoints
       produces:
-        - text/html
+      - text/html
       responses:
         "200":
           description: HTML page with API information
@@ -124,20 +123,20 @@ paths:
             type: string
       summary: Get API information
       tags:
-        - info
+      - info
   /game/{slug}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns the current state of a game
       parameters:
-        - description: Game slug identifier
-          in: path
-          name: slug
-          required: true
-          type: string
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -151,25 +150,25 @@ paths:
             type: object
       summary: Get game state
       tags:
-        - game
+      - game
   /game/{slug}/{turn}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns the state of a game at a specific turn
       parameters:
-        - description: Game slug identifier
-          in: path
-          name: slug
-          required: true
-          type: string
-        - description: Turn number
-          in: path
-          name: turn
-          required: true
-          type: integer
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Turn number
+        in: path
+        name: turn
+        required: true
+        type: integer
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -183,26 +182,26 @@ paths:
             type: object
       summary: Get specific turn
       tags:
-        - game
+      - game
   /game/{slug}/move:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Submit a move for a specific game
       parameters:
-        - description: Game slug identifier
-          in: path
-          name: slug
-          required: true
-          type: string
-        - description: Move details
-          in: body
-          name: move
-          required: true
-          schema:
-            $ref: '#/definitions/main.MoveRequest'
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Move details
+        in: body
+        name: move
+        required: true
+        schema:
+          $ref: '#/definitions/main.MoveRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -222,20 +221,20 @@ paths:
             type: object
       summary: Make a move in a game
       tags:
-        - game
+      - game
   /game/new:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Creates a new Tak game with the specified board size
       parameters:
-        - description: Game configuration
-          in: body
-          name: game
-          schema:
-            $ref: '#/definitions/main.CreateGameRequest'
+      - description: Game configuration
+        in: body
+        name: game
+        schema:
+          $ref: '#/definitions/main.CreateGameRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "307":
           description: Redirect to game URL
@@ -257,19 +256,19 @@ paths:
             type: object
       summary: Create a new game
       tags:
-        - game
+      - game
     post:
       consumes:
-        - application/json
+      - application/json
       description: Creates a new Tak game with the specified board size
       parameters:
-        - description: Game configuration
-          in: body
-          name: game
-          schema:
-            $ref: '#/definitions/main.CreateGameRequest'
+      - description: Game configuration
+        in: body
+        name: game
+        schema:
+          $ref: '#/definitions/main.CreateGameRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "307":
           description: Redirect to game URL
@@ -291,14 +290,14 @@ paths:
             type: object
       summary: Create a new game
       tags:
-        - game
+      - game
   /healthz:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns service health status
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -308,5 +307,5 @@ paths:
             type: object
       summary: Health check
       tags:
-        - health
+      - health
 swagger: "2.0"
