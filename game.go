@@ -83,7 +83,7 @@ func (g *Game) GetCapstoneCount() int64 {
 
 // PrintCurrentState is an attempt to render a tak game as text.
 func (g *Game) PrintCurrentState() {
-	g.Board.IterateOverSquares(func(l string, s []*Stone) error {
+	_ = g.Board.IterateOverSquares(func(l string, s []*Stone) error {
 		fmt.Printf("%v", s)
 		return nil
 	})

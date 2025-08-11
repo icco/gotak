@@ -38,7 +38,7 @@ func updateDB(db *sql.DB) error {
 	}
 
 	// TODO: Return err if it's not the "no change" error
-	m.Up()
+	_ = m.Up()
 
 	return nil
 }
@@ -137,7 +137,9 @@ func getTurns(db *sql.DB, game *gotak.Game) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	for rows.Next() {
 		var player int
@@ -186,7 +188,9 @@ func getMeta(db *sql.DB, game *gotak.Game) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	for rows.Next() {
 		var key string

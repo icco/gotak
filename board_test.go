@@ -23,7 +23,7 @@ func TestDrop(t *testing.T) {
 			b := &Board{
 				Size: 4,
 			}
-			b.Init()
+			_ = b.Init()
 
 			move, err := NewMove(mv)
 			if err != nil {
@@ -54,7 +54,7 @@ func TestMoving(t *testing.T) {
 	b := &Board{
 		Size: 6,
 	}
-	b.Init()
+	_ = b.Init()
 
 	tests := []string{
 		"a1",
@@ -97,7 +97,7 @@ func TestMovingOnce(t *testing.T) {
 	b := &Board{
 		Size: 6,
 	}
-	b.Init()
+	_ = b.Init()
 
 	tests := []string{
 		"a1",
@@ -151,7 +151,7 @@ func TestIsEdge(t *testing.T) {
 	b := &Board{
 		Size: 6,
 	}
-	b.Init()
+	_ = b.Init()
 	for s, e := range map[string]bool{
 		"a1": true,
 		"a3": true,

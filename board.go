@@ -41,7 +41,7 @@ func (b *Board) Init() error {
 	}
 
 	b.Squares = map[string][]*Stone{}
-	b.IterateOverSquares(func(l string, s []*Stone) error {
+	_ = b.IterateOverSquares(func(l string, s []*Stone) error {
 		b.Squares[l] = []*Stone{}
 		return nil
 	})
