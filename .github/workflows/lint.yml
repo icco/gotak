@@ -1,0 +1,47 @@
+name: lint
+on:
+  pull_request:
+jobs:
+  misspell:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: reviewdog/action-misspell@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-check
+          level: warning
+          locale: US
+  yaml-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: reviewdog/action-yamllint@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-pr-check
+  golangci-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: golangci-lint
+        uses: reviewdog/action-golangci-lint@v2
+        env:
+          GOPRIVATE: github.com/pinginc/*
+        with:
+          golangci_lint_version: v1.64.8 # https://github.com/reviewdog/action-golangci-lint/pull/779
+          level: warning
