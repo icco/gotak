@@ -5,7 +5,6 @@ go 1.23.0
 toolchain go1.24.6
 
 require (
-	github.com/deckarep/golang-set v1.8.0
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.2
 	github.com/golang-migrate/migrate v3.5.4+incompatible
