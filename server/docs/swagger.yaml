@@ -97,7 +97,7 @@ definitions:
         example: 1
         type: integer
     type: object
-host: localhost:8080
+host: gotak.app
 info:
   contact:
     name: API Support
