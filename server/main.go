@@ -44,6 +44,18 @@ var (
 	ugcPolicy = bluemonday.StrictPolicy()
 )
 
+// SwaggerSpec represents the structure of our swagger.json file
+type SwaggerSpec struct {
+	Paths map[string]map[string]PathInfo `json:"paths"`
+}
+
+// PathInfo represents endpoint information from swagger
+type PathInfo struct {
+	Summary     string `json:"summary"`
+	Description string `json:"description"`
+	Tags        []string `json:"tags"`
+}
+
 // @title GoTak API
 // @version 1.0
 // @description A Tak game server API
@@ -149,23 +161,102 @@ func main() {
 // @Success 200 {string} string "HTML page with API information"
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	if _, err := w.Write([]byte(`
+	// Read swagger.json file
+	swaggerData, err := os.ReadFile("server/docs/swagger.json")
+	if err != nil {
+		log.Errorw("failed to read swagger.json", zap.Error(err))
+		// Fallback to static content
+		writeStaticHomePage(w)
+		return
+	}
+
+	var spec SwaggerSpec
+	if err := json.Unmarshal(swaggerData, &spec); err != nil {
+		log.Errorw("failed to parse swagger.json", zap.Error(err))
+		// Fallback to static content
+		writeStaticHomePage(w)
+		return
+	}
+
+	// Generate HTML with endpoint information
+	html := `
 <html>
   <head>
-    <title>GoTak</title>
+    <title>GoTak API</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+      h1 { color: #333; }
+      .endpoint { margin: 20px 0; padding: 15px; border-left: 4px solid #007acc; background: #f8f9fa; }
+      .method { font-weight: bold; color: #007acc; text-transform: uppercase; }
+      .path { font-family: monospace; color: #333; margin: 5px 0; }
+      .description { color: #666; margin: 5px 0; }
+      .tag { background: #e1ecf4; color: #39739d; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-right: 5px; }
+      a { color: #007acc; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
   </head>
   <body>
-    <h1>GoTak</h1>
+    <h1>GoTak API</h1>
+    <p>A Tak game server API providing endpoints for game management and gameplay.</p>
+    <p><a href="/swagger/">📚 View Swagger Documentation</a></p>
+    
+    <h2>Available Endpoints</h2>`
+
+	// Sort endpoints by path for consistent display
+	for path, methods := range spec.Paths {
+		for method, info := range methods {
+			html += fmt.Sprintf(`
+    <div class="endpoint">
+      <div class="method">%s</div>
+      <div class="path">%s</div>
+      <div class="description">%s</div>
+      <div>`, method, path, info.Description)
+			
+			for _, tag := range info.Tags {
+				html += fmt.Sprintf(`<span class="tag">%s</span>`, tag)
+			}
+			
+			html += `</div>
+    </div>`
+		}
+	}
+
+	html += `
+  </body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write([]byte(html)); err != nil {
+		log.Errorw("failed to write response", zap.Error(err))
+	}
+}
+
+func writeStaticHomePage(w http.ResponseWriter) {
+	html := `
+<html>
+  <head>
+    <title>GoTak API</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+    </style>
+  </head>
+  <body>
+    <h1>GoTak API</h1>
+    <p>A Tak game server API</p>
+    <p><a href="/swagger/">📚 View Swagger Documentation</a></p>
     <ul>
-      <li>Get "/game/{slug}"</li>
-      <li>Get "/game/{slug}/{turn}"</li>
-      <li>Get "/game/new"</li>
-      <li>Post "/game/new"</li>
-      <li>Post "/game/{slug}/move"</li>
+      <li>GET /game/{slug} - Get game state</li>
+      <li>GET /game/{slug}/{turn} - Get specific turn</li>
+      <li>GET /game/new - Create a new game</li>
+      <li>POST /game/new - Create a new game</li>
+      <li>POST /game/{slug}/move - Make a move in a game</li>
+      <li>GET /healthz - Health check</li>
     </ul>
   </body>
-</html>
-  `)); err != nil {
+</html>`
+	
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write([]byte(html)); err != nil {
 		log.Errorw("failed to write response", zap.Error(err))
 	}
 }

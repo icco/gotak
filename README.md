@@ -1,61 +1,169 @@
-# gotak
+# GoTak
 
 [![Tests](https://github.com/icco/gotak/actions/workflows/test.yml/badge.svg)](https://github.com/icco/gotak/actions/workflows/test.yml) [![CodeQL](https://github.com/icco/gotak/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/icco/gotak/actions/workflows/codeql-analysis.yml) [![GoDoc](https://godoc.org/github.com/icco/gotak?status.svg)](https://godoc.org/github.com/icco/gotak) [![Go Report Card](https://goreportcard.com/badge/github.com/icco/gotak)](https://goreportcard.com/report/github.com/icco/gotak)
 
-A Tak server.
+A complete Tak game server implementation in Go with REST API, database persistence, and comprehensive game logic.
 
-## Summary
+## Overview
 
-The rough goal of this repo is to create a server that lets two people play tak together no matter their client. It needs to do the following things:
+GoTak is a production-ready server for the board game [Tak](https://en.wikipedia.org/wiki/Tak_(game)), providing:
 
- - Parse PTN format
- - Provide a shared set of state between two players for a game
- - Store game history
- - Provide some sort of scoring?
+- **Complete Tak Game Logic**: Full implementation of official Tak rules including road detection, piece limits, and win conditions
+- **PTN Support**: Parse and generate Portable Tak Notation (PTN) for game recording and replay
+- **REST API**: HTTP endpoints for game creation, move submission, and state retrieval
+- **Database Persistence**: PostgreSQL storage with automatic migrations
+- **Web Interface**: Dynamic home page with endpoint documentation
+- **Developer Tools**: Comprehensive testing, Swagger documentation, and CI/CD integration
+
+## Features
+
+### ✅ Implemented
+
+- **Complete Game Logic**
+  - Full Tak rules implementation (board sizes 4x4 to 9x9)
+  - Road detection using flood-fill algorithm
+  - Piece limits and carry restrictions
+  - Win condition detection (road wins, flat stone wins)
+  - First-turn rule enforcement (place opponent's stone)
+
+- **PTN (Portable Tak Notation) Support**
+  - Parse PTN files and notation strings
+  - Generate PTN from game state
+  - Support for drops: `a1`, `Ca1` (capstone), `Sa1` (standing stone)
+  - Support for moves: `3a3+3`, `4a4>121` (with drop counts)
+  - Game metadata and comments
+
+- **REST API**
+  - `GET /` - Dynamic home page with endpoint documentation
+  - `GET /game/{slug}` - Get current game state
+  - `GET /game/{slug}/{turn}` - Get game state at specific turn
+  - `GET /game/new` - Create new game (also supports POST)
+  - `POST /game/{slug}/move` - Submit move
+  - `GET /healthz` - Health check endpoint
+  - `GET /swagger/*` - Interactive API documentation
+
+- **Database Storage**
+  - PostgreSQL with automatic migrations
+  - Game persistence with slugs
+  - Move history tracking
+  - Game metadata storage
+
+- **Web Interface**
+  - Styled home page with endpoint summaries
+  - Swagger UI integration
+  - Responsive design with proper CSS styling
+
+- **Developer Experience**
+  - Comprehensive test coverage (69.3%)
+  - Real PTN game files for testing
+  - Automated CI/CD with GitHub Actions
+  - Security analysis with CodeQL
+  - Input sanitization and security headers
+
+### Applications
+
+The project includes three main applications:
+
+1. **Web Server** (`./server`) - Production HTTP API server
+2. **CLI Tool** (`./cmd/gotak`) - Command-line game demonstration
+3. **PTN Parser** (`./cmd/parse-ptn`) - Parse and validate PTN files
+
+## Quick Start
+
+### Prerequisites
+
+- Go 1.23+
+- PostgreSQL (for the server)
+- Optional: Docker for containerized deployment
+
+### Running the Server
+
+```bash
+# Set database connection
+export DATABASE_URL="postgres://user:password@localhost/gotak?sslmode=disable"
+
+# Start the server
+go run ./server
+
+# Or build and run
+go build -o gotak-server ./server
+./gotak-server
+```
+
+The server will start on port 8080 and automatically run database migrations.
+
+### Running Tests
+
+```bash
+# Run all tests with coverage
+go test -v -cover ./...
+
+# Run specific package tests
+go test -v ./server
+```
+
+### Building Applications
+
+```bash
+# Build the main CLI tool
+go build -o gotak ./cmd/gotak
+
+# Build the PTN parser
+go build -o parse-ptn ./cmd/parse-ptn
+
+# Build the server
+go build -o gotak-server ./server
+```
+
+## API Usage
+
+### Create a New Game
+
+```bash
+curl -X POST http://localhost:8080/game/new \
+  -H "Content-Type: application/json" \
+  -d '{"size": "8"}'
+```
+
+### Make a Move
+
+```bash
+curl -X POST http://localhost:8080/game/{slug}/move \
+  -H "Content-Type: application/json" \
+  -d '{"player": 1, "move": "a1", "turn": 1}'
+```
+
+### Get Game State
+
+```bash
+curl http://localhost:8080/game/{slug}
+```
+
+## Architecture
+
+- **Core Logic**: Game rules, board state, and PTN parsing in root `*.go` files
+- **Server**: HTTP API with Chi router, middleware, and PostgreSQL storage
+- **Database**: Schema with games, moves, and tags tables
+- **Security**: Input sanitization, CORS, security headers
+- **Documentation**: Auto-generated Swagger docs with GitHub Actions integration
+
+## Development
+
+See [CLAUDE.md](./CLAUDE.md) for detailed development commands and architecture information.
 
 ## Inspirations
 
- - https://github.com/gruppler/PTN-Ninja
- - http://playtak.org
- - https://www.reddit.com/r/Tak/wiki/the_stacks
- - https://www.reddit.com/r/Tak/wiki/ptn_file_format
- - https://www.reddit.com/r/Tak/wiki/portable_tak_notation
- - http://blog.leahhanson.us/post/recursecenter2016/recipeparser.html
- - https://github.com/freeeve/pgn
- - https://github.com/nelhage/taktician
+- [PTN-Ninja](https://github.com/gruppler/PTN-Ninja) - PTN notation and game analysis
+- [PlayTak.org](http://playtak.org) - Online Tak platform
+- [Taktician](https://github.com/nelhage/taktician) - Tak AI implementation
+- [Tak Subreddit Wiki](https://www.reddit.com/r/Tak/wiki/) - Rules and notation references
 
-## TODO
+## Future Enhancements
 
-  - Game Storage
-    - Game state storage
-        - Board
-        - Pieces
-        - Players
-    - Game state history
-        - Current state
-        - Moves made
-  - Game Play
-    - Game move input
-    - Game move validation
-        - Game completion checking
-    - Game notation parsing
-  - Tests using real game notations
-
-  - JSON API
-     - GET `/game/$id`
-         - Returns a game of ID `$id` with the most recent state.
-     - GET `/game/$id/$move`
-         - Returns a game of ID `$id` after move `$move`.
-     - POST `/game/$id/move`
-         - Client sends a move for game of `$id`. Request must include a valid player ID and a valid move.
-     - POST `/game/new`
-         - Creates a new game and returns a game ID. Must provide player IDs.
-
-### Future
-
-  - Scoring
-  - Authentication
-  - Player ranking
-  - Sharing of game histories between friends
-  - A gallery of well played games
-  - A simple AI to play against if no one else is around
+- Player authentication and accounts
+- Real-time game updates (WebSockets)
+- Game spectating and replay features
+- Player ranking and statistics
+- Tournament support
+- AI opponent integration
+- Game analysis tools

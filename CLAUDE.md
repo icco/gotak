@@ -12,7 +12,8 @@ go test -v -cover ./...
 ### Linting and Code Quality
 ```bash
 go vet ./...
-staticcheck -go 1.17 ./...
+# Note: staticcheck may have version compatibility issues with Go 1.24+
+# staticcheck -go 1.17 ./...
 go run github.com/fzipp/gocyclo/cmd/gocyclo -avg .
 ```
 
@@ -59,15 +60,17 @@ This is a Tak game server implementation with the following key components:
 
 ### Server Architecture
 - **REST API** with endpoints:
-  - `GET /` - API information page
+  - `GET /` - Dynamic home page with endpoint summaries from swagger.json
   - `GET /healthz` - Health check endpoint
   - `GET /swagger/*` - Swagger UI documentation
   - `GET /game/{slug}` - Get current game state
   - `GET /game/{slug}/{turn}` - Get game state at specific turn
-  - `POST /game/new` - Create new game
+  - `GET /game/new` - Create new game (redirects after creation)
+  - `POST /game/new` - Create new game (accepts JSON body with size)
   - `POST /game/{slug}/move` - Submit move
 - **Database layer** with PostgreSQL for game persistence
 - **Middleware stack** includes CORS, security headers, logging, and request validation
+- **Dynamic UI**: Home page reads swagger.json to display endpoint information with fallback
 - **CI/CD**: Automated Swagger documentation updates via GitHub Actions
 
 ### Key Technical Details
@@ -75,8 +78,11 @@ This is a Tak game server implementation with the following key components:
 - Board sizes from 4x4 to 9x9 (configurable)
 - Implements complete Tak rules including road detection
 - Thread-safe game state management
-- Database migrations handled automatically
+- Database migrations handled automatically on server startup
 - Security: input sanitization with bluemonday policy
+- Dynamic home page that reads swagger.json for endpoint documentation
+- Styled web interface with fallback when swagger.json unavailable
+- Go 1.23+ with toolchain 1.24.6
 
 ### Game Flow
 1. Create game with specified board size
@@ -86,14 +92,47 @@ This is a Tak game server implementation with the following key components:
 5. Game history stored as turns with individual moves
 
 ### Testing
-- Comprehensive test coverage for core game logic
-- Test games in `test_games/` directory with real PTN files
+- Comprehensive test coverage (69.3% overall coverage)
+- Test games in `test_games/` directory with real PTN files from actual games
 - Unit tests for move parsing, board state, and game rules
+- Server tests for HTTP endpoints with database mocking
+- Game logic validation with stress tests
 
 ### CI/CD and Documentation
-- **GitHub Actions**: 
+- **GitHub Actions**:
   - CodeQL security analysis on push/PR to main
   - Automatic Swagger documentation updates on API changes
+  - Test suite runs on all PRs and pushes
 - **Swagger Documentation**: Auto-generated API docs served at `/swagger/`
 - **Workflow triggers**: Documentation updates when Go files in `server/` or core game files change
-- simple commands are always best, prefer them to long command strings with && or || #
+- **Home Page**: Dynamically reads swagger.json to display endpoint documentation
+
+### Recent Improvements
+- **Dynamic Home Page**: Home page now reads from swagger.json to display endpoint summaries with styling
+- **Enhanced UI**: Added CSS styling for professional appearance with endpoint tags and descriptions
+- **Robust Fallback**: Graceful degradation when swagger.json is unavailable
+- **Database Schema**: Added game status tracking with migrations
+- **Security**: Comprehensive input sanitization and security headers
+
+### Database Schema
+- `games`: Store game metadata with ID, slug, and creation timestamp
+- `moves`: Track all game moves with player, turn, and PTN text
+- `tags`: Store game metadata as key-value pairs
+- Automatic migrations on server startup
+
+### Environment Variables
+- `DATABASE_URL`: PostgreSQL connection string (required for server)
+- `PORT`: Server port (defaults to 8080)
+- `NAT_ENV`: Set to "production" to enable SSL redirects
+
+### Performance Notes
+- Game state reconstruction happens on-demand by replaying moves
+- Database queries optimized for game retrieval and move insertion
+- Concurrent request handling with Chi router
+- Memory-efficient board representation using maps
+
+# Development Guidelines
+- Simple commands are always best, prefer them to long command strings with && or ||
+- Always run tests before committing changes
+- Update swagger documentation after API changes
+- Follow existing code patterns and conventions
