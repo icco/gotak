@@ -72,7 +72,7 @@ The project includes three main applications:
 
 ### Prerequisites
 
-- Go 1.23+ 
+- Go 1.23+
 - PostgreSQL (for the server)
 - Optional: Docker for containerized deployment
 

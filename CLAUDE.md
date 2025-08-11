@@ -13,7 +13,7 @@ go test -v -cover ./...
 ```bash
 go vet ./...
 # Note: staticcheck may have version compatibility issues with Go 1.24+
-# staticcheck -go 1.17 ./...  
+# staticcheck -go 1.17 ./...
 go run github.com/fzipp/gocyclo/cmd/gocyclo -avg .
 ```
 
@@ -61,7 +61,7 @@ This is a Tak game server implementation with the following key components:
 ### Server Architecture
 - **REST API** with endpoints:
   - `GET /` - Dynamic home page with endpoint summaries from swagger.json
-  - `GET /healthz` - Health check endpoint  
+  - `GET /healthz` - Health check endpoint
   - `GET /swagger/*` - Swagger UI documentation
   - `GET /game/{slug}` - Get current game state
   - `GET /game/{slug}/{turn}` - Get game state at specific turn
@@ -99,7 +99,7 @@ This is a Tak game server implementation with the following key components:
 - Game logic validation with stress tests
 
 ### CI/CD and Documentation
-- **GitHub Actions**: 
+- **GitHub Actions**:
   - CodeQL security analysis on push/PR to main
   - Automatic Swagger documentation updates on API changes
   - Test suite runs on all PRs and pushes
