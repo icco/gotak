@@ -3,6 +3,7 @@ FROM golang:1.24-alpine
 ENV GOPROXY="https://proxy.golang.org"
 ENV GO111MODULE="on"
 ENV NAT_ENV="production"
+ENV PORT="8080"
 
 EXPOSE 8080
 
