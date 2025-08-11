@@ -47,7 +47,6 @@ var (
 // @title GoTak API
 // @version 1.0
 // @description A Tak game server API
-// @termsOfService http://swagger.io/terms/
 // @contact.name API Support
 // @contact.url http://github.com/icco/gotak
 // @license.name MIT
