@@ -259,7 +259,7 @@ func (g *Game) UpdateTurn(turn *Turn) {
 	g.Turns = append(g.Turns, turn)
 }
 
-// DoTurn takes raw input, validates
+// DoTurn takes raw input, validates and executes a full turn with both players
 func (g *Game) DoTurn(mvOneStr, mvTwoStr string) error {
 	mvOne, err := NewMove(mvOneStr)
 	if err != nil {
@@ -271,20 +271,108 @@ func (g *Game) DoTurn(mvOneStr, mvTwoStr string) error {
 		return err
 	}
 
-	// First turn you place the other person's
+	// First turn: each player places opponent's stone
 	if len(g.Turns) == 0 {
-		g.Board.DoMove(mvOne, PlayerBlack)
-		g.Board.DoMove(mvTwo, PlayerWhite)
+		// First move must be a flat stone placement only
+		if !mvOne.isPlace() || mvOne.Stone != StoneFlat {
+			return fmt.Errorf("first move must be flat stone placement")
+		}
+		if !mvTwo.isPlace() || mvTwo.Stone != StoneFlat {
+			return fmt.Errorf("first move must be flat stone placement")
+		}
+		
+		// Player 1 (white) places black stone, Player 2 (black) places white stone
+		err = g.Board.DoMove(mvOne, PlayerBlack)
+		if err != nil {
+			return fmt.Errorf("first move error: %v", err)
+		}
+		err = g.Board.DoMove(mvTwo, PlayerWhite)
+		if err != nil {
+			return fmt.Errorf("first move error: %v", err)
+		}
 	} else {
-		g.Board.DoMove(mvOne, PlayerWhite)
-		g.Board.DoMove(mvTwo, PlayerBlack)
+		// Normal turns: each player places their own stones
+		err = g.Board.DoMove(mvOne, PlayerWhite)
+		if err != nil {
+			return fmt.Errorf("white move error: %v", err)
+		}
+		err = g.Board.DoMove(mvTwo, PlayerBlack)
+		if err != nil {
+			return fmt.Errorf("black move error: %v", err)
+		}
 	}
 
 	g.Turns = append(g.Turns, &Turn{
-		Number: int64(len(g.Turns)),
+		Number: int64(len(g.Turns)) + 1,
 		First:  mvOne,
 		Second: mvTwo,
 	})
+
+	return nil
+}
+
+// DoSingleMove executes a single move by a specific player
+func (g *Game) DoSingleMove(moveStr string, player int) error {
+	mv, err := NewMove(moveStr)
+	if err != nil {
+		return err
+	}
+
+	// Validate it's the correct player's turn
+	turnNumber := int64(len(g.Turns))
+	
+	// First turn special handling
+	if turnNumber == 0 {
+		// First turn: each player places opponent's stone
+		if !mv.isPlace() || mv.Stone != StoneFlat {
+			return fmt.Errorf("first move must be flat stone placement")
+		}
+		
+		// Place opponent's color
+		opponentPlayer := PlayerWhite
+		if player == PlayerWhite {
+			opponentPlayer = PlayerBlack
+		}
+		
+		err = g.Board.DoMove(mv, opponentPlayer)
+		if err != nil {
+			return fmt.Errorf("first move error: %v", err)
+		}
+	} else {
+		// Normal move: place own color
+		err = g.Board.DoMove(mv, player)
+		if err != nil {
+			return fmt.Errorf("move error: %v", err)
+		}
+	}
+
+	// Update or create turn
+	currentTurn, err := g.GetTurn(turnNumber)
+	if err != nil {
+		return err
+	}
+
+	// Determine if this is first or second move of the turn
+	expectedPlayer := PlayerWhite
+	if turnNumber%2 != 0 {
+		expectedPlayer = PlayerBlack
+	}
+
+	if player == expectedPlayer {
+		if currentTurn.First == nil {
+			currentTurn.First = mv
+		} else {
+			return fmt.Errorf("player %d already moved this turn", player)
+		}
+	} else {
+		if currentTurn.Second == nil {
+			currentTurn.Second = mv
+		} else {
+			return fmt.Errorf("player %d already moved this turn", player)
+		}
+	}
+
+	g.UpdateTurn(currentTurn)
 
 	return nil
 }

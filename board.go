@@ -226,6 +226,15 @@ func (b *Board) isValidSquare(square string) bool {
 // can be used, though it is not required and infrequently used.
 func (b *Board) DoMove(mv *Move, player int) error {
 	if mv.isPlace() {
+		// Check if square is empty
+		if len(b.Squares[mv.Square]) > 0 {
+			topStone := b.TopStone(mv.Square)
+			// Can't place on standing stones or capstones
+			if topStone.Type == StoneStanding || topStone.Type == StoneCap {
+				return fmt.Errorf("cannot place stone on %s at %s", topStone.Type, mv.Square)
+			}
+		}
+
 		stone := &Stone{
 			Player: player,
 			Type:   mv.Stone,
@@ -236,36 +245,78 @@ func (b *Board) DoMove(mv *Move, player int) error {
 	}
 
 	if mv.isMove() {
+		// Validate move count doesn't exceed carry limit (board size)
+		if mv.MoveCount > b.Size {
+			return fmt.Errorf("cannot carry %d stones, carry limit is %d", mv.MoveCount, b.Size)
+		}
+
+		// Check if we control the stack
+		topStone := b.TopStone(mv.Square)
+		if topStone == nil || topStone.Player != player {
+			return fmt.Errorf("player %d does not control stack at %s", player, mv.Square)
+		}
+
+		// Check if we have enough stones to move
+		if int64(len(b.Squares[mv.Square])) < mv.MoveCount {
+			return fmt.Errorf("not enough stones at %s to move %d", mv.Square, mv.MoveCount)
+		}
+
 		begin := int64(len(b.Squares[mv.Square])) - mv.MoveCount
-		stones := b.Squares[mv.Square][begin:]
+		stones := make([]*Stone, mv.MoveCount)
+		copy(stones, b.Squares[mv.Square][begin:])
 		b.Squares[mv.Square] = b.Squares[mv.Square][:begin]
 
 		squares := []string{}
-
 		currentSpace := mv.Square
-		nextSpace := ""
+
 		for i := 0; i < len(mv.MoveDropCounts); i++ {
-			switch mv.MoveDirection {
-			case MoveLeft:
-				nextSpace = string(currentSpace[0]-1) + string(currentSpace[1])
-			case MoveRight:
-				nextSpace = string(currentSpace[0]+1) + string(currentSpace[1])
-			case MoveUp:
-				nextSpace = string(currentSpace[0]) + string(currentSpace[1]+1)
-			case MoveDown:
-				nextSpace = string(currentSpace[0]) + string(currentSpace[1]-1)
+			nextSpace := Translate(currentSpace, mv.MoveDirection)
+			
+			// Validate next space is on board
+			if !b.isValidSquare(nextSpace) {
+				return fmt.Errorf("move would go off board: %s", nextSpace)
 			}
 
 			currentSpace = nextSpace
 			squares = append(squares, nextSpace)
 		}
 
-		// pop and shift
-		for i, s := range squares {
-			for j := int64(0); j < mv.MoveDropCounts[i]; j++ {
-				st := stones[0]
-				b.Squares[s] = append(b.Squares[s], st)
-				stones = stones[1:]
+		// Handle capstone flattening and placement validation
+		stoneIndex := int64(0)
+		for i, targetSquare := range squares {
+			dropCount := mv.MoveDropCounts[i]
+			
+			for j := int64(0); j < dropCount; j++ {
+				if stoneIndex >= int64(len(stones)) {
+					return fmt.Errorf("not enough stones to drop")
+				}
+				
+				st := stones[stoneIndex]
+				stoneIndex++
+				
+				// Check if we're trying to place on a standing stone or capstone
+				targetTopStone := b.TopStone(targetSquare)
+				if targetTopStone != nil {
+					// Can't place on capstones
+					if targetTopStone.Type == StoneCap {
+						return fmt.Errorf("cannot place stone on capstone at %s", targetSquare)
+					}
+					
+					// Can only flatten standing stones with a capstone by itself
+					if targetTopStone.Type == StoneStanding {
+						if st.Type != StoneCap {
+							return fmt.Errorf("only capstones can flatten standing stones at %s", targetSquare)
+						}
+						// Must be the only stone being placed (capstone by itself)
+						if dropCount != 1 || stoneIndex != int64(len(stones)) {
+							return fmt.Errorf("capstone must move by itself to flatten standing stone at %s", targetSquare)
+						}
+						// Flatten the standing stone
+						targetTopStone.Type = StoneFlat
+					}
+				}
+				
+				b.Squares[targetSquare] = append(b.Squares[targetSquare], st)
 			}
 		}
 	}
