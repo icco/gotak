@@ -469,7 +469,7 @@ func parseTurn(line string) (*Turn, error) {
 		// TODO: Support branches. Right now we discard things that are not ints.
 		numberVal := fields[0]
 		numberVal = strings.TrimRight(numberVal, ".")
-		if regexp.MustCompile("\\D+").MatchString(numberVal) {
+		if regexp.MustCompile(`\D+`).MatchString(numberVal) {
 			log.Warnw("not a number, ignoring line", "number", numberVal)
 			return nil, nil
 		}
