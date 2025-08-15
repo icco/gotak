@@ -70,7 +70,7 @@ func TestParse(t *testing.T) {
 				}
 				assertNotEqual(t, context, turn.First.Text, "")
 				assertNotEqual(t, context, turn.Number, 0)
-				
+
 				// Second move can be nil for incomplete turns (e.g., at game end)
 				if turn.Second != nil {
 					assertNotEqual(t, context, turn.Second.Text, "")
