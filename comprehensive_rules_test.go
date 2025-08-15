@@ -210,8 +210,25 @@ func TestPlacementOnStandingStones(t *testing.T) {
 		t.Fatalf("Capstone not correctly placed at c2")
 	}
 
-	// Move capstone to flatten the standing stone (from c2 to c3)
-	move, err := NewMove("c2>")
+	// First, test moving capstone to an empty square to ensure basic movement works
+	move, err := NewMove("c2+")
+	if err != nil {
+		t.Fatalf("Failed to create move: %v", err)
+	}
+
+	err = game.Board.DoMove(move, PlayerWhite)
+	if err != nil {
+		t.Errorf("Capstone should be able to move to empty square: %v", err)
+	}
+
+	// Check that capstone moved to c3
+	capstone = game.Board.TopStone("c3")
+	if capstone == nil || capstone.Type != StoneCap || capstone.Player != PlayerWhite {
+		t.Fatalf("Capstone not correctly moved to c3")
+	}
+
+	// Now test moving capstone to flatten the standing stone
+	move, err = NewMove("c3>")
 	if err != nil {
 		t.Fatalf("Failed to create move: %v", err)
 	}
@@ -225,6 +242,7 @@ func TestPlacementOnStandingStones(t *testing.T) {
 	t.Logf("Board state after move:")
 	t.Logf("c2: %v", game.Board.Squares["c2"])
 	t.Logf("c3: %v", game.Board.Squares["c3"])
+	t.Logf("c3 stones: %+v", game.Board.Squares["c3"])
 
 	// Check that the standing stone was flattened
 	stones := game.Board.Squares["c3"]
