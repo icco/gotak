@@ -25,7 +25,7 @@ func TestBoardSizeValidation(t *testing.T) {
 		t.Run(fmt.Sprintf("Size%d", tc.size), func(t *testing.T) {
 			board := &Board{Size: tc.size}
 			err := board.Init()
-			
+
 			if tc.isValid && err != nil {
 				t.Errorf("Expected valid board size %d, got error: %v", tc.size, err)
 			}
@@ -43,11 +43,11 @@ func TestStoneCountsByBoardSize(t *testing.T) {
 		expectedStones int64
 		expectedCaps   int64
 	}{
-		{4, 15, 0},  // 4x4: 15 stones, 0 capstones
-		{5, 21, 1},  // 5x5: 21 stones, 1 capstone
-		{6, 30, 1},  // 6x6: 30 stones, 1 capstone
-		{7, 40, 1},  // 7x7: 40 stones, 1 capstone (assuming 1 based on rules)
-		{8, 50, 2},  // 8x8: 50 stones, 2 capstones
+		{4, 15, 0}, // 4x4: 15 stones, 0 capstones
+		{5, 21, 1}, // 5x5: 21 stones, 1 capstone
+		{6, 30, 1}, // 6x6: 30 stones, 1 capstone
+		{7, 40, 1}, // 7x7: 40 stones, 1 capstone (assuming 1 based on rules)
+		{8, 50, 2}, // 8x8: 50 stones, 2 capstones
 	}
 
 	for _, tc := range testCases {
@@ -192,62 +192,33 @@ func TestPlacementOnStandingStones(t *testing.T) {
 		t.Fatalf("First turn failed: %v", err)
 	}
 
-	// Place a standing stone
-	err = game.DoTurn("Sc3", "d3")
+	// Place stones for testing
+	err = game.DoTurn("c3", "Sd2")
 	if err != nil {
-		t.Fatalf("Failed to place standing stone: %v", err)
+		t.Fatalf("Failed to place stones: %v", err)
 	}
 
-	// Test that capstone can flatten standing stone by moving to it
+	// Place capstone
 	err = game.DoTurn("Cc2", "e3")
 	if err != nil {
 		t.Fatalf("Failed to place capstone: %v", err)
 	}
 
-	// Verify capstone is at c2
-	capstone := game.Board.TopStone("c2")
-	if capstone == nil || capstone.Type != StoneCap || capstone.Player != PlayerWhite {
-		t.Fatalf("Capstone not correctly placed at c2")
-	}
-
-	// First, test moving capstone to an empty square to ensure basic movement works
-	move, err := NewMove("c2+")
+	// Test that capstone can flatten opponent's standing stone
+	move, err := NewMove("c2>")
 	if err != nil {
 		t.Fatalf("Failed to create move: %v", err)
 	}
 
 	err = game.Board.DoMove(move, PlayerWhite)
 	if err != nil {
-		t.Errorf("Capstone should be able to move to empty square: %v", err)
+		t.Errorf("Capstone should be able to flatten opponent's standing stone: %v", err)
 	}
 
-	// Check that capstone moved to c3
-	capstone = game.Board.TopStone("c3")
-	if capstone == nil || capstone.Type != StoneCap || capstone.Player != PlayerWhite {
-		t.Fatalf("Capstone not correctly moved to c3")
-	}
-
-	// Now test moving capstone to flatten the standing stone
-	move, err = NewMove("c3>")
-	if err != nil {
-		t.Fatalf("Failed to create move: %v", err)
-	}
-
-	err = game.Board.DoMove(move, PlayerWhite)
-	if err != nil {
-		t.Errorf("Capstone should be able to flatten standing stone: %v", err)
-	}
-
-	// Check the board state after the move
-	t.Logf("Board state after move:")
-	t.Logf("c2: %v", game.Board.Squares["c2"])
-	t.Logf("c3: %v", game.Board.Squares["c3"])
-	t.Logf("c3 stones: %+v", game.Board.Squares["c3"])
-
-	// Check that the standing stone was flattened
-	stones := game.Board.Squares["c3"]
+	// Check that the standing stone was flattened at d2
+	stones := game.Board.Squares["d2"]
 	if len(stones) < 2 {
-		t.Fatalf("Expected at least 2 stones at c3, got %d", len(stones))
+		t.Fatalf("Expected at least 2 stones at d2, got %d", len(stones))
 	}
 
 	if stones[0].Type != StoneFlat {
@@ -878,13 +849,13 @@ func TestCapstoneFlatteningRules(t *testing.T) {
 	}
 
 	// Place standing stone and capstone
-	err = game.DoTurn("Sc3", "Cc2")
+	err = game.DoTurn("Cc2", "Sc3")
 	if err != nil {
 		t.Fatalf("Failed to place stones: %v", err)
 	}
 
 	// Test that capstone can flatten standing stone
-	move, err := NewMove("c2>")
+	move, err := NewMove("c2+")
 	if err != nil {
 		t.Fatalf("Failed to create move: %v", err)
 	}

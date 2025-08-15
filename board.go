@@ -186,11 +186,11 @@ func (b *Board) isValidSquare(square string) bool {
 	if col < 'a' {
 		return false
 	}
-	
+
 	if b.Size > 255 || int64('a')+b.Size > 255 {
 		return false
 	}
-	
+
 	if col >= byte('a')+byte(b.Size) {
 		return false
 	}
@@ -320,7 +320,11 @@ func (b *Board) DoMove(mv *Move, player int) error {
 						if dropCount != 1 || stoneIndex != int64(len(stones)) {
 							return fmt.Errorf("capstone must move by itself to flatten standing stone at %s", targetSquare)
 						}
-						// Flatten the standing stone
+						// Can only flatten opponent standing stones, not your own
+						if targetTopStone.Player == player {
+							return fmt.Errorf("cannot flatten your own standing stone at %s", targetSquare)
+						}
+						// Flatten the opponent's standing stone
 						targetTopStone.Type = StoneFlat
 					}
 				}
