@@ -221,6 +221,11 @@ func TestPlacementOnStandingStones(t *testing.T) {
 		t.Errorf("Capstone should be able to flatten standing stone: %v", err)
 	}
 
+	// Check the board state after the move
+	t.Logf("Board state after move:")
+	t.Logf("c2: %v", game.Board.Squares["c2"])
+	t.Logf("c3: %v", game.Board.Squares["c3"])
+
 	// Check that the standing stone was flattened
 	stones := game.Board.Squares["c3"]
 	if len(stones) < 2 {
