@@ -38,6 +38,8 @@ const (
 // NewMove takes in a move string and returns a move object that has been
 // parsed.
 func NewMove(mv string) (*Move, error) {
+	// Strip quote marks, question marks, and exclamation marks from moves (PTN annotations)
+	mv = strings.Trim(mv, "\"'?!")
 	m := &Move{Text: mv}
 	err := m.Parse()
 	return m, err
@@ -46,6 +48,10 @@ func NewMove(mv string) (*Move, error) {
 // Parse takes the Text of a move and fills the rest of the attributes of the
 // Move object. It will overright past parses or data stored in the move.
 func (m *Move) Parse() error {
+	if m.Text == "" {
+		return fmt.Errorf("move cannot be empty")
+	}
+
 	if m.isPlace() {
 		return m.parsePlace()
 	}
@@ -54,7 +60,7 @@ func (m *Move) Parse() error {
 		return m.parseMove()
 	}
 
-	return nil
+	return fmt.Errorf("invalid move format: %s", m.Text)
 }
 
 func (m *Move) isPlace() bool {

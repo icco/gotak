@@ -462,7 +462,7 @@ func parseTurn(line string) (*Turn, error) {
 
 	if cleanLine != "" {
 		fields := strings.Fields(cleanLine)
-		if len(fields) < 3 || len(fields) > 4 {
+		if len(fields) < 2 || len(fields) > 4 {
 			return turn, fmt.Errorf("line does not have correct number of parts: %+v", fields)
 		}
 
@@ -484,16 +484,25 @@ func parseTurn(line string) (*Turn, error) {
 			return nil, err
 		}
 
-		p2, err := NewMove(fields[2])
-		if err != nil {
-			return nil, err
-		}
-
 		turn.First = p1
-		turn.Second = p2
 
-		if len(fields) == 4 {
-			turn.Result = fields[3]
+		// Handle second move or result
+		if len(fields) >= 3 {
+			// Check if the third field is a result (contains '-' or is a game result)
+			if strings.Contains(fields[2], "-") || fields[2] == "R-0" || fields[2] == "0-R" || fields[2] == "F-0" || fields[2] == "0-F" {
+				turn.Result = fields[2]
+			} else {
+				// It's a second move
+				p2, err := NewMove(fields[2])
+				if err != nil {
+					return nil, err
+				}
+				turn.Second = p2
+
+				if len(fields) == 4 {
+					turn.Result = fields[3]
+				}
+			}
 		}
 	}
 
