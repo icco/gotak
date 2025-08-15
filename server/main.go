@@ -135,6 +135,7 @@ func main() {
 		r.Get("/game/new", newGameHandler)
 		r.Post("/game/new", newGameHandler)
 		r.Post("/game/{slug}/move", newMoveHandler)
+	r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
 	})
 
 	// GORM auto-migration is handled in getDB()
