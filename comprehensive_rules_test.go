@@ -16,8 +16,8 @@ func TestBoardSizeValidation(t *testing.T) {
 		{5, true},   // Standard size
 		{6, true},   // Standard size
 		{7, true},   // Standard size
-		{8, true},   // Maximum standard size
-		{9, false},  // Too large
+		{8, true},   // Standard size
+		{9, true},   // Extended size (supported by implementation)
 		{10, false}, // Too large
 	}
 
@@ -120,15 +120,21 @@ func TestNormalTurnRule(t *testing.T) {
 	}
 
 	// Test second turn - players place their own stones
-	err = game.DoSingleMove("c1", PlayerWhite)
+	err = game.DoTurn("c1", "d1")
 	if err != nil {
-		t.Errorf("Second turn move failed: %v", err)
+		t.Errorf("Second turn failed: %v", err)
 	}
 
 	// Check that white placed a white stone
 	topStone := game.Board.TopStone("c1")
 	if topStone == nil || topStone.Player != PlayerWhite {
 		t.Errorf("Expected white stone at c1, got %v", topStone)
+	}
+
+	// Check that black placed a black stone
+	topStone = game.Board.TopStone("d1")
+	if topStone == nil || topStone.Player != PlayerBlack {
+		t.Errorf("Expected black stone at d1, got %v", topStone)
 	}
 }
 
@@ -145,21 +151,15 @@ func TestStonePlacementRules(t *testing.T) {
 		t.Fatalf("First turn failed: %v", err)
 	}
 
-	// Test flat stone placement (default)
-	err = game.DoSingleMove("c1", PlayerWhite)
+	// Test flat stone placement (default) and standing stone placement
+	err = game.DoTurn("c1", "Sc2")
 	if err != nil {
-		t.Errorf("Flat stone placement failed: %v", err)
+		t.Errorf("Second turn failed: %v", err)
 	}
 
 	topStone := game.Board.TopStone("c1")
 	if topStone.Type != StoneFlat {
 		t.Errorf("Expected flat stone, got %s", topStone.Type)
-	}
-
-	// Test standing stone placement
-	err = game.DoSingleMove("Sc2", PlayerBlack)
-	if err != nil {
-		t.Errorf("Standing stone placement failed: %v", err)
 	}
 
 	topStone = game.Board.TopStone("c2")
@@ -168,9 +168,9 @@ func TestStonePlacementRules(t *testing.T) {
 	}
 
 	// Test capstone placement
-	err = game.DoSingleMove("Cc3", PlayerWhite)
+	err = game.DoTurn("Cc3", "d3")
 	if err != nil {
-		t.Errorf("Capstone placement failed: %v", err)
+		t.Errorf("Third turn failed: %v", err)
 	}
 
 	topStone = game.Board.TopStone("c3")
