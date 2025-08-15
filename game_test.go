@@ -31,6 +31,12 @@ func TestParse(t *testing.T) {
 			g, err := ParsePTN(file)
 			if err != nil {
 				t.Errorf("%+v", err)
+				return
+			}
+
+			if g == nil {
+				t.Errorf("ParsePTN returned nil game")
+				return
 			}
 
 			// Required tags
@@ -41,14 +47,34 @@ func TestParse(t *testing.T) {
 				}
 			}
 
-			for _, turn := range g.Turns {
+			if g == nil {
+				t.Errorf("Game is nil")
+				return
+			}
+
+			if g.Turns == nil {
+				// This is valid for games with no moves (e.g., games with only TPS)
+				return
+			}
+
+			for i, turn := range g.Turns {
+				if turn == nil {
+					t.Errorf("Turn %d is nil", i)
+					continue
+				}
 				context := fmt.Sprintf("Turn: %+v", turn)
 				assertNotEqual(t, context, turn, nil)
-				assertNotEqual(t, context, turn.First, nil)
-				assertNotEqual(t, context, turn.Second, nil)
+				if turn.First == nil {
+					t.Errorf("Turn %d First move is nil", i)
+					continue
+				}
 				assertNotEqual(t, context, turn.First.Text, "")
-				assertNotEqual(t, context, turn.Second.Text, "")
 				assertNotEqual(t, context, turn.Number, 0)
+
+				// Second move can be nil for incomplete turns (e.g., at game end)
+				if turn.Second != nil {
+					assertNotEqual(t, context, turn.Second.Text, "")
+				}
 			}
 		})
 	}

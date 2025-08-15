@@ -126,6 +126,12 @@ func getGame(db *gorm.DB, slug string) (*gotak.Game, error) {
 		return game, err
 	}
 
+	// Replay moves to update board state
+	err = replayMoves(game)
+	if err != nil {
+		return game, err
+	}
+
 	return game, nil
 }
 

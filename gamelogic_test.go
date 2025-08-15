@@ -130,7 +130,7 @@ func TestFirstTurnRule(t *testing.T) {
 		t.Errorf("Expected black stone at a1 (placed by white), got %v", topStone)
 	}
 
-	// Check that black placed a white stone at b1  
+	// Check that black placed a white stone at b1
 	topStone = game.Board.TopStone("b1")
 	if topStone == nil || topStone.Player != PlayerWhite {
 		t.Errorf("Expected white stone at b1 (placed by black), got %v", topStone)
@@ -261,7 +261,7 @@ func TestPlacementValidation(t *testing.T) {
 // Test piece count limits
 func TestPieceCountLimits(t *testing.T) {
 	testCases := []struct {
-		size     int64
+		size      int64
 		maxPieces int64
 		capstones int64
 	}{
