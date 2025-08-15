@@ -459,3 +459,71 @@ func TestDatabaseTypesConsistency(t *testing.T) {
 	// Verify the ID is int64 as expected by gotak.Game
 	var _ int64 = game.ID
 }
+
+func TestGetGameBoardState(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Create a new game
+	slug, err := createGame(db, 5)
+	if err != nil {
+		t.Fatalf("could not create game: %v", err)
+	}
+
+	// Get the game to get its ID
+	game, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("could not get game: %v", err)
+	}
+
+	// Insert some moves
+	moves := []struct {
+		player int
+		text   string
+		turn   int64
+	}{
+		{gotak.PlayerWhite, "a1", 1}, // First turn: white places black stone
+		{gotak.PlayerBlack, "e5", 1}, // First turn: black places white stone
+		{gotak.PlayerWhite, "b2", 2}, // Second turn: white places white stone
+		{gotak.PlayerBlack, "d4", 2}, // Second turn: black places black stone
+	}
+
+	for _, move := range moves {
+		if err := insertMove(db, game.ID, move.player, move.text, move.turn); err != nil {
+			t.Fatalf("could not insert move: %v", err)
+		}
+	}
+
+	// Get the game from database
+	retrievedGame, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("could not get game: %v", err)
+	}
+
+	// Verify board state is updated
+	if retrievedGame.Board.Squares["a1"] == nil || len(retrievedGame.Board.Squares["a1"]) == 0 {
+		t.Error("board state not updated: a1 should have a stone")
+	}
+	if retrievedGame.Board.Squares["e5"] == nil || len(retrievedGame.Board.Squares["e5"]) == 0 {
+		t.Error("board state not updated: e5 should have a stone")
+	}
+	if retrievedGame.Board.Squares["b2"] == nil || len(retrievedGame.Board.Squares["b2"]) == 0 {
+		t.Error("board state not updated: b2 should have a stone")
+	}
+	if retrievedGame.Board.Squares["d4"] == nil || len(retrievedGame.Board.Squares["d4"]) == 0 {
+		t.Error("board state not updated: d4 should have a stone")
+	}
+
+	// Verify stone colors are correct
+	if retrievedGame.Board.Color("a1") != gotak.PlayerWhite {
+		t.Errorf("a1 should be white, got %d", retrievedGame.Board.Color("a1"))
+	}
+	if retrievedGame.Board.Color("e5") != gotak.PlayerBlack {
+		t.Errorf("e5 should be black, got %d", retrievedGame.Board.Color("e5"))
+	}
+	if retrievedGame.Board.Color("b2") != gotak.PlayerWhite {
+		t.Errorf("b2 should be white, got %d", retrievedGame.Board.Color("b2"))
+	}
+	if retrievedGame.Board.Color("d4") != gotak.PlayerBlack {
+		t.Errorf("d4 should be black, got %d", retrievedGame.Board.Color("d4"))
+	}
+}
