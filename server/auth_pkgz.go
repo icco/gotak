@@ -83,10 +83,13 @@ func AuthRoutes() http.Handler {
 		r.Post("/login", loginHandler)
 	})
 	
-	// Profile endpoints with less restrictive rate limiting
-	r.Get("/profile", profileHandler)
-	r.Put("/profile", updateProfileHandler)
-	r.Post("/logout", logoutHandler)
+	// Profile endpoints with less restrictive rate limiting - require authentication
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Get("/profile", profileHandler)
+		r.Put("/profile", updateProfileHandler)
+		r.Post("/logout", logoutHandler)
+	})
 	
 	// Password reset endpoints
 	r.Post("/reset-password", resetPasswordHandler)
@@ -274,14 +277,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /auth/profile [get]
 func profileHandler(w http.ResponseWriter, r *http.Request) {
-	user, err := getCurrentUser(r)
-	if err != nil {
-		if err := Renderer.JSON(w, 401, map[string]string{"error": "unauthorized"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
+	user := getMustUserFromContext(r)
+	
 	// Hide password hash
 	user.PasswordHash = ""
 
@@ -317,13 +314,7 @@ type ConfirmResetRequest struct {
 // @Failure 500 {object} map[string]string
 // @Router /auth/profile [put]
 func updateProfileHandler(w http.ResponseWriter, r *http.Request) {
-	user, err := getCurrentUser(r)
-	if err != nil {
-		if err := Renderer.JSON(w, 401, map[string]string{"error": "unauthorized"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
+	user := getMustUserFromContext(r)
 
 	var req UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -453,6 +444,16 @@ func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := getCurrentUser(r)
 		if err != nil {
+			log.Errorw("authentication failed", zap.Error(err))
+			if err := Renderer.JSON(w, 401, map[string]string{"error": "authentication required"}); err != nil {
+				log.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+		
+		// Extra safety check - user should never be nil at this point
+		if user == nil {
+			log.Errorw("user is nil after successful authentication - this should never happen")
 			if err := Renderer.JSON(w, 401, map[string]string{"error": "authentication required"}); err != nil {
 				log.Errorw("failed to render JSON", zap.Error(err))
 			}
@@ -467,10 +468,19 @@ func authMiddleware(next http.Handler) http.Handler {
 
 // Helper to get user from request context
 func getUserFromContext(r *http.Request) *User {
-	if user, ok := r.Context().Value("user").(*User); ok {
+	if user, ok := r.Context().Value("user").(*User); ok && user != nil {
 		return user
 	}
 	return nil
+}
+
+// Helper to get user from request context with panic on nil (for protected routes)
+func getMustUserFromContext(r *http.Request) *User {
+	user := getUserFromContext(r)
+	if user == nil {
+		panic("user is nil in protected route - auth middleware failed")
+	}
+	return user
 }
 
 // @Summary Request password reset

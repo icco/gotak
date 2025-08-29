@@ -247,3 +247,21 @@ func updateGameStatus(db *gorm.DB, slug, status string, winner int) error {
 	}
 	return nil
 }
+
+// verifyGameOwnership checks if the user owns the specified game
+func verifyGameOwnership(db *gorm.DB, slug string, userID int64) error {
+	var game Game
+	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
+		return err
+	}
+	
+	if game.UserID == nil {
+		return fmt.Errorf("game has no owner")
+	}
+	
+	if *game.UserID != userID {
+		return fmt.Errorf("unauthorized: user does not own this game")
+	}
+	
+	return nil
+}

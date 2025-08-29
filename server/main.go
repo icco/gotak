@@ -287,13 +287,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current user from context (set by authMiddleware)
-	user := getUserFromContext(r)
-	if user == nil {
-		if err := Renderer.JSON(w, 401, map[string]string{"error": "authentication required"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
+	user := getMustUserFromContext(r)
 	userID := &user.ID
 
 	boardSize := 8
@@ -348,8 +342,21 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Get current user (must be authenticated to reach this handler)
+	user := getMustUserFromContext(r)
+	
 	// Get DB Entry
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+	
+	// Verify game ownership before allowing moves
+	if err := verifyGameOwnership(db, slug, user.ID); err != nil {
+		log.Errorw("game ownership verification failed", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 403, map[string]string{"error": "access denied: you don't own this game"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+	
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))

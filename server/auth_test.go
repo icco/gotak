@@ -151,3 +151,57 @@ func TestAuthMiddlewareWithoutUser(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 }
+
+func TestGameOwnershipVerification(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Create two users
+	user1 := createTestUser(t, db)
+	
+	user2 := &User{
+		Provider:   "local",
+		ProviderID: "test-user-456", 
+		Email:      "user2@example.com",
+		Name:       "Test User 2",
+	}
+	if err := db.Create(user2).Error; err != nil {
+		t.Fatalf("Failed to create second test user: %v", err)
+	}
+
+	// Create a game owned by user1
+	slug, err := createGame(db, 6, &user1.ID)
+	if err != nil {
+		t.Fatalf("Failed to create game: %v", err)
+	}
+
+	// Test that user1 can access their own game
+	err = verifyGameOwnership(db, slug, user1.ID)
+	if err != nil {
+		t.Errorf("User1 should own their game, got error: %v", err)
+	}
+
+	// Test that user2 cannot access user1's game
+	err = verifyGameOwnership(db, slug, user2.ID)
+	if err == nil {
+		t.Error("User2 should not be able to access user1's game")
+	}
+
+	// Test non-existent game
+	err = verifyGameOwnership(db, "nonexistent", user1.ID)
+	if err == nil {
+		t.Error("Should get error for non-existent game")
+	}
+}
+
+func TestMustUserFromContext(t *testing.T) {
+	// Test getMustUserFromContext with nil user (should panic)
+	req := httptest.NewRequest("GET", "/test", nil)
+	
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic when user is nil in protected route")
+		}
+	}()
+	
+	getMustUserFromContext(req)
+}
