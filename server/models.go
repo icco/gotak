@@ -47,18 +47,18 @@ type Move struct {
 	Game Game `gorm:"foreignKey:GameID" json:"-"`
 }
 
-// User represents a registered user
+// User represents an authenticated user (local or social)
 type User struct {
-	ID                int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Username          string    `gorm:"type:varchar(32);uniqueIndex;not null" json:"username"`
-	Email             string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-	PasswordHash      string    `gorm:"type:varchar(255);not null" json:"-"`
-	Verified          bool      `gorm:"default:false" json:"verified"`
-	VerificationToken string    `gorm:"type:varchar(255)" json:"-"`
-	ResetToken        string    `gorm:"type:varchar(255)" json:"-"`
-	Preferences       string    `gorm:"type:jsonb" json:"preferences,omitempty"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Provider    string    `gorm:"type:varchar(32);not null" json:"provider"`
+	ProviderID  string    `gorm:"type:varchar(128);not null" json:"provider_id"`
+	Email       string    `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
+	Name        string    `gorm:"type:varchar(128)" json:"name,omitempty"`
+	AvatarURL   string    `gorm:"type:varchar(512)" json:"avatar_url,omitempty"`
+	PasswordHash string   `gorm:"type:varchar(255)" json:"-"` // nullable for social login
+	Preferences string    `gorm:"type:jsonb" json:"preferences,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // AutoMigrate runs the database migrations
