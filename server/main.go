@@ -282,6 +282,13 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get current user from context (set by authMiddleware)
+	user := getUserFromContext(r)
+	var userID *int64
+	if user != nil {
+		userID = &user.ID
+	}
+
 	boardSize := 8
 
 	var data CreateGameRequest
@@ -292,7 +299,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slug, err := createGame(db, boardSize)
+	slug, err := createGame(db, boardSize, userID)
 	if err != nil {
 		log.Errorw("could not create game", zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
