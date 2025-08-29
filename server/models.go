@@ -52,8 +52,8 @@ type Move struct {
 // User represents an authenticated user (local or social)
 type User struct {
 	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Provider    string    `gorm:"type:varchar(32);not null" json:"provider"`
-	ProviderID  string    `gorm:"type:varchar(128);not null" json:"provider_id"`
+	Provider    string    `gorm:"type:varchar(32);not null;uniqueIndex:idx_provider_id" json:"provider"`
+	ProviderID  string    `gorm:"type:varchar(128);not null;uniqueIndex:idx_provider_id" json:"provider_id"`
 	Email       string    `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
 	Name        string    `gorm:"type:varchar(128)" json:"name,omitempty"`
 	AvatarURL   string    `gorm:"type:varchar(512)" json:"avatar_url,omitempty"`
