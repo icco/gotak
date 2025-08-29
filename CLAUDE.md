@@ -12,9 +12,13 @@ go test -v -cover ./...
 ### Linting and Code Quality
 ```bash
 go vet ./...
-# Note: staticcheck may have version compatibility issues with Go 1.24+
-# staticcheck -go 1.17 ./...
+staticcheck ./...
+# Note: staticcheck works with Go 1.24+
+# golangci-lint may have compatibility issues with Go 1.24+ (use basic linters only)
 go run github.com/fzipp/gocyclo/cmd/gocyclo -avg .
+
+# YAML formatting and linting
+yq -iP '.' file.yml  # Format YAML files with proper indentation
 ```
 
 ### Building and Running
@@ -67,6 +71,7 @@ This is a Tak game server implementation with the following key components:
   - `GET /game/{slug}/{turn}` - Get game state at specific turn
   - `GET /game/new` - Create new game (redirects after creation)
   - `POST /game/new` - Create new game (accepts JSON body with size)
+  - `POST /game/{slug}/join` - Join a waiting game as black player
   - `POST /game/{slug}/move` - Submit move
 - **Database layer** with PostgreSQL for game persistence
 - **Middleware stack** includes CORS, security headers, logging, and request validation
@@ -85,11 +90,13 @@ This is a Tak game server implementation with the following key components:
 - Go 1.23+ with toolchain 1.24.6
 
 ### Game Flow
-1. Create game with specified board size
-2. Players alternate placing stones (first turn places opponent's stone)
-3. Moves parsed from PTN notation: placement `(stone)(square)` or movement `(count)(square)(direction)(drops)(stone)`
-4. Win condition: continuous road from one edge to opposite edge
-5. Game history stored as turns with individual moves
+1. Create game with specified board size (creator becomes white player, game status 'waiting')
+2. Second player joins game (becomes black player, game status changes to 'active')
+3. Players alternate placing stones (first turn places opponent's stone)
+4. Moves parsed from PTN notation: placement `(stone)(square)` or movement `(count)(square)(direction)(drops)(stone)`
+5. Turn validation ensures correct player is making moves
+6. Win condition: continuous road from one edge to opposite edge
+7. Game history stored as turns with individual moves
 
 ### Testing
 - Comprehensive test coverage (69.3% overall coverage)
@@ -103,21 +110,27 @@ This is a Tak game server implementation with the following key components:
   - CodeQL security analysis on push/PR to main
   - Automatic Swagger documentation updates on API changes
   - Test suite runs on all PRs and pushes
+  - Lint workflow with golangci-lint, yamllint, and misspell
 - **Swagger Documentation**: Auto-generated API docs served at `/swagger/`
 - **Workflow triggers**: Documentation updates when Go files in `server/` or core game files change
 - **Home Page**: Dynamically reads swagger.json to display endpoint documentation
 
 ### Recent Improvements
+- **Two-Player Game Model**: Proper support for multiplayer games with white/black player tracking
+- **Game Lifecycle**: Games start as 'waiting' for second player, become 'active' when both players joined
+- **Join Game API**: New endpoint to join waiting games as the black player
+- **Enhanced Authorization**: Proper game participation verification instead of single-user ownership
+- **Turn Validation**: Ensures players can only make moves when it's their turn
 - **Dynamic Home Page**: Home page now reads from swagger.json to display endpoint summaries with styling
 - **Enhanced UI**: Added CSS styling for professional appearance with endpoint tags and descriptions
 - **Robust Fallback**: Graceful degradation when swagger.json is unavailable
-- **Database Schema**: Added game status tracking with migrations
 - **Security**: Comprehensive input sanitization and security headers
 
 ### Database Schema
-- `games`: Store game metadata with ID, slug, and creation timestamp
+- `games`: Store game metadata with ID, slug, white_player_id, black_player_id, status, and timestamps
 - `moves`: Track all game moves with player, turn, and PTN text
 - `tags`: Store game metadata as key-value pairs
+- `users`: Store authenticated user accounts (local or OAuth)
 - Automatic migrations on server startup
 
 ### Environment Variables
@@ -136,3 +149,14 @@ This is a Tak game server implementation with the following key components:
 - Always run tests before committing changes
 - Update swagger documentation after API changes
 - Follow existing code patterns and conventions
+- Remember to commit and push often while you work
+
+## Lint Error Fixes
+- **Context Keys**: Use custom types instead of built-in strings for context.WithValue() to avoid SA1029 lint errors
+- **YAML Formatting**: Use `yq -iP '.' file.yml` to fix yamllint indentation issues
+- **golangci-lint Compatibility**: Go 1.24+ may have issues with some linters like gocritic; use simplified configuration with basic linters only
+
+## Common Issues and Solutions
+- **SA1029 Error**: Create custom type for context keys (e.g., `type contextKey string`)
+- **YAML Lint Failures**: Format all YAML files with `yq -iP '.'` for consistent indentation
+- **golangci-lint Panics**: Disable problematic linters and use latest action version
