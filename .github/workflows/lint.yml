@@ -43,6 +43,6 @@ jobs:
         env:
           GOPRIVATE: github.com/pinginc/*
         with:
-          golangci_lint_version: v1.55.2 # Use specific stable version
+          golangci_lint_version: v1.55.2
           level: warning
           reporter: github-pr-check
