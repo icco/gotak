@@ -3,7 +3,8 @@ package ai
 import (
 	"context"
 	"time"
-	"workspaces/gotak/game"
+
+	"github.com/icco/gotak"
 )
 
 // DifficultyLevel represents AI strength.
@@ -35,19 +36,19 @@ type AIConfig struct {
 
 // Engine is the interface for AI move generation.
 type Engine interface {
-	GetMove(ctx context.Context, g *game.Game, cfg AIConfig) (string, error)
-	ExplainMove(ctx context.Context, g *game.Game, cfg AIConfig) (string, error)
+	GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error)
+	ExplainMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error)
 }
 
 // StubEngine is a placeholder AI engine for development.
 type StubEngine struct{}
 
-func (e *StubEngine) GetMove(ctx context.Context, g *game.Game, cfg AIConfig) (string, error) {
+func (e *StubEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
 	// TODO: Integrate real AI logic
 	return "a1", nil
 }
 
-func (e *StubEngine) ExplainMove(ctx context.Context, g *game.Game, cfg AIConfig) (string, error) {
+func (e *StubEngine) ExplainMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
 	// TODO: Provide move explanation
 	return "This is a stub explanation.", nil
 }

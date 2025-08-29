@@ -1,31 +1,33 @@
-package server
+package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
-	"workspaces/gotak/ai"
-	"workspaces/gotak/game"
+	"github.com/icco/gotak"
+	"github.com/icco/gotak/ai"
 )
 
 // AIRequest represents a request for an AI move.
 type AIRequest struct {
-	Level      string        `json:"level"`
-	Style      string        `json:"style"`
-	TimeLimit  time.Duration `json:"time_limit"`
-	Personality string       `json:"personality"`
+	Level       string        `json:"level"`
+	Style       string        `json:"style"`
+	TimeLimit   time.Duration `json:"time_limit"`
+	Personality string        `json:"personality"`
 }
 
 // AIMoveResponse is the response for an AI move.
 type AIMoveResponse struct {
-	Move  string `json:"move"`
-	Hint  string `json:"hint,omitempty"`
+	Move string `json:"move"`
+	Hint string `json:"hint,omitempty"`
 }
 
 // PostAIMoveHandler handles AI move requests.
 func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	_ = ctx // Ensure ctx is marked as used
 	// TODO: Get game by slug, parse AIRequest from body
 	// For now, use stub game and config
 	var req AIRequest
@@ -37,12 +39,12 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Map string level/style to ai.DifficultyLevel/ai.Style
 	cfg := ai.AIConfig{
-		Level: ai.Beginner,
-		Style: ai.Balanced,
-		TimeLimit: time.Second,
+		Level:       ai.Beginner,
+		Style:       ai.Balanced,
+		TimeLimit:   time.Second,
 		Personality: req.Personality,
 	}
-	g := &game.Game{} // TODO: Load actual game
+	g := &gotak.Game{} // TODO: Load actual game
 	engine := &ai.StubEngine{}
 	move, err := engine.GetMove(ctx, g, cfg)
 	if err != nil {
