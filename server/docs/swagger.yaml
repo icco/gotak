@@ -183,10 +183,10 @@ paths:
   /:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns basic API information and available endpoints
       produces:
-        - text/html
+      - text/html
       responses:
         "200":
           description: HTML page with API information
@@ -194,21 +194,21 @@ paths:
             type: string
       summary: Get API information
       tags:
-        - info
+      - info
   /auth/confirm-reset:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Reset password with token
       parameters:
-        - description: Confirm reset request
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: '#/definitions/main.ConfirmResetRequest'
+      - description: Confirm reset request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.ConfirmResetRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -230,21 +230,21 @@ paths:
             type: object
       summary: Confirm password reset
       tags:
-        - auth
+      - auth
   /auth/login:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Login with email and password
       parameters:
-        - description: User login data
-          in: body
-          name: user
-          required: true
-          schema:
-            $ref: '#/definitions/main.LoginRequest'
+      - description: User login data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/main.LoginRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -270,14 +270,14 @@ paths:
             type: object
       summary: Login user
       tags:
-        - auth
+      - auth
   /auth/logout:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Logout current user (client should discard token)
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -287,14 +287,14 @@ paths:
             type: object
       summary: Logout user
       tags:
-        - auth
+      - auth
   /auth/profile:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Get current user profile information
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -313,23 +313,23 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Get user profile
       tags:
-        - auth
+      - auth
     put:
       consumes:
-        - application/json
+      - application/json
       description: Update current user profile information
       parameters:
-        - description: Profile update data
-          in: body
-          name: profile
-          required: true
-          schema:
-            $ref: '#/definitions/main.UpdateProfileRequest'
+      - description: Profile update data
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/main.UpdateProfileRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -354,24 +354,24 @@ paths:
               type: string
             type: object
       security:
-        - BearerAuth: []
+      - BearerAuth: []
       summary: Update user profile
       tags:
-        - auth
+      - auth
   /auth/register:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Register with email and password
       parameters:
-        - description: User registration data
-          in: body
-          name: user
-          required: true
-          schema:
-            $ref: '#/definitions/main.RegisterRequest'
+      - description: User registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/main.RegisterRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: Created
@@ -391,21 +391,21 @@ paths:
             type: object
       summary: Register a new user
       tags:
-        - auth
+      - auth
   /auth/reset-password:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Send password reset token for email
       parameters:
-        - description: Reset password request
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: '#/definitions/main.ResetPasswordRequest'
+      - description: Reset password request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.ResetPasswordRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -427,20 +427,20 @@ paths:
             type: object
       summary: Request password reset
       tags:
-        - auth
+      - auth
   /game/{slug}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns the current state of a game
       parameters:
-        - description: Game slug identifier
-          in: path
-          name: slug
-          required: true
-          type: string
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -454,25 +454,25 @@ paths:
             type: object
       summary: Get game state
       tags:
-        - game
+      - game
   /game/{slug}/{turn}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns the state of a game at a specific turn
       parameters:
-        - description: Game slug identifier
-          in: path
-          name: slug
-          required: true
-          type: string
-        - description: Turn number
-          in: path
-          name: turn
-          required: true
-          type: integer
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Turn number
+        in: path
+        name: turn
+        required: true
+        type: integer
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -486,26 +486,67 @@ paths:
             type: object
       summary: Get specific turn
       tags:
-        - game
+      - game
+  /game/{slug}/join:
+    post:
+      consumes:
+      - application/json
+      description: Join a game that is waiting for a second player (as black player)
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Join a waiting game
+      tags:
+      - game
   /game/{slug}/move:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Submit a move for a specific game
       parameters:
-        - description: Game slug identifier
-          in: path
-          name: slug
-          required: true
-          type: string
-        - description: Move details
-          in: body
-          name: move
-          required: true
-          schema:
-            $ref: '#/definitions/main.MoveRequest'
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Move details
+        in: body
+        name: move
+        required: true
+        schema:
+          $ref: '#/definitions/main.MoveRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -525,20 +566,20 @@ paths:
             type: object
       summary: Make a move in a game
       tags:
-        - game
+      - game
   /game/new:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Creates a new Tak game with the specified board size
       parameters:
-        - description: Game configuration
-          in: body
-          name: game
-          schema:
-            $ref: '#/definitions/main.CreateGameRequest'
+      - description: Game configuration
+        in: body
+        name: game
+        schema:
+          $ref: '#/definitions/main.CreateGameRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "307":
           description: Redirect to game URL
@@ -560,19 +601,19 @@ paths:
             type: object
       summary: Create a new game
       tags:
-        - game
+      - game
     post:
       consumes:
-        - application/json
+      - application/json
       description: Creates a new Tak game with the specified board size
       parameters:
-        - description: Game configuration
-          in: body
-          name: game
-          schema:
-            $ref: '#/definitions/main.CreateGameRequest'
+      - description: Game configuration
+        in: body
+        name: game
+        schema:
+          $ref: '#/definitions/main.CreateGameRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "307":
           description: Redirect to game URL
@@ -594,14 +635,14 @@ paths:
             type: object
       summary: Create a new game
       tags:
-        - game
+      - game
   /healthz:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns service health status
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -611,7 +652,7 @@ paths:
             type: object
       summary: Health check
       tags:
-        - health
+      - health
 securityDefinitions:
   BearerAuth:
     description: 'JWT token in format: Bearer {token}'
