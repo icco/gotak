@@ -12,9 +12,13 @@ go test -v -cover ./...
 ### Linting and Code Quality
 ```bash
 go vet ./...
-# Note: staticcheck may have version compatibility issues with Go 1.24+
-# staticcheck -go 1.17 ./...
+staticcheck ./...
+# Note: staticcheck works with Go 1.24+
+# golangci-lint may have compatibility issues with Go 1.24+ (use basic linters only)
 go run github.com/fzipp/gocyclo/cmd/gocyclo -avg .
+
+# YAML formatting and linting
+yq -iP '.' file.yml  # Format YAML files with proper indentation
 ```
 
 ### Building and Running
@@ -103,6 +107,7 @@ This is a Tak game server implementation with the following key components:
   - CodeQL security analysis on push/PR to main
   - Automatic Swagger documentation updates on API changes
   - Test suite runs on all PRs and pushes
+  - Lint workflow with golangci-lint, yamllint, and misspell
 - **Swagger Documentation**: Auto-generated API docs served at `/swagger/`
 - **Workflow triggers**: Documentation updates when Go files in `server/` or core game files change
 - **Home Page**: Dynamically reads swagger.json to display endpoint documentation
@@ -136,5 +141,14 @@ This is a Tak game server implementation with the following key components:
 - Always run tests before committing changes
 - Update swagger documentation after API changes
 - Follow existing code patterns and conventions
-
 - Remember to commit and push often while you work
+
+## Lint Error Fixes
+- **Context Keys**: Use custom types instead of built-in strings for context.WithValue() to avoid SA1029 lint errors
+- **YAML Formatting**: Use `yq -iP '.' file.yml` to fix yamllint indentation issues
+- **golangci-lint Compatibility**: Go 1.24+ may have issues with some linters like gocritic; use simplified configuration with basic linters only
+
+## Common Issues and Solutions
+- **SA1029 Error**: Create custom type for context keys (e.g., `type contextKey string`)
+- **YAML Lint Failures**: Format all YAML files with `yq -iP '.'` for consistent indentation
+- **golangci-lint Panics**: Disable problematic linters and use latest action version
