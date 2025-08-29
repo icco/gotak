@@ -39,8 +39,9 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		Personality: req.Personality,
 	}
 
-	g := &gotak.Game{}
-	engine := &ai.StubEngine{}
+	// TODO: Get game by slug from database
+	g := &gotak.Game{} // Placeholder - load actual game
+	engine := &ai.TakticianEngine{}
 	ctx := r.Context()
 
 	move, err := engine.GetMove(ctx, g, cfg)

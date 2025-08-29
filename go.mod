@@ -52,6 +52,7 @@ require (
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/nelhage/taktician v0.0.0-20240227154445-7af1aca31945 // indirect
 	github.com/rrivera/identicon v0.0.0-20240116195454-d5ba35832c0d // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
