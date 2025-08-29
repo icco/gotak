@@ -10,18 +10,20 @@ import (
 type Game struct {
 	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	Slug          string    `gorm:"type:text;uniqueIndex" json:"slug"`
-	Status        string    `gorm:"type:text;default:'active'" json:"status"`
+	Status        string    `gorm:"type:text;default:'waiting'" json:"status"` // waiting, active, finished
 	Winner        int       `gorm:"default:0" json:"winner"`
 	CurrentPlayer int       `gorm:"default:1" json:"current_player"`
 	CurrentTurn   int       `gorm:"default:1" json:"current_turn"`
-	UserID        int64     `gorm:"index;not null" json:"user_id"`
+	WhitePlayerID int64     `gorm:"index;not null" json:"white_player_id"`
+	BlackPlayerID *int64    `gorm:"index" json:"black_player_id,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 
 	// Associations
-	User  *User  `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Tags  []Tag  `gorm:"foreignKey:GameID" json:"tags,omitempty"`
-	Moves []Move `gorm:"foreignKey:GameID" json:"moves,omitempty"`
+	WhitePlayer *User  `gorm:"foreignKey:WhitePlayerID" json:"white_player,omitempty"`
+	BlackPlayer *User  `gorm:"foreignKey:BlackPlayerID" json:"black_player,omitempty"`
+	Tags        []Tag  `gorm:"foreignKey:GameID" json:"tags,omitempty"`
+	Moves       []Move `gorm:"foreignKey:GameID" json:"moves,omitempty"`
 }
 
 // Tag represents game metadata tags

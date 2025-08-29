@@ -79,11 +79,21 @@ func TestCreateGame(t *testing.T) {
 		t.Errorf("Expected slug %s, got %s", slug2, game.Slug)
 	}
 
-	// Test that game is linked to user
-	if game.UserID == 0 {
-		t.Error("Expected game to be linked to user")
-	} else if game.UserID != user2.ID {
-		t.Errorf("Expected game linked to user %d, got %d", user2.ID, game.UserID)
+	// Test that game is linked to user as white player
+	if game.WhitePlayerID == 0 {
+		t.Error("Expected game to have white player")
+	} else if game.WhitePlayerID != user2.ID {
+		t.Errorf("Expected white player to be user %d, got %d", user2.ID, game.WhitePlayerID)
+	}
+	
+	// Test that black player is not set initially (game waiting for second player)
+	if game.BlackPlayerID != nil {
+		t.Error("Expected black player to be nil for new game")
+	}
+	
+	// Test that status is waiting
+	if game.Status != "waiting" {
+		t.Errorf("Expected status to be 'waiting', got '%s'", game.Status)
 	}
 
 	// Test creating a game without user (should fail)

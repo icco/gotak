@@ -38,6 +38,7 @@ GoTak is a production-ready server for the board game [Tak](https://en.wikipedia
   - `GET /game/{slug}` - Get current game state
   - `GET /game/{slug}/{turn}` - Get game state at specific turn
   - `GET /game/new` - Create new game (also supports POST)
+  - `POST /game/{slug}/join` - Join a waiting game as black player
   - `POST /game/{slug}/move` - Submit move
   - `GET /healthz` - Health check endpoint
   - `GET /swagger/*` - Interactive API documentation
@@ -125,11 +126,19 @@ curl -X POST http://localhost:8080/game/new \
   -d '{"size": "8"}'
 ```
 
+### Join a Game
+
+```bash
+curl -X POST http://localhost:8080/game/{slug}/join \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
 ### Make a Move
 
 ```bash
 curl -X POST http://localhost:8080/game/{slug}/move \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"player": 1, "move": "a1", "turn": 1}'
 ```
 

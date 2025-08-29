@@ -75,25 +75,30 @@ func TestUserGameAssociation(t *testing.T) {
 		t.Fatalf("Failed to retrieve game: %v", err)
 	}
 
-	if game.UserID == 0 {
-		t.Error("Game should be linked to a user")
+	if game.WhitePlayerID == 0 {
+		t.Error("Game should have a white player")
 	}
 
-	if game.UserID != user.ID {
-		t.Errorf("Game should be linked to user %d, got %d", user.ID, game.UserID)
+	if game.WhitePlayerID != user.ID {
+		t.Errorf("Game white player should be user %d, got %d", user.ID, game.WhitePlayerID)
 	}
 
-	// Test loading game with user association
-	if err := db.Preload("User").First(&game, game.ID).Error; err != nil {
+	// Test loading game with user associations
+	if err := db.Preload("WhitePlayer").Preload("BlackPlayer").First(&game, game.ID).Error; err != nil {
 		t.Fatalf("Failed to load game with user: %v", err)
 	}
 
-	if game.User == nil {
-		t.Error("User association not loaded")
+	if game.WhitePlayer == nil {
+		t.Error("White player association not loaded")
 	}
 
-	if game.User.Email != user.Email {
-		t.Errorf("Expected user email %s, got %s", user.Email, game.User.Email)
+	if game.WhitePlayer.Email != user.Email {
+		t.Errorf("Expected white player email %s, got %s", user.Email, game.WhitePlayer.Email)
+	}
+
+	// Black player should be nil for a new game
+	if game.BlackPlayer != nil {
+		t.Error("Black player should be nil for a new game")
 	}
 }
 
@@ -152,7 +157,7 @@ func TestAuthMiddlewareWithoutUser(t *testing.T) {
 	}
 }
 
-func TestGameOwnershipVerification(t *testing.T) {
+func TestGameParticipationVerification(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create two users
@@ -174,20 +179,32 @@ func TestGameOwnershipVerification(t *testing.T) {
 		t.Fatalf("Failed to create game: %v", err)
 	}
 
-	// Test that user1 can access their own game
-	err = verifyGameOwnership(db, slug, user1.ID)
+	// Test that user1 can participate in their game (as white player)
+	err = verifyGameParticipation(db, slug, user1.ID)
 	if err != nil {
-		t.Errorf("User1 should own their game, got error: %v", err)
+		t.Errorf("User1 should be able to participate in their game, got error: %v", err)
 	}
 
-	// Test that user2 cannot access user1's game
-	err = verifyGameOwnership(db, slug, user2.ID)
+	// Test that user2 cannot participate in user1's game (game is waiting for black player)
+	err = verifyGameParticipation(db, slug, user2.ID)
 	if err == nil {
-		t.Error("User2 should not be able to access user1's game")
+		t.Error("User2 should not be able to participate in user1's game without joining")
+	}
+
+	// Test user2 joining the game as black player
+	err = joinGame(db, slug, user2.ID)
+	if err != nil {
+		t.Errorf("User2 should be able to join the game, got error: %v", err)
+	}
+
+	// Now user2 should be able to participate
+	err = verifyGameParticipation(db, slug, user2.ID)
+	if err != nil {
+		t.Errorf("User2 should be able to participate after joining, got error: %v", err)
 	}
 
 	// Test non-existent game
-	err = verifyGameOwnership(db, "nonexistent", user1.ID)
+	err = verifyGameParticipation(db, "nonexistent", user1.ID)
 	if err == nil {
 		t.Error("Should get error for non-existent game")
 	}
