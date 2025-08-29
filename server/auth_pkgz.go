@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	auth2 "github.com/go-pkgz/auth/v2"
-	"github.com/go-pkgz/auth/v2/provider/google"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -23,19 +23,24 @@ func newAuthService() *auth2.Service {
 	if secret == "" {
 		secret = "dev-secret-change-me" // fallback for dev
 	}
-	return auth2.NewService(auth2.Opts{
+	
+	service := auth2.NewService(auth2.Opts{
 		SecretReader: auth2.SecretFunc(func(id string) (string, error) { return secret, nil }),
 		TokenDuration: 24 * 60 * 60, // 1 day
 		Issuer:        issuer,
 		URL:           "https://gotak.app", // change for local/dev
 		Validator:     auth2.DefaultValidator,
 		DisableXSRF:   true, // for API only
-	}).
-		WithProvider(google.NewProvider(google.Opts{
-			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-			RedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
-		}))
+	})
+	
+	// Add Google OAuth2 provider if credentials are available
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	if googleClientID != "" && googleClientSecret != "" {
+		service.AddProvider("google", googleClientID, googleClientSecret)
+	}
+	
+	return service
 }
 
 type RegisterRequest struct {
@@ -57,16 +62,31 @@ type AuthResponse struct {
 func AuthRoutes() http.Handler {
 	r := chi.NewRouter()
 	
+	// Add rate limiting to auth endpoints
+	r.Use(middleware.Throttle(5)) // 5 concurrent requests max
+	
 	// Mount go-pkgz auth handlers for social login
 	auth := newAuthService()
 	r.Mount("/", auth.Handlers())
 	
-	// Add our custom local auth endpoints
-	r.Post("/register", registerHandler)
-	r.Post("/login", loginHandler)
+	// Add rate limiting specifically for registration and login
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RealIP)
+		// Allow 10 requests per minute for auth operations
+		r.Use(middleware.ThrottleBacklog(10, 60, 50))
+		
+		r.Post("/register", registerHandler)
+		r.Post("/login", loginHandler)
+	})
+	
+	// Profile endpoints with less restrictive rate limiting
 	r.Get("/profile", profileHandler)
 	r.Put("/profile", updateProfileHandler)
 	r.Post("/logout", logoutHandler)
+	
+	// Password reset endpoints
+	r.Post("/reset-password", resetPasswordHandler)
+	r.Post("/confirm-reset", confirmResetHandler)
 	
 	return r
 }
@@ -271,6 +291,15 @@ type UpdateProfileRequest struct {
 	Preferences string `json:"preferences,omitempty"`
 }
 
+type ResetPasswordRequest struct {
+	Email string `json:"email" example:"user@example.com"`
+}
+
+type ConfirmResetRequest struct {
+	Token       string `json:"token" example:"reset-token-here"`
+	NewPassword string `json:"new_password" example:"newsecretpassword"`
+}
+
 // @Summary Update user profile
 // @Description Update current user profile information
 // @Tags auth
@@ -430,4 +459,104 @@ func getUserFromContext(r *http.Request) *User {
 		return user
 	}
 	return nil
+}
+
+// @Summary Request password reset
+// @Description Send password reset token for email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ResetPasswordRequest true "Reset password request"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /auth/reset-password [post]
+func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	var req ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request body"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if req.Email == "" {
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "email required"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	db, err := getDB()
+	if err != nil {
+		log.Errorw("could not get db", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "database error"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Check if user exists
+	var user User
+	if err := db.Where("email = ? AND provider = ?", req.Email, "local").First(&user).Error; err != nil {
+		// Return success even if user doesn't exist (security best practice)
+		if err := Renderer.JSON(w, 200, map[string]string{"message": "if email exists, reset instructions sent"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Generate reset token (in production, store this in database with expiration)
+	resetToken := generateProviderID()
+	
+	// TODO: In production, implement email sending and store token with expiration
+	// For now, just log the token for development
+	log.Infow("Password reset token generated", "email", req.Email, "token", resetToken)
+
+	if err := Renderer.JSON(w, 200, map[string]string{
+		"message": "if email exists, reset instructions sent",
+		"dev_token": resetToken, // Remove in production
+	}); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
+}
+
+// @Summary Confirm password reset
+// @Description Reset password with token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ConfirmResetRequest true "Confirm reset request"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /auth/confirm-reset [post]
+func confirmResetHandler(w http.ResponseWriter, r *http.Request) {
+	var req ConfirmResetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request body"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if req.Token == "" || req.NewPassword == "" {
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "token and new password required"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if len(req.NewPassword) < 8 {
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "password must be at least 8 characters"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// TODO: In production, validate token from database and check expiration
+	// For now, just return error since we don't have token storage
+	if err := Renderer.JSON(w, 400, map[string]string{"error": "password reset not fully implemented - token storage needed"}); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }

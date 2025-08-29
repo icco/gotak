@@ -58,13 +58,17 @@ type PathInfo struct {
 
 // @title GoTak API
 // @version 1.0
-// @description A Tak game server API
+// @description A Tak game server API with authentication
 // @contact.name API Support
 // @contact.url http://github.com/icco/gotak
 // @license.name MIT
 // @license.url https://github.com/icco/gotak/blob/main/LICENSE
 // @host gotak.app
 // @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description JWT token in format: Bearer {token}
 
 func main() {
 	port := "8080"
