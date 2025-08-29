@@ -19,6 +19,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Define context key type to avoid collisions
+type contextKey string
+
+const userContextKey contextKey = "user"
+
 func newAuthService() *auth2.Service {
 	issuer := "gotak-app"
 	secret := os.Getenv("AUTH_JWT_SECRET")
@@ -461,14 +466,14 @@ func authMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Add user to request context
-		ctx := context.WithValue(r.Context(), "user", user)
+		ctx := context.WithValue(r.Context(), userContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // Helper to get user from request context
 func getUserFromContext(r *http.Request) *User {
-	if user, ok := r.Context().Value("user").(*User); ok && user != nil {
+	if user, ok := r.Context().Value(userContextKey).(*User); ok && user != nil {
 		return user
 	}
 	return nil
