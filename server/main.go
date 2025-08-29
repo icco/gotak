@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -58,13 +59,17 @@ type PathInfo struct {
 
 // @title GoTak API
 // @version 1.0
-// @description A Tak game server API
+// @description A Tak game server API with authentication
 // @contact.name API Support
 // @contact.url http://github.com/icco/gotak
 // @license.name MIT
 // @license.url https://github.com/icco/gotak/blob/main/LICENSE
 // @host gotak.app
 // @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description JWT token in format: Bearer {token}
 
 func main() {
 	port := "8080"
@@ -100,20 +105,6 @@ func main() {
 	// Stuff that does not ssl redirect
 	r.Group(func(r chi.Router) {
 		r.Use(secure.New(secure.Options{
-			BrowserXssFilter:   true,
-			ContentTypeNosniff: true,
-			FrameDeny:          true,
-			HostsProxyHeaders:  []string{"X-Forwarded-Host"},
-			IsDevelopment:      isDev,
-			SSLProxyHeaders:    map[string]string{"X-Forwarded-Proto": "https"},
-		}).Handler)
-
-		r.Get("/healthz", healthCheckHandler)
-	})
-
-	// Everything that does SSL only
-	r.Group(func(r chi.Router) {
-		r.Use(secure.New(secure.Options{
 			BrowserXssFilter:     true,
 			ContentTypeNosniff:   true,
 			FrameDeny:            true,
@@ -126,16 +117,29 @@ func main() {
 			STSSeconds:           315360000,
 		}).Handler)
 
+		// Public routes
 		r.Get("/", rootHandler)
+		r.Get("/healthz", healthCheckHandler)
 		r.Get("/swagger/*", httpSwagger.Handler(
 			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
 		))
-		r.HandleFunc("/game/{slug}", getGameHandler)
+
+		// Auth endpoints (JWT + Google)
+		r.Mount("/auth", AuthRoutes())
+
+		// Public game viewing (no auth required)
+		r.Get("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
-		r.Get("/game/new", newGameHandler)
-		r.Post("/game/new", newGameHandler)
-		r.Post("/game/{slug}/move", newMoveHandler)
-	r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
+
+		// Protected routes requiring authentication
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.Get("/game/new", newGameHandler)
+			r.Post("/game/new", newGameHandler)
+			r.Post("/game/{slug}/join", joinGameHandler)
+			r.Post("/game/{slug}/move", newMoveHandler)
+			r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
+		})
 	})
 
 	// GORM auto-migration is handled in getDB()
@@ -285,6 +289,10 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get current user from context (set by authMiddleware)
+	user := getMustUserFromContext(r)
+	userID := user.ID
+
 	boardSize := 8
 
 	var data CreateGameRequest
@@ -295,7 +303,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slug, err := createGame(db, boardSize)
+	slug, err := createGame(db, boardSize, userID)
 	if err != nil {
 		log.Errorw("could not create game", zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
@@ -305,6 +313,63 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/game/%s", slug), http.StatusTemporaryRedirect)
+}
+
+// @Summary Join a waiting game
+// @Description Join a game that is waiting for a second player (as black player)
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param slug path string true "Game slug identifier"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /game/{slug}/join [post]
+func joinGameHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := getDB()
+	if err != nil {
+		log.Errorw("could not get db", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	ctx := r.Context()
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+
+	// Get current user (must be authenticated to reach this handler)
+	user := getMustUserFromContext(r)
+
+	// Attempt to join the game
+	err = joinGame(db, slug, user.ID)
+	if err != nil {
+		log.Errorw("could not join game", "slug", slug, "user_id", user.ID, zap.Error(err))
+
+		// Determine appropriate status code based on error
+		statusCode := 500
+		if strings.Contains(err.Error(), "already") || strings.Contains(err.Error(), "full") {
+			statusCode = 400
+		} else if strings.Contains(err.Error(), "can only join") {
+			statusCode = 400
+		}
+
+		if err := Renderer.JSON(w, statusCode, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	log.Infow("user joined game", "slug", slug, "user_id", user.ID)
+
+	if err := Renderer.JSON(w, 200, map[string]string{
+		"message": "successfully joined game",
+		"slug":    slug,
+		"player":  "black",
+	}); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
 }
 
 // MoveRequest represents the request body for making a move
@@ -337,8 +402,21 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Get current user (must be authenticated to reach this handler)
+	user := getMustUserFromContext(r)
+
 	// Get DB Entry
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+
+	// Verify user is a participant in the game
+	if err := verifyGameParticipation(db, slug, user.ID); err != nil {
+		log.Errorw("game participation verification failed", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 403, map[string]string{"error": "access denied: you are not a participant in this game"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))
@@ -370,6 +448,43 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	if data.Player != gotak.PlayerWhite && data.Player != gotak.PlayerBlack {
 		log.Errorw("invalid player", "player", data.Player)
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid player"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Verify the user is playing as the correct player number
+	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
+	if err != nil {
+		log.Errorw("could not get player number", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "internal server error"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if data.Player != userPlayerNumber {
+		log.Errorw("player mismatch", "requested_player", data.Player, "user_player", userPlayerNumber)
+		if err := Renderer.JSON(w, 403, map[string]string{"error": "you can only make moves as your assigned player"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Get current game state from database to check if it's the player's turn
+	var dbGame Game
+	if err := db.Where("slug = ?", slug).First(&dbGame).Error; err != nil {
+		log.Errorw("could not get game state", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not verify game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Check if it's the player's turn
+	if dbGame.CurrentPlayer != data.Player {
+		log.Errorw("not player's turn", "current_player", dbGame.CurrentPlayer, "requested_player", data.Player)
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "it's not your turn"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return

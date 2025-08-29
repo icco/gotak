@@ -43,5 +43,6 @@ jobs:
         env:
           GOPRIVATE: github.com/pinginc/*
         with:
-          golangci_lint_version: v1.64.8 # https://github.com/reviewdog/action-golangci-lint/pull/779
+          golangci_lint_version: v1.55.2
           level: warning
+          reporter: github-pr-check

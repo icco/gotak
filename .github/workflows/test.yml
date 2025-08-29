@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         go-version:
-          - "1.24"
+          - "1.25"
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -31,7 +31,6 @@ jobs:
       - name: Run tests with coverage
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage to Codecov
-        if: matrix.go-version == '1.24'
         uses: codecov/codecov-action@v5
         with:
           file: ./coverage.out
@@ -45,21 +44,17 @@ jobs:
       matrix:
         goos:
           - linux
-          - windows
           - darwin
         goarch:
           - amd64
           - arm64
-        exclude:
-          - goos: windows
-            goarch: arm64
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
       - name: Build main CLI
         env:
@@ -96,7 +91,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
           cache: true
       - name: Run server integration tests
         env:
