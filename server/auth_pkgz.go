@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	auth2 "github.com/go-pkgz/auth/v2"
 	"github.com/go-pkgz/auth/v2/avatar"
 	"github.com/go-pkgz/auth/v2/token"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -30,24 +30,24 @@ func newAuthService() *auth2.Service {
 	if secret == "" {
 		secret = "dev-secret-change-me" // fallback for dev
 	}
-	
+
 	service := auth2.NewService(auth2.Opts{
 		SecretReader:  token.SecretFunc(func(aud string) (string, error) { return secret, nil }),
 		TokenDuration: 24 * time.Hour, // 1 day
 		Issuer:        issuer,
 		URL:           "https://gotak.app", // change for local/dev
-		Validator:     nil, // no custom validation needed
-		DisableXSRF:   true, // for API only
-		AvatarStore:   avatar.NewNoOp(), // disable avatars support
+		Validator:     nil,                 // no custom validation needed
+		DisableXSRF:   true,                // for API only
+		AvatarStore:   avatar.NewNoOp(),    // disable avatars support
 	})
-	
+
 	// Add Google OAuth2 provider if credentials are available
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 	if googleClientID != "" && googleClientSecret != "" {
 		service.AddProvider("google", googleClientID, googleClientSecret)
 	}
-	
+
 	return service
 }
 
@@ -69,25 +69,25 @@ type AuthResponse struct {
 
 func AuthRoutes() http.Handler {
 	r := chi.NewRouter()
-	
+
 	// Add rate limiting to auth endpoints
 	r.Use(middleware.Throttle(5)) // 5 concurrent requests max
-	
+
 	// Mount go-pkgz auth handlers for social login
 	auth := newAuthService()
 	authHandler, _ := auth.Handlers() // avatarHandler not used here
 	r.Mount("/", authHandler)
-	
+
 	// Add rate limiting specifically for registration and login
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.RealIP)
 		// Allow 10 requests per minute for auth operations
 		r.Use(middleware.ThrottleBacklog(10, 60, 50))
-		
+
 		r.Post("/register", registerHandler)
 		r.Post("/login", loginHandler)
 	})
-	
+
 	// Profile endpoints with less restrictive rate limiting - require authentication
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)
@@ -95,11 +95,11 @@ func AuthRoutes() http.Handler {
 		r.Put("/profile", updateProfileHandler)
 		r.Post("/logout", logoutHandler)
 	})
-	
+
 	// Password reset endpoints
 	r.Post("/reset-password", resetPasswordHandler)
 	r.Post("/confirm-reset", confirmResetHandler)
-	
+
 	return r
 }
 
@@ -283,7 +283,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /auth/profile [get]
 func profileHandler(w http.ResponseWriter, r *http.Request) {
 	user := getMustUserFromContext(r)
-	
+
 	// Hide password hash
 	user.PasswordHash = ""
 
@@ -419,28 +419,28 @@ func getCurrentUser(r *http.Request) (*User, error) {
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return nil, fmt.Errorf("missing or invalid authorization header")
 	}
-	
+
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	
+
 	auth := newAuthService()
 	tokenService := auth.TokenService()
 	claims, err := tokenService.Parse(tokenString)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	userID := claims.User.ID
-	
+
 	db, err := getDB()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var user User
 	if err := db.First(&user, userID).Error; err != nil {
 		return nil, err
 	}
-	
+
 	return &user, nil
 }
 
@@ -455,7 +455,7 @@ func authMiddleware(next http.Handler) http.Handler {
 			}
 			return
 		}
-		
+
 		// Extra safety check - user should never be nil at this point
 		if user == nil {
 			log.Errorw("user is nil after successful authentication - this should never happen")
@@ -535,13 +535,13 @@ func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Generate reset token (in production, store this in database with expiration)
 	resetToken := generateProviderID()
-	
+
 	// TODO: In production, implement email sending and store token with expiration
 	// For now, just log the token for development
 	log.Infow("Password reset token generated", "email", req.Email, "token", resetToken)
 
 	if err := Renderer.JSON(w, 200, map[string]string{
-		"message": "if email exists, reset instructions sent",
+		"message":   "if email exists, reset instructions sent",
 		"dev_token": resetToken, // Remove in production
 	}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))

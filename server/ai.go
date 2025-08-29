@@ -39,8 +39,10 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		Personality: req.Personality,
 	}
 
-	// TODO: Get game by slug from database
-	g := &gotak.Game{} // Placeholder - load actual game
+	// Load actual game from database by slug
+	// For now, create a placeholder game - this should be replaced with:
+	// g, err := getGameBySlug(slug)
+	g := &gotak.Game{} // Placeholder - needs database integration
 	engine := &ai.TakticianEngine{}
 	ctx := r.Context()
 
@@ -52,7 +54,7 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hint, _ := engine.ExplainMove(ctx, g, cfg)
-	
+
 	resp := AIMoveResponse{
 		Move: move,
 		Hint: hint,

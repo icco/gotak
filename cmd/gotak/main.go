@@ -22,7 +22,7 @@ func main() {
 	// Get game parameters
 	size := getBoardSize()
 	difficulty := getDifficulty()
-	
+
 	// Create a new game
 	game, err := gotak.NewGame(size, 1, "cli-game")
 	if err != nil {
@@ -44,19 +44,19 @@ func main() {
 	fmt.Println()
 
 	game.PrintCurrentState()
-	
+
 	scanner := bufio.NewScanner(os.Stdin)
 	gameOver := false
-	
+
 	for !gameOver {
 		// Human turn (White)
 		fmt.Print("Your move: ")
 		if !scanner.Scan() {
 			break
 		}
-		
+
 		input := strings.TrimSpace(scanner.Text())
-		
+
 		switch input {
 		case "quit", "exit":
 			fmt.Println("Thanks for playing!")
@@ -70,15 +70,15 @@ func main() {
 		case "":
 			continue
 		}
-		
+
 		// Try to make human move
 		if err := makeMove(game, input); err != nil {
 			fmt.Printf("❌ Invalid move: %v\nTry again.\n", err)
 			continue
 		}
-		
+
 		game.PrintCurrentState()
-		
+
 		// Check if game is over
 		if winner, over := game.GameOver(); over {
 			gameOver = true
@@ -91,26 +91,26 @@ func main() {
 			}
 			break
 		}
-		
+
 		// AI turn (Black)
 		fmt.Print("🤖 AI thinking...")
-		
+
 		ctx := context.Background()
 		aiMove, err := engine.GetMove(ctx, game, aiConfig)
 		if err != nil {
 			fmt.Printf("\n❌ AI error: %v\n", err)
 			continue
 		}
-		
+
 		fmt.Printf(" AI plays: %s\n", aiMove)
-		
+
 		if err := makeMove(game, aiMove); err != nil {
 			fmt.Printf("❌ AI made invalid move %s: %v\n", aiMove, err)
 			continue
 		}
-		
+
 		game.PrintCurrentState()
-		
+
 		// Check if game is over after AI move
 		if winner, over := game.GameOver(); over {
 			gameOver = true
@@ -150,7 +150,7 @@ func getDifficulty() ai.DifficultyLevel {
 	fmt.Println("3. Advanced (Minimax depth 5)")
 	fmt.Println("4. Expert (Monte Carlo Tree Search)")
 	fmt.Print("Select [1-4, default: 2]: ")
-	
+
 	scanner := bufio.NewScanner(os.Stdin)
 	if scanner.Scan() {
 		input := strings.TrimSpace(scanner.Text())
@@ -189,7 +189,7 @@ func makeMove(game *gotak.Game, moveStr string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Determine current player based on turn count
 	// In Tak, White goes first, then alternates
 	player := gotak.PlayerWhite
@@ -199,7 +199,7 @@ func makeMove(game *gotak.Game, moveStr string) error {
 			player = gotak.PlayerBlack
 		}
 	}
-	
+
 	// Apply the move to the board
 	return game.Board.DoMove(move, player)
 }

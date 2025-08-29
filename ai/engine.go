@@ -40,9 +40,9 @@ const (
 
 // AIConfig holds configuration for an AI player.
 type AIConfig struct {
-	Level      DifficultyLevel
-	Style      Style
-	TimeLimit  time.Duration
+	Level       DifficultyLevel
+	Style       Style
+	TimeLimit   time.Duration
 	Personality string // Custom personality name
 }
 
@@ -87,7 +87,7 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 
 	// Get move from AI
 	move := ai.GetMove(ctx, position)
-	
+
 	// Convert tak.Move to PTN string
 	ptnMove, err := convertMoveToString(move, int(g.Board.Size))
 	if err != nil {
@@ -103,12 +103,19 @@ func (e *TakticianEngine) ExplainMove(ctx context.Context, g *gotak.Game, cfg AI
 
 // convertGameToPosition converts our gotak.Game to Taktician's tak.Position
 func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
+	if g == nil {
+		return nil, fmt.Errorf("game cannot be nil")
+	}
+	if g.Board == nil {
+		return nil, fmt.Errorf("game board cannot be nil")
+	}
+
 	// Create a new position with the same size
 	config := tak.Config{
 		Size: int(g.Board.Size),
 	}
 	position := tak.New(config)
-	
+
 	// Apply moves from game history to build current position
 	for _, turn := range g.Turns {
 		// Apply each move in the turn
@@ -119,18 +126,18 @@ func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
 		if turn.Second != nil {
 			moves = append(moves, turn.Second)
 		}
-		
+
 		for _, move := range moves {
 			if move == nil {
 				continue
 			}
-			
+
 			// Convert PTN move string to tak.Move
 			takMove, err := convertStringToMove(move.Text, int(g.Board.Size))
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert move %s: %w", move.Text, err)
 			}
-			
+
 			// Apply move to position
 			newPosition, err := position.Move(takMove)
 			if err != nil {
@@ -139,7 +146,7 @@ func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
 			position = newPosition
 		}
 	}
-	
+
 	return position, nil
 }
 
@@ -151,12 +158,12 @@ func convertMoveToString(move tak.Move, boardSize int) (string, error) {
 	if x < 0 || y < 0 || int(x) >= boardSize || int(y) >= boardSize {
 		return "", fmt.Errorf("invalid move coordinates: %d,%d", x, y)
 	}
-	
+
 	// Convert coordinates to algebraic notation (a1, b2, etc.)
 	col := string(rune('a' + x))
 	row := fmt.Sprintf("%d", y+1)
 	square := col + row
-	
+
 	switch move.Type {
 	case tak.PlaceFlat:
 		return square, nil
@@ -177,11 +184,11 @@ func convertMoveToString(move tak.Move, boardSize int) (string, error) {
 		case tak.SlideDown:
 			direction = "-"
 		}
-		
+
 		// Build move string: (count)(square)(direction)(drops)
 		count := move.Slides.Len()
 		moveStr := fmt.Sprintf("%d%s%s", count, square, direction)
-		
+
 		// Add drop counts if needed
 		if !move.Slides.Empty() {
 			drops := ""
@@ -192,7 +199,7 @@ func convertMoveToString(move tak.Move, boardSize int) (string, error) {
 			}
 			moveStr += drops
 		}
-		
+
 		return moveStr, nil
 	default:
 		return "", fmt.Errorf("unsupported move type: %v", move.Type)
@@ -201,18 +208,18 @@ func convertMoveToString(move tak.Move, boardSize int) (string, error) {
 
 // convertStringToMove converts PTN move string to Taktician's tak.Move
 func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
-	
+
 	// Use regular expressions to parse the move
 	if placeMatch := placeRegex.FindStringSubmatch(moveStr); placeMatch != nil {
 		// Placement move
 		stone := placeMatch[1]
 		square := placeMatch[2]
-		
+
 		x, y, err := parseSquare(square, boardSize)
 		if err != nil {
 			return tak.Move{}, err
 		}
-		
+
 		switch stone {
 		case "":
 			return tak.Move{X: x, Y: y, Type: tak.PlaceFlat}, nil
@@ -224,26 +231,26 @@ func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
 			return tak.Move{}, fmt.Errorf("unknown stone type: %s", stone)
 		}
 	}
-	
+
 	if moveMatch := moveRegex.FindStringSubmatch(moveStr); moveMatch != nil {
 		// Slide move
 		countStr := moveMatch[1]
 		square := moveMatch[2]
 		direction := moveMatch[3]
 		dropsStr := moveMatch[4]
-		
+
 		x, y, err := parseSquare(square, boardSize)
 		if err != nil {
 			return tak.Move{}, err
 		}
-		
+
 		count := 1
 		if countStr != "" {
 			if c, err := strconv.Atoi(countStr); err == nil {
 				count = c
 			}
 		}
-		
+
 		var moveType tak.MoveType
 		switch direction {
 		case "<":
@@ -257,7 +264,7 @@ func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
 		default:
 			return tak.Move{}, fmt.Errorf("unknown direction: %s", direction)
 		}
-		
+
 		// Parse drop counts
 		var slides tak.Slides
 		if dropsStr != "" {
@@ -278,10 +285,10 @@ func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
 			}
 			slides = tak.MkSlides(drops...)
 		}
-		
+
 		return tak.Move{X: x, Y: y, Type: moveType, Slides: slides}, nil
 	}
-	
+
 	return tak.Move{}, fmt.Errorf("invalid move format: %s", moveStr)
 }
 
@@ -290,28 +297,28 @@ func parseSquare(square string, boardSize int) (int8, int8, error) {
 	if len(square) < 2 {
 		return 0, 0, fmt.Errorf("invalid square: %s", square)
 	}
-	
+
 	col := square[0]
 	rowStr := square[1:]
-	
+
 	if col < 'a' || col > 'z' {
 		return 0, 0, fmt.Errorf("invalid column: %c", col)
 	}
-	
+
 	x := int8(col - 'a')
 	if int(x) >= boardSize {
 		return 0, 0, fmt.Errorf("column out of bounds: %c", col)
 	}
-	
+
 	row, err := strconv.Atoi(rowStr)
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid row: %s", rowStr)
 	}
-	
+
 	y := int8(row - 1) // Convert to 0-based
 	if y < 0 || int(y) >= boardSize {
 		return 0, 0, fmt.Errorf("row out of bounds: %d", row)
 	}
-	
+
 	return x, y, nil
 }

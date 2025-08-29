@@ -53,16 +53,16 @@ type Move struct {
 
 // User represents an authenticated user (local or social)
 type User struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Provider    string    `gorm:"type:varchar(32);not null;uniqueIndex:idx_provider_id" json:"provider"`
-	ProviderID  string    `gorm:"type:varchar(128);not null;uniqueIndex:idx_provider_id" json:"provider_id"`
-	Email       string    `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
-	Name        string    `gorm:"type:varchar(128)" json:"name,omitempty"`
-	AvatarURL   string    `gorm:"type:varchar(512)" json:"avatar_url,omitempty"`
-	PasswordHash string   `gorm:"type:varchar(255)" json:"-"` // nullable for social login
-	Preferences string    `gorm:"type:jsonb" json:"preferences,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID           int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Provider     string    `gorm:"type:varchar(32);not null;uniqueIndex:idx_provider_id" json:"provider"`
+	ProviderID   string    `gorm:"type:varchar(128);not null;uniqueIndex:idx_provider_id" json:"provider_id"`
+	Email        string    `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
+	Name         string    `gorm:"type:varchar(128)" json:"name,omitempty"`
+	AvatarURL    string    `gorm:"type:varchar(512)" json:"avatar_url,omitempty"`
+	PasswordHash string    `gorm:"type:varchar(255)" json:"-"` // nullable for social login
+	Preferences  string    `gorm:"type:jsonb" json:"preferences,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // AutoMigrate runs the database migrations

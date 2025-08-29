@@ -1,10 +1,10 @@
 package main
 
 import (
+	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func TestUserModel(t *testing.T) {
@@ -39,7 +39,7 @@ func TestUserModel(t *testing.T) {
 
 func TestPasswordHashing(t *testing.T) {
 	password := "testpassword123"
-	
+
 	// Test password hashing
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -162,10 +162,10 @@ func TestGameParticipationVerification(t *testing.T) {
 
 	// Create two users
 	user1 := createTestUser(t, db)
-	
+
 	user2 := &User{
 		Provider:   "local",
-		ProviderID: "test-user-456", 
+		ProviderID: "test-user-456",
 		Email:      "user2@example.com",
 		Name:       "Test User 2",
 	}
@@ -213,12 +213,12 @@ func TestGameParticipationVerification(t *testing.T) {
 func TestMustUserFromContext(t *testing.T) {
 	// Test getMustUserFromContext with nil user (should panic)
 	req := httptest.NewRequest("GET", "/test", nil)
-	
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Expected panic when user is nil in protected route")
 		}
 	}()
-	
+
 	getMustUserFromContext(req)
 }
