@@ -47,7 +47,7 @@ func TestCreateGame(t *testing.T) {
 
 	// Test creating a game with default size
 	user1 := createTestUser(t, db)
-	slug1, err := createGame(db, 3, &user1.ID) // Should default to 6
+	slug1, err := createGame(db, 3, user1.ID) // Should default to 6
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestCreateGame(t *testing.T) {
 	// Test creating a game with valid size (use separate test DB to avoid duplicate slugs)
 	db2 := setupTestDB(t)
 	user2 := createTestUser(t, db2)
-	slug2, err := createGame(db2, 8, &user2.ID)
+	slug2, err := createGame(db2, 8, user2.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -80,14 +80,14 @@ func TestCreateGame(t *testing.T) {
 	}
 
 	// Test that game is linked to user
-	if game.UserID == nil {
+	if game.UserID == 0 {
 		t.Error("Expected game to be linked to user")
-	} else if *game.UserID != user2.ID {
-		t.Errorf("Expected game linked to user %d, got %d", user2.ID, *game.UserID)
+	} else if game.UserID != user2.ID {
+		t.Errorf("Expected game linked to user %d, got %d", user2.ID, game.UserID)
 	}
 
 	// Test creating a game without user (should fail)
-	_, err = createGame(db, 6, nil)
+	_, err = createGame(db, 6, 0)
 	if err == nil {
 		t.Error("Expected error when creating game without user")
 	}
@@ -98,7 +98,7 @@ func TestUpdateTag(t *testing.T) {
 
 	// Create a game first
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestGetGameID(t *testing.T) {
 
 	// Create a game first
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestInsertMove(t *testing.T) {
 
 	// Create a game first
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestGetGame(t *testing.T) {
 
 	// Create a game first
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 8, &user.ID)
+	slug, err := createGame(db, 8, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestUpdateGameStatus(t *testing.T) {
 
 	// Create a game first
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestGameWorkflow(t *testing.T) {
 	// Test complete game workflow
 	// 1. Create game
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestGetGameWithNoMoves(t *testing.T) {
 
 	// Create a game with no moves
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 5, &user.ID)
+	slug, err := createGame(db, 5, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -468,7 +468,7 @@ func TestDatabaseTypesConsistency(t *testing.T) {
 
 	// Create a game and verify ID types are consistent
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -503,7 +503,7 @@ func TestGetGameBoardState(t *testing.T) {
 
 	// Create a new game
 	user := createTestUser(t, db)
-	slug, err := createGame(db, 5, &user.ID)
+	slug, err := createGame(db, 5, user.ID)
 	if err != nil {
 		t.Fatalf("could not create game: %v", err)
 	}

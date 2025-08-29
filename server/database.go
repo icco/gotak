@@ -38,12 +38,12 @@ func getDB() (*gorm.DB, error) {
 	return db, nil
 }
 
-func createGame(db *gorm.DB, size int, userID *int64) (string, error) {
+func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 	if size < 4 {
 		size = 6
 	}
 	
-	if userID == nil {
+	if userID == 0 {
 		return "", fmt.Errorf("user authentication required")
 	}
 
@@ -255,11 +255,11 @@ func verifyGameOwnership(db *gorm.DB, slug string, userID int64) error {
 		return err
 	}
 	
-	if game.UserID == nil {
+	if game.UserID == 0 {
 		return fmt.Errorf("game has no owner")
 	}
 	
-	if *game.UserID != userID {
+	if game.UserID != userID {
 		return fmt.Errorf("unauthorized: user does not own this game")
 	}
 	

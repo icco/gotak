@@ -64,7 +64,7 @@ func TestUserGameAssociation(t *testing.T) {
 	user := createTestUser(t, db)
 
 	// Create a game linked to the user
-	slug, err := createGame(db, 6, &user.ID)
+	slug, err := createGame(db, 6, user.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -75,12 +75,12 @@ func TestUserGameAssociation(t *testing.T) {
 		t.Fatalf("Failed to retrieve game: %v", err)
 	}
 
-	if game.UserID == nil {
+	if game.UserID == 0 {
 		t.Error("Game should be linked to a user")
 	}
 
-	if *game.UserID != user.ID {
-		t.Errorf("Game should be linked to user %d, got %d", user.ID, *game.UserID)
+	if game.UserID != user.ID {
+		t.Errorf("Game should be linked to user %d, got %d", user.ID, game.UserID)
 	}
 
 	// Test loading game with user association
@@ -101,7 +101,7 @@ func TestAuthenticationRequirement(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Test that createGame requires a user ID
-	_, err := createGame(db, 6, nil)
+	_, err := createGame(db, 6, 0)
 	if err == nil {
 		t.Error("Expected error when creating game without user")
 	}
@@ -169,7 +169,7 @@ func TestGameOwnershipVerification(t *testing.T) {
 	}
 
 	// Create a game owned by user1
-	slug, err := createGame(db, 6, &user1.ID)
+	slug, err := createGame(db, 6, user1.ID)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}

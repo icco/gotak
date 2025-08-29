@@ -288,7 +288,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get current user from context (set by authMiddleware)
 	user := getMustUserFromContext(r)
-	userID := &user.ID
+	userID := user.ID
 
 	boardSize := 8
 
