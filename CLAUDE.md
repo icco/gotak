@@ -23,8 +23,11 @@ yq -iP '.' file.yml  # Format YAML files with proper indentation
 
 ### Building and Running
 ```bash
-# Build the main CLI application
+# Build the main CLI application (now with AI opponent!)
 go build -o gotak ./cmd/gotak
+
+# Run interactive CLI game against AI
+./gotak
 
 # Run the PTN parser
 go run ./cmd/parse-ptn
@@ -50,6 +53,30 @@ The server requires a PostgreSQL database. Set `DATABASE_URL` environment variab
 
 This is a Tak game server implementation with the following key components:
 
+### AI System
+
+**Powered by the proven Taktician AI library**
+- **Multiple Difficulty Levels**:
+  - `Beginner`: Random move selection for learning
+  - `Intermediate`: Minimax search with depth 3
+  - `Advanced`: Minimax search with depth 5
+  - `Expert`: Monte Carlo Tree Search (MCTS)
+- **CLI Integration**: Interactive command-line game with AI opponent selection
+- **HTTP API**: `/game/{slug}/ai-move` endpoint for AI move recommendations
+- **Game State Conversion**: Automatic conversion between GoTak and Taktician representations
+- **PTN Support**: Full PTN (Portable Tak Notation) parsing for move conversion
+
+**Usage Examples**:
+```bash
+# Play against AI in CLI
+./gotak
+
+# Get AI move via HTTP API
+curl -X POST http://localhost:8080/game/test-game/ai-move \
+  -H "Content-Type: application/json" \
+  -d '{"level": "expert", "style": "balanced", "time_limit": "10s"}'
+```
+
 ### Core Game Logic (`*.go` files in root)
 - **Game (`game.go`)**: Main game state management, PTN parsing, and game rules
 - **Board (`board.go`)**: Board state, move validation, and road detection using flood fill algorithm
@@ -73,6 +100,7 @@ This is a Tak game server implementation with the following key components:
   - `POST /game/new` - Create new game (accepts JSON body with size)
   - `POST /game/{slug}/join` - Join a waiting game as black player
   - `POST /game/{slug}/move` - Submit move
+  - `POST /game/{slug}/ai-move` - Get AI move recommendation
 - **Database layer** with PostgreSQL for game persistence
 - **Middleware stack** includes CORS, security headers, logging, and request validation
 - **Dynamic UI**: Home page reads swagger.json to display endpoint information with fallback

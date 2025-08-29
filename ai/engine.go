@@ -3,12 +3,20 @@ package ai
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/icco/gotak"
 	taktician "github.com/nelhage/taktician/ai"
 	"github.com/nelhage/taktician/ai/mcts"
 	"github.com/nelhage/taktician/tak"
+)
+
+// Regular expressions for parsing PTN moves (copied from move.go)
+var (
+	placeRegex = regexp.MustCompile(`^([CSF])?([a-z]\d+)$`)
+	moveRegex  = regexp.MustCompile(`^([1-9]*)([a-z]\d+)([<>+\-])(\d*)([CSF])?$`)
 )
 
 // DifficultyLevel represents AI strength.
@@ -42,17 +50,6 @@ type AIConfig struct {
 type Engine interface {
 	GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error)
 	ExplainMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error)
-}
-
-// StubEngine is a placeholder AI engine for development.
-type StubEngine struct{}
-
-func (e *StubEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
-	return "a1", nil
-}
-
-func (e *StubEngine) ExplainMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
-	return "This is a stub explanation.", nil
 }
 
 // TakticianEngine wraps the Taktician AI library
@@ -106,45 +103,215 @@ func (e *TakticianEngine) ExplainMove(ctx context.Context, g *gotak.Game, cfg AI
 
 // convertGameToPosition converts our gotak.Game to Taktician's tak.Position
 func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
-	// TODO: Implement conversion from gotak representation to tak.Position
-	// This is a complex conversion that needs to map:
-	// - Board state and pieces
-	// - Move history
-	// - Current player
-	// - Piece counts
-	
-	// For now, create a new position with the same size
+	// Create a new position with the same size
 	config := tak.Config{
 		Size: int(g.Board.Size),
 	}
 	position := tak.New(config)
 	
-	// TODO: Apply moves from game history to build current position
-	// This would require converting each PTN move to tak.Move and applying it
+	// Apply moves from game history to build current position
+	for _, turn := range g.Turns {
+		// Apply each move in the turn
+		moves := []*gotak.Move{}
+		if turn.First != nil {
+			moves = append(moves, turn.First)
+		}
+		if turn.Second != nil {
+			moves = append(moves, turn.Second)
+		}
+		
+		for _, move := range moves {
+			if move == nil {
+				continue
+			}
+			
+			// Convert PTN move string to tak.Move
+			takMove, err := convertStringToMove(move.Text, int(g.Board.Size))
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert move %s: %w", move.Text, err)
+			}
+			
+			// Apply move to position
+			newPosition, err := position.Move(takMove)
+			if err != nil {
+				return nil, fmt.Errorf("failed to apply move %s: %w", move.Text, err)
+			}
+			position = newPosition
+		}
+	}
 	
 	return position, nil
 }
 
 // convertMoveToString converts Taktician's tak.Move to PTN string notation
 func convertMoveToString(move tak.Move, boardSize int) (string, error) {
-	// TODO: Implement conversion from tak.Move to PTN notation
-	// This needs to handle:
-	// - Placement moves (a1, Ca1, Sa1)
-	// - Slide moves (3a3+3, 4a4>121)
-	// - Coordinate conversion (Taktician uses int8 x,y, PTN uses algebraic notation)
-	
-	// For now, return a simple placeholder
+	// Validate coordinates
 	x := move.X
 	y := move.Y
-	
-	// Convert coordinates to algebraic notation (a1, b2, etc.)
 	if x < 0 || y < 0 || int(x) >= boardSize || int(y) >= boardSize {
 		return "", fmt.Errorf("invalid move coordinates: %d,%d", x, y)
 	}
 	
+	// Convert coordinates to algebraic notation (a1, b2, etc.)
 	col := string(rune('a' + x))
 	row := fmt.Sprintf("%d", y+1)
+	square := col + row
 	
-	// TODO: Handle different move types properly
-	return col + row, nil
+	switch move.Type {
+	case tak.PlaceFlat:
+		return square, nil
+	case tak.PlaceStanding:
+		return "S" + square, nil
+	case tak.PlaceCapstone:
+		return "C" + square, nil
+	case tak.SlideLeft, tak.SlideRight, tak.SlideUp, tak.SlideDown:
+		// Handle slide moves
+		direction := ""
+		switch move.Type {
+		case tak.SlideLeft:
+			direction = "<"
+		case tak.SlideRight:
+			direction = ">"
+		case tak.SlideUp:
+			direction = "+"
+		case tak.SlideDown:
+			direction = "-"
+		}
+		
+		// Build move string: (count)(square)(direction)(drops)
+		count := move.Slides.Len()
+		moveStr := fmt.Sprintf("%d%s%s", count, square, direction)
+		
+		// Add drop counts if needed
+		if !move.Slides.Empty() {
+			drops := ""
+			it := move.Slides.Iterator()
+			for it.Ok() {
+				drops += fmt.Sprintf("%d", it.Elem())
+				it = it.Next()
+			}
+			moveStr += drops
+		}
+		
+		return moveStr, nil
+	default:
+		return "", fmt.Errorf("unsupported move type: %v", move.Type)
+	}
+}
+
+// convertStringToMove converts PTN move string to Taktician's tak.Move
+func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
+	
+	// Use regular expressions to parse the move
+	if placeMatch := placeRegex.FindStringSubmatch(moveStr); placeMatch != nil {
+		// Placement move
+		stone := placeMatch[1]
+		square := placeMatch[2]
+		
+		x, y, err := parseSquare(square, boardSize)
+		if err != nil {
+			return tak.Move{}, err
+		}
+		
+		switch stone {
+		case "":
+			return tak.Move{X: x, Y: y, Type: tak.PlaceFlat}, nil
+		case "S":
+			return tak.Move{X: x, Y: y, Type: tak.PlaceStanding}, nil
+		case "C":
+			return tak.Move{X: x, Y: y, Type: tak.PlaceCapstone}, nil
+		default:
+			return tak.Move{}, fmt.Errorf("unknown stone type: %s", stone)
+		}
+	}
+	
+	if moveMatch := moveRegex.FindStringSubmatch(moveStr); moveMatch != nil {
+		// Slide move
+		countStr := moveMatch[1]
+		square := moveMatch[2]
+		direction := moveMatch[3]
+		dropsStr := moveMatch[4]
+		
+		x, y, err := parseSquare(square, boardSize)
+		if err != nil {
+			return tak.Move{}, err
+		}
+		
+		count := 1
+		if countStr != "" {
+			if c, err := strconv.Atoi(countStr); err == nil {
+				count = c
+			}
+		}
+		
+		var moveType tak.MoveType
+		switch direction {
+		case "<":
+			moveType = tak.SlideLeft
+		case ">":
+			moveType = tak.SlideRight
+		case "+":
+			moveType = tak.SlideUp
+		case "-":
+			moveType = tak.SlideDown
+		default:
+			return tak.Move{}, fmt.Errorf("unknown direction: %s", direction)
+		}
+		
+		// Parse drop counts
+		var slides tak.Slides
+		if dropsStr != "" {
+			drops := []int{}
+			for _, dropChar := range dropsStr {
+				drop, err := strconv.Atoi(string(dropChar))
+				if err != nil {
+					return tak.Move{}, fmt.Errorf("invalid drop count: %s", string(dropChar))
+				}
+				drops = append(drops, drop)
+			}
+			slides = tak.MkSlides(drops...)
+		} else {
+			// Default: drop all stones one by one
+			drops := make([]int, count)
+			for i := 0; i < count; i++ {
+				drops[i] = 1
+			}
+			slides = tak.MkSlides(drops...)
+		}
+		
+		return tak.Move{X: x, Y: y, Type: moveType, Slides: slides}, nil
+	}
+	
+	return tak.Move{}, fmt.Errorf("invalid move format: %s", moveStr)
+}
+
+// parseSquare converts algebraic notation (a1) to coordinates
+func parseSquare(square string, boardSize int) (int8, int8, error) {
+	if len(square) < 2 {
+		return 0, 0, fmt.Errorf("invalid square: %s", square)
+	}
+	
+	col := square[0]
+	rowStr := square[1:]
+	
+	if col < 'a' || col > 'z' {
+		return 0, 0, fmt.Errorf("invalid column: %c", col)
+	}
+	
+	x := int8(col - 'a')
+	if int(x) >= boardSize {
+		return 0, 0, fmt.Errorf("column out of bounds: %c", col)
+	}
+	
+	row, err := strconv.Atoi(rowStr)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid row: %s", rowStr)
+	}
+	
+	y := int8(row - 1) // Convert to 0-based
+	if y < 0 || int(y) >= boardSize {
+		return 0, 0, fmt.Errorf("row out of bounds: %d", row)
+	}
+	
+	return x, y, nil
 }
