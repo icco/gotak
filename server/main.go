@@ -100,20 +100,6 @@ func main() {
 	// Stuff that does not ssl redirect
 	r.Group(func(r chi.Router) {
 		r.Use(secure.New(secure.Options{
-			BrowserXssFilter:   true,
-			ContentTypeNosniff: true,
-			FrameDeny:          true,
-			HostsProxyHeaders:  []string{"X-Forwarded-Host"},
-			IsDevelopment:      isDev,
-			SSLProxyHeaders:    map[string]string{"X-Forwarded-Proto": "https"},
-		}).Handler)
-
-		r.Get("/healthz", healthCheckHandler)
-	})
-
-	// Everything that does SSL only
-	r.Group(func(r chi.Router) {
-		r.Use(secure.New(secure.Options{
 			BrowserXssFilter:     true,
 			ContentTypeNosniff:   true,
 			FrameDeny:            true,
@@ -126,8 +112,19 @@ func main() {
 			STSSeconds:           315360000,
 		}).Handler)
 
-		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", registerHandler)
+		// Auth endpoints (JWT + Google)
+		r.Mount("/auth", AuthRoutes())
+
+		r.Get("/", rootHandler)
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
+		))
+		r.HandleFunc("/game/{slug}", getGameHandler)
+		r.Get("/game/{slug}/{turn}", getTurnHandler)
+		r.Get("/game/new", newGameHandler)
+		r.Post("/game/new", newGameHandler)
+		r.Post("/game/{slug}/move", newMoveHandler)
+	})
 			r.Post("/login", loginHandler)
 		})
 
