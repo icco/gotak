@@ -47,7 +47,21 @@ type Move struct {
 	Game Game `gorm:"foreignKey:GameID" json:"-"`
 }
 
+// User represents a registered user
+type User struct {
+	ID                int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Username          string    `gorm:"type:varchar(32);uniqueIndex;not null" json:"username"`
+	Email             string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
+	PasswordHash      string    `gorm:"type:varchar(255);not null" json:"-"`
+	Verified          bool      `gorm:"default:false" json:"verified"`
+	VerificationToken string    `gorm:"type:varchar(255)" json:"-"`
+	ResetToken        string    `gorm:"type:varchar(255)" json:"-"`
+	Preferences       string    `gorm:"type:jsonb" json:"preferences,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{})
 }

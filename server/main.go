@@ -126,6 +126,11 @@ func main() {
 			STSSeconds:           315360000,
 		}).Handler)
 
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", registerHandler)
+			r.Post("/login", loginHandler)
+		})
+
 		r.Get("/", rootHandler)
 		r.Get("/swagger/*", httpSwagger.Handler(
 			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
