@@ -184,24 +184,27 @@ func difficultyName(level ai.DifficultyLevel) string {
 }
 
 func makeMove(game *gotak.Game, moveStr string) error {
-	// Create a simple turn with the move
-	move, err := gotak.NewMove(moveStr)
-	if err != nil {
-		return err
-	}
-
-	// Determine current player based on turn count
-	// In Tak, White goes first, then alternates
+	// Determine current player based on turn count and moves within current turn
 	player := gotak.PlayerWhite
-	if len(game.Turns) > 0 {
-		lastTurn := game.Turns[len(game.Turns)-1]
-		if lastTurn.Second == nil {
-			player = gotak.PlayerBlack
+	moveCount := 0
+	
+	// Count total moves made so far
+	for _, turn := range game.Turns {
+		if turn.First != nil {
+			moveCount++
+		}
+		if turn.Second != nil {
+			moveCount++
 		}
 	}
+	
+	// Player alternates: White (even move count), Black (odd move count)
+	if moveCount%2 == 1 {
+		player = gotak.PlayerBlack
+	}
 
-	// Apply the move to the board
-	return game.Board.DoMove(move, player)
+	// Use the game's DoSingleMove method which properly handles turn history
+	return game.DoSingleMove(moveStr, player)
 }
 
 func showHelp() {
