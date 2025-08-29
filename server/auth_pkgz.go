@@ -8,13 +8,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	auth2 "github.com/go-pkgz/auth/v2"
+	"github.com/go-pkgz/auth/v2/avatar"
+	"github.com/go-pkgz/auth/v2/token"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 func newAuthService() *auth2.Service {
@@ -25,12 +27,13 @@ func newAuthService() *auth2.Service {
 	}
 	
 	service := auth2.NewService(auth2.Opts{
-		SecretReader: auth2.SecretFunc(func(id string) (string, error) { return secret, nil }),
-		TokenDuration: 24 * 60 * 60, // 1 day
+		SecretReader:  token.SecretFunc(func(aud string) (string, error) { return secret, nil }),
+		TokenDuration: 24 * time.Hour, // 1 day
 		Issuer:        issuer,
 		URL:           "https://gotak.app", // change for local/dev
-		Validator:     auth2.DefaultValidator,
+		Validator:     nil, // no custom validation needed
 		DisableXSRF:   true, // for API only
+		AvatarStore:   avatar.NewNoOp(), // disable avatars support
 	})
 	
 	// Add Google OAuth2 provider if credentials are available
@@ -67,7 +70,8 @@ func AuthRoutes() http.Handler {
 	
 	// Mount go-pkgz auth handlers for social login
 	auth := newAuthService()
-	r.Mount("/", auth.Handlers())
+	authHandler, _ := auth.Handlers() // avatarHandler not used here
+	r.Mount("/", authHandler)
 	
 	// Add rate limiting specifically for registration and login
 	r.Group(func(r chi.Router) {
@@ -399,11 +403,18 @@ func generateProviderID() string {
 
 func generateJWT(userID int64) (string, error) {
 	auth := newAuthService()
-	token, err := auth.JWT(fmt.Sprintf("%d", userID), nil)
+	tokenService := auth.TokenService()
+	claims := token.Claims{
+		User: &token.User{
+			ID:   fmt.Sprintf("%d", userID),
+			Name: fmt.Sprintf("user-%d", userID),
+		},
+	}
+	tokenString, err := tokenService.Token(claims)
 	if err != nil {
 		return "", err
 	}
-	return token, nil
+	return tokenString, nil
 }
 
 func getCurrentUser(r *http.Request) (*User, error) {
@@ -416,7 +427,8 @@ func getCurrentUser(r *http.Request) (*User, error) {
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 	
 	auth := newAuthService()
-	claims, err := auth.Parse(tokenString)
+	tokenService := auth.TokenService()
+	claims, err := tokenService.Parse(tokenString)
 	if err != nil {
 		return nil, err
 	}

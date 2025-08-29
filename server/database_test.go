@@ -31,7 +31,7 @@ func TestCreateGame(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Test creating a game with default size
-	slug1, err := createGame(db, 3) // Should default to 6
+	slug1, err := createGame(db, 3, nil) // Should default to 6
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestCreateGame(t *testing.T) {
 
 	// Test creating a game with valid size (use separate test DB to avoid duplicate slugs)
 	db2 := setupTestDB(t)
-	slug2, err := createGame(db2, 8)
+	slug2, err := createGame(db2, 8, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestUpdateTag(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game first
-	slug, err := createGame(db, 6)
+	slug, err := createGame(db, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestGetGameID(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game first
-	slug, err := createGame(db, 6)
+	slug, err := createGame(db, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestInsertMove(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game first
-	slug, err := createGame(db, 6)
+	slug, err := createGame(db, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestGetGame(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game first
-	slug, err := createGame(db, 8)
+	slug, err := createGame(db, 8, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestUpdateGameStatus(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game first
-	slug, err := createGame(db, 6)
+	slug, err := createGame(db, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestGameWorkflow(t *testing.T) {
 
 	// Test complete game workflow
 	// 1. Create game
-	slug, err := createGame(db, 6)
+	slug, err := createGame(db, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestGetGameWithNoMoves(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game with no moves
-	slug, err := createGame(db, 5)
+	slug, err := createGame(db, 5, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -430,7 +430,7 @@ func TestDatabaseTypesConsistency(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a game and verify ID types are consistent
-	slug, err := createGame(db, 6)
+	slug, err := createGame(db, 6, nil)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestGetGameBoardState(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a new game
-	slug, err := createGame(db, 5)
+	slug, err := createGame(db, 5, nil)
 	if err != nil {
 		t.Fatalf("could not create game: %v", err)
 	}
