@@ -42,6 +42,10 @@ func createGame(db *gorm.DB, size int, userID *int64) (string, error) {
 	if size < 4 {
 		size = 6
 	}
+	
+	if userID == nil {
+		return "", fmt.Errorf("user authentication required")
+	}
 
 	// Game Slug
 	worker := sanic.NewWorker7()

@@ -288,10 +288,13 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get current user from context (set by authMiddleware)
 	user := getUserFromContext(r)
-	var userID *int64
-	if user != nil {
-		userID = &user.ID
+	if user == nil {
+		if err := Renderer.JSON(w, 401, map[string]string{"error": "authentication required"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
 	}
+	userID := &user.ID
 
 	boardSize := 8
 
