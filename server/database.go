@@ -38,7 +38,7 @@ func getDB() (*gorm.DB, error) {
 	return db, nil
 }
 
-func createGame(db *gorm.DB, size int) (string, error) {
+func createGame(db *gorm.DB, size int, userID *int64) (string, error) {
 	if size < 4 {
 		size = 6
 	}
@@ -49,7 +49,8 @@ func createGame(db *gorm.DB, size int) (string, error) {
 	slug := worker.IDString(id)
 
 	game := Game{
-		Slug: slug,
+		Slug:   slug,
+		UserID: userID,
 	}
 
 	if err := db.Create(&game).Error; err != nil {

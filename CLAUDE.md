@@ -136,3 +136,5 @@ This is a Tak game server implementation with the following key components:
 - Always run tests before committing changes
 - Update swagger documentation after API changes
 - Follow existing code patterns and conventions
+
+- Remember to commit and push often while you work

@@ -112,31 +112,27 @@ func main() {
 			STSSeconds:           315360000,
 		}).Handler)
 
+		// Public routes
+		r.Get("/", rootHandler)
+		r.Get("/healthz", healthCheckHandler)
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
+		))
+
 		// Auth endpoints (JWT + Google)
 		r.Mount("/auth", AuthRoutes())
 
-		r.Get("/", rootHandler)
-		r.Get("/swagger/*", httpSwagger.Handler(
-			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
-		))
-		r.HandleFunc("/game/{slug}", getGameHandler)
+		// Public game viewing (no auth required)
+		r.Get("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
-		r.Get("/game/new", newGameHandler)
-		r.Post("/game/new", newGameHandler)
-		r.Post("/game/{slug}/move", newMoveHandler)
-	})
-			r.Post("/login", loginHandler)
-		})
 
-		r.Get("/", rootHandler)
-		r.Get("/swagger/*", httpSwagger.Handler(
-			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
-		))
-		r.HandleFunc("/game/{slug}", getGameHandler)
-		r.Get("/game/{slug}/{turn}", getTurnHandler)
-		r.Get("/game/new", newGameHandler)
-		r.Post("/game/new", newGameHandler)
-		r.Post("/game/{slug}/move", newMoveHandler)
+		// Protected routes requiring authentication
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.Get("/game/new", newGameHandler)
+			r.Post("/game/new", newGameHandler)
+			r.Post("/game/{slug}/move", newMoveHandler)
+		})
 	})
 
 	// GORM auto-migration is handled in getDB()

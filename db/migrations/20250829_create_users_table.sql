@@ -1,4 +1,6 @@
 
+DROP TABLE IF EXISTS users;
+
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     provider VARCHAR(32) NOT NULL,
@@ -13,5 +15,3 @@ CREATE TABLE users (
     UNIQUE(provider, provider_id),
     UNIQUE(email)
 );
-
-DROP TABLE IF EXISTS users;
