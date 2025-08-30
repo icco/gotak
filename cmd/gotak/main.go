@@ -80,7 +80,6 @@ type model struct {
 	menuCursor int
 	
 	// Game state
-	gameSlug   string
 	boardSize  int
 	difficulty string
 	game       *GameState
@@ -255,13 +254,22 @@ func (m model) viewGame() string {
 }
 
 func (m model) viewSettings() string {
-	s := "\n⚙️ Settings\n\n"
-	s += fmt.Sprintf("Board Size: %dx%d\n", m.boardSize, m.boardSize)
-	s += fmt.Sprintf("AI Difficulty: %s\n", m.difficulty)
-	s += fmt.Sprintf("Server: %s\n", m.serverURL)
-	s += "\nPress q to go back to menu"
+	title := titleStyle.Render("⚙️ Settings")
 	
-	return s
+	settings := []string{
+		fmt.Sprintf("Board Size: %dx%d", m.boardSize, m.boardSize),
+		fmt.Sprintf("AI Difficulty: %s", m.difficulty),
+		fmt.Sprintf("Server: %s", m.serverURL),
+	}
+	
+	settingsContent := ""
+	for _, setting := range settings {
+		settingsContent += menuItemStyle.Render(setting) + "\n"
+	}
+	
+	help := menuItemStyle.Render("Press q to go back to menu")
+	
+	return lipgloss.JoinVertical(lipgloss.Left, title, "", settingsContent, help)
 }
 
 func (m model) renderBoard() string {
@@ -269,38 +277,50 @@ func (m model) renderBoard() string {
 		return "No game board"
 	}
 	
-	s := ""
 	size := len(m.game.Board)
+	var rows []string
 	
-	// Column headers
-	s += "   "
+	// Top column headers
+	header := "   "
 	for i := 0; i < size; i++ {
-		s += fmt.Sprintf(" %c ", 'a'+i)
+		header += fmt.Sprintf(" %c ", 'a'+i)
 	}
-	s += "\n"
+	rows = append(rows, header)
 	
-	// Rows with row numbers
+	// Board rows (reverse order for proper display)
 	for i := size - 1; i >= 0; i-- {
-		s += fmt.Sprintf("%2d ", i+1)
+		row := fmt.Sprintf("%2d ", i+1)
 		for j := 0; j < size; j++ {
 			cell := m.game.Board[i][j]
 			if cell == "" {
-				s += " · "
+				// Empty cell
+				cellContent := cellStyle.
+					Background(lipgloss.Color("235")).
+					Foreground(lipgloss.Color("240")).
+					Render("·")
+				row += cellContent
 			} else {
-				s += fmt.Sprintf(" %s ", cell)
+				// Stone on cell - we'll enhance this later
+				cellContent := cellStyle.
+					Background(lipgloss.Color("240")).
+					Foreground(lipgloss.Color("255")).
+					Render(cell)
+				row += cellContent
 			}
 		}
-		s += fmt.Sprintf(" %d\n", i+1)
+		row += fmt.Sprintf(" %d", i+1)
+		rows = append(rows, row)
 	}
 	
 	// Bottom column headers
-	s += "   "
+	footer := "   "
 	for i := 0; i < size; i++ {
-		s += fmt.Sprintf(" %c ", 'a'+i)
+		footer += fmt.Sprintf(" %c ", 'a'+i)
 	}
-	s += "\n"
+	rows = append(rows, footer)
 	
-	return s
+	boardContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	return boardStyle.Render(boardContent)
 }
 
 // Commands
