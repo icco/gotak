@@ -780,6 +780,22 @@ func (m model) getTotalMoves() int {
 	return total
 }
 
+// getCurrentPlayer determines which player's turn it is based on move count
+// Player 1 (White) goes first, Player 2 (Black) goes second, alternating
+func (m model) getCurrentPlayer() int {
+	if m.gameData == nil {
+		return 1 // Default to player 1 if no game data
+	}
+	
+	totalMoves := m.getTotalMoves()
+	// Player 1 starts, so on even total moves it's player 1's turn
+	// On odd total moves it's player 2's turn
+	if totalMoves%2 == 0 {
+		return 1
+	}
+	return 2
+}
+
 func (m model) viewSettings() string {
 	title := titleStyle.Width(m.width).Render("⚙️ Settings")
 	
@@ -925,7 +941,7 @@ func (m model) createGame() tea.Cmd {
 func (m model) submitMove() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
-			"player": 1, // TODO: determine actual player
+			"player": m.getCurrentPlayer(),
 			"move":   m.moveInput,
 			"turn":   int64(m.getTotalMoves() + 1),
 		}
