@@ -204,20 +204,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.error = ""
 		return m, nil
 
-	case tea.ClipboardMsg:
-		if m.screen == screenAuth {
-			clipboardText := string(msg)
-			switch m.authFocus {
-			case 0:
-				m.email += clipboardText
-			case 1:
-				m.password += clipboardText
-			case 2:
-				m.name += clipboardText
-			}
-		}
-		return m, nil
-
 	case tea.KeyMsg:
 		switch m.screen {
 		case screenAuthMode:
@@ -356,8 +342,6 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "ctrl+v":
-		return m, tea.GetClipboard()
 	default:
 		if len(msg.String()) == 1 {
 			switch m.authFocus {
@@ -973,7 +957,7 @@ func (m model) createGame() tea.Cmd {
 			// Now fetch the game data with a GET request
 			getReq, _ := http.NewRequest("GET", m.serverURL+"/game/"+gameSlug, nil)
 			getReq.Header.Set("Authorization", "Bearer "+m.token)
-			getReq.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+			getReq.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
 			getResp, err := client.Do(getReq)
 			if err != nil {
