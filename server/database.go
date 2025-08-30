@@ -15,9 +15,11 @@ import (
 
 func getDB() (*gorm.DB, error) {
 	dbURL := os.Getenv("DATABASE_URL")
+	log.Debugw("Attempting database connection", "database_url_length", len(dbURL))
 	if dbURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
+	log.Debugw("DATABASE_URL is set, attempting connection")
 
 	// Configure GORM to use zapgorm2 logger
 	config := &gorm.Config{
