@@ -253,16 +253,16 @@ type CreateGameRequest struct {
 // @Accept json
 // @Produce json
 // @Param game body CreateGameRequest false "Game configuration"
-// @Success 307 {object} map[string]string "Redirect to game URL"
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
+// @Success 307 {string} string "Redirect to game URL"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /game/new [get]
 // @Router /game/new [post]
 func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -300,16 +300,16 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param slug path string true "Game slug identifier"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Failure 500 {object} map[string]string
+// @Success 200 {object} MessageResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /game/{slug}/join [post]
 func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -366,14 +366,14 @@ type MoveRequest struct {
 // @Param slug path string true "Game slug identifier"
 // @Param move body MoveRequest true "Move details"
 // @Success 200 {object} gotak.Game
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /game/{slug}/move [post]
 func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -544,13 +544,13 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param slug path string true "Game slug identifier"
 // @Success 200 {object} gotak.Game
-// @Failure 500 {object} map[string]string
+// @Failure 500 {object} ErrorResponse
 // @Router /game/{slug} [get]
 func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -582,13 +582,13 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 // @Param slug path string true "Game slug identifier"
 // @Param turn path int true "Turn number"
 // @Success 200 {object} gotak.Turn
-// @Failure 500 {object} map[string]string
+// @Failure 500 {object} ErrorResponse
 // @Router /game/{slug}/{turn} [get]
 func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "bad connection to db"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -635,22 +635,22 @@ func getTurnHandler(w http.ResponseWriter, r *http.Request) {
 // @Tags health
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]string
+// @Success 200 {object} HealthResponse
 // @Router /healthz [get]
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	if err := Renderer.JSON(w, http.StatusOK, map[string]string{
-		"healthy":  "true",
-		"revision": os.Getenv("GIT_REVISION"),
-		"tag":      os.Getenv("GIT_TAG"),
-		"branch":   os.Getenv("GIT_BRANCH"),
+	if err := Renderer.JSON(w, http.StatusOK, HealthResponse{
+		Healthy:  "true",
+		Revision: os.Getenv("GIT_REVISION"),
+		Tag:      os.Getenv("GIT_TAG"),
+		Branch:   os.Getenv("GIT_BRANCH"),
 	}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {
-	if err := Renderer.JSON(w, http.StatusNotFound, map[string]string{
-		"error": "404: This page could not be found",
+	if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{
+		Error: "404: This page could not be found",
 	}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}

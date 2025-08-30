@@ -7,12 +7,22 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/icco/gotak"
 )
+
+func getVersion() string {
+	if tag := os.Getenv("GIT_TAG"); tag != "" {
+		return tag
+	}
+	return "dev"
+}
 
 var (
 	localFlag = flag.Bool("local", false, "Use local server instead of https://gotak.app")
@@ -100,9 +110,9 @@ type model struct {
 	// Auth state
 	authMode       authMode
 	authModeCursor int // For selecting login/register
-	email          string
-	password       string
-	name           string
+	emailInput     textinput.Model
+	passwordInput  textinput.Model
+	nameInput      textinput.Model
 	token          string
 	authenticated  bool
 	authFocus      int
@@ -119,9 +129,11 @@ type model struct {
 	moveInput string
 
 	// UI state
-	width  int
-	height int
-	error  string
+	width     int
+	height    int
+	error     string
+	spinner   spinner.Model
+	isLoading bool
 }
 
 type GameData struct {
@@ -143,20 +155,45 @@ type GameMove struct {
 }
 
 func initialModel(serverURL string) model {
+	// Initialize text inputs
+	emailInput := textinput.New()
+	emailInput.Placeholder = "Email address"
+	emailInput.CharLimit = 320
+
+	passwordInput := textinput.New()
+	passwordInput.Placeholder = "Password"
+	passwordInput.EchoMode = textinput.EchoPassword
+	passwordInput.CharLimit = 128
+
+	nameInput := textinput.New()
+	nameInput.Placeholder = "Full name"
+	nameInput.CharLimit = 128
+
+	// Initialize spinner
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return model{
 		serverURL:     serverURL,
 		screen:        screenAuthMode, // Start with mode selection
 		authMode:      authModeLogin,
+		emailInput:    emailInput,
+		passwordInput: passwordInput,
+		nameInput:     nameInput,
+		spinner:       s,
 		boardSize:     5,
 		authenticated: false,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return tea.Batch(textinput.Blink, m.spinner.Tick)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -168,6 +205,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.authenticated = true
 		m.screen = screenMenu
 		m.error = ""
+		m.isLoading = false
+		return m, nil
+
+	case registrationSuccess:
+		// Clear form data and show success, then switch to login mode
+		m.passwordInput.SetValue("")
+		m.nameInput.SetValue("")
+		m.authMode = authModeLogin
+		m.authFocus = 0
+		m.error = "Registration successful! Please login with your credentials."
+		m.isLoading = false
 		return m, nil
 
 	case gameLoaded:
@@ -175,16 +223,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.gameSlug = msg.game.Slug
 		m.screen = screenGame
 		m.error = ""
+		m.isLoading = false
 		return m, nil
 
 	case apiError:
 		m.error = msg.error
+		m.isLoading = false
 		return m, nil
 
 	case moveSubmitted:
 		m.gameData = msg.game
 		m.moveInput = ""
 		m.error = ""
+		m.isLoading = false
 		return m, nil
 
 	case tea.KeyMsg:
@@ -202,7 +253,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, nil
+	// Update spinner
+	m.spinner, cmd = m.spinner.Update(msg)
+	return m, cmd
 }
 
 func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -231,12 +284,20 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenAuth
 		m.authFocus = 0 // Start at first field
 		m.error = ""    // Clear any errors
+
+		// Focus the email field
+		m.emailInput.Focus()
+		m.passwordInput.Blur()
+		m.nameInput.Blur()
+
 		return m, nil
 	}
 	return m, nil
 }
 
 func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -250,14 +311,46 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.authMode == authModeRegister {
 			maxFields = 3 // email, password, name, submit button (register)
 		}
+
+		// Blur current field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Blur()
+		case 1:
+			m.passwordInput.Blur()
+		case 2:
+			m.nameInput.Blur()
+		}
+
 		if m.authFocus < maxFields {
 			m.authFocus++
 		} else {
 			// Loop back to first field
 			m.authFocus = 0
 		}
+
+		// Focus new field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Focus()
+		case 1:
+			m.passwordInput.Focus()
+		case 2:
+			m.nameInput.Focus()
+		}
+
 		return m, nil
 	case "up", "shift+tab":
+		// Blur current field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Blur()
+		case 1:
+			m.passwordInput.Blur()
+		case 2:
+			m.nameInput.Blur()
+		}
+
 		if m.authFocus > 0 {
 			m.authFocus--
 		} else {
@@ -268,6 +361,17 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.authFocus = maxFields
 		}
+
+		// Focus new field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Focus()
+		case 1:
+			m.passwordInput.Focus()
+		case 2:
+			m.nameInput.Focus()
+		}
+
 		return m, nil
 	case "enter":
 		maxFocus := 1
@@ -277,29 +381,38 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// If on submit button or any field, validate and submit the form
 		if m.authFocus == maxFocus+1 || m.authFocus <= maxFocus {
+			// Get values from textinputs
+			email := strings.TrimSpace(m.emailInput.Value())
+			password := strings.TrimSpace(m.passwordInput.Value())
+			name := strings.TrimSpace(m.nameInput.Value())
+
 			// Basic validation
-			if strings.TrimSpace(m.email) == "" {
+			if email == "" {
 				m.error = "Email address is required"
 				return m, nil
 			}
-			if !strings.Contains(m.email, "@") || !strings.Contains(m.email, ".") {
+			if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
 				m.error = "Please enter a valid email address"
 				return m, nil
 			}
-			if strings.TrimSpace(m.password) == "" {
+			if password == "" {
 				m.error = "Password is required"
 				return m, nil
 			}
-			if len(m.password) < 8 {
+			if len(password) < 8 {
 				m.error = "Password must be at least 8 characters long"
 				return m, nil
 			}
-			if m.authMode == authModeRegister && strings.TrimSpace(m.name) == "" {
+			if m.authMode == authModeRegister && name == "" {
 				m.error = "Full name is required for registration"
 				return m, nil
 			}
 
 			// Clear any previous errors
+			m.error = ""
+
+			// Start loading
+			m.isLoading = true
 			m.error = ""
 
 			if m.authMode == authModeLogin {
@@ -309,35 +422,21 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "backspace":
-		switch m.authFocus {
-		case 0:
-			if len(m.email) > 0 {
-				m.email = m.email[:len(m.email)-1]
-			}
-		case 1:
-			if len(m.password) > 0 {
-				m.password = m.password[:len(m.password)-1]
-			}
-		case 2:
-			if len(m.name) > 0 {
-				m.name = m.name[:len(m.name)-1]
-			}
-		}
-		return m, nil
-	default:
-		if len(msg.String()) == 1 {
-			switch m.authFocus {
-			case 0:
-				m.email += msg.String()
-			case 1:
-				m.password += msg.String()
-			case 2:
-				m.name += msg.String()
-			}
-		}
-		return m, nil
 	}
+
+	// Handle input for the focused field
+	switch m.authFocus {
+	case 0:
+		m.emailInput, cmd = m.emailInput.Update(msg)
+	case 1:
+		m.passwordInput, cmd = m.passwordInput.Update(msg)
+	case 2:
+		if m.authMode == authModeRegister {
+			m.nameInput, cmd = m.nameInput.Update(msg)
+		}
+	}
+
+	return m, cmd
 }
 
 func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -355,6 +454,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter", " ":
 		switch m.menuCursor {
 		case 0: // New Game
+			m.isLoading = true
 			return m, m.createGame()
 		case 1: // Settings
 			m.screen = screenSettings
@@ -374,6 +474,7 @@ func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "enter":
 		if m.moveInput != "" {
+			m.isLoading = true
 			return m, m.submitMove()
 		}
 		return m, nil
@@ -402,20 +503,56 @@ func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+	var content string
+
 	switch m.screen {
 	case screenAuthMode:
-		return m.viewAuthMode()
+		content = m.viewAuthMode()
 	case screenAuth:
-		return m.viewAuth()
+		content = m.viewAuth()
 	case screenMenu:
-		return m.viewMenu()
+		content = m.viewMenu()
 	case screenGame:
-		return m.viewGame()
+		content = m.viewGame()
 	case screenSettings:
-		return m.viewSettings()
+		content = m.viewSettings()
 	default:
-		return "Unknown screen"
+		content = "Unknown screen"
 	}
+
+	// Add spinner in bottom right if loading
+	if m.isLoading {
+		content = m.withSpinner(content)
+	}
+
+	return content
+}
+
+func (m model) withSpinner(content string) string {
+	if m.width <= 0 || m.height <= 0 {
+		return content
+	}
+
+	spinnerStr := m.spinner.View() + " Loading..."
+
+	// Position spinner in bottom right
+	spinnerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Align(lipgloss.Right).
+		Width(m.width).
+		Height(1)
+
+	bottomLine := spinnerStyle.Render(spinnerStr)
+
+	// Split content into lines and replace the last line with spinner
+	lines := strings.Split(content, "\n")
+	if len(lines) > 0 {
+		lines[len(lines)-1] = bottomLine
+	} else {
+		lines = []string{bottomLine}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m model) viewAuthMode() string {
@@ -535,20 +672,6 @@ func (m model) viewAuth() string {
 		Foreground(lipgloss.Color("247")).
 		MarginBottom(0)
 
-	activeInputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Background(lipgloss.Color("237")).
-		Padding(0, 1).
-		Width(formWidth - cardPadding*2 - 2)
-
-	inactiveInputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Background(lipgloss.Color("236")).
-		Padding(0, 1).
-		Width(formWidth - cardPadding*2 - 2)
-
 	// Button styles
 	activeButtonStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("39")).
@@ -583,38 +706,16 @@ func (m model) viewAuth() string {
 
 	// Email field
 	emailLabel := labelStyle.Render("Email Address")
-	var emailInput string
-	if m.authFocus == 0 {
-		emailInput = activeInputStyle.Render(m.email + "█")
-	} else {
-		emailInput = inactiveInputStyle.Render(m.email)
-	}
-	formContent = append(formContent, emailLabel, emailInput, "")
+	formContent = append(formContent, emailLabel, m.emailInput.View(), "")
 
 	// Password field
 	passwordLabel := labelStyle.Render("Password")
-	passwordDisplay := strings.Repeat("•", len(m.password))
-	if m.authFocus == 1 {
-		passwordDisplay += "█"
-	}
-	var passwordInput string
-	if m.authFocus == 1 {
-		passwordInput = activeInputStyle.Render(passwordDisplay)
-	} else {
-		passwordInput = inactiveInputStyle.Render(passwordDisplay)
-	}
-	formContent = append(formContent, passwordLabel, passwordInput, "")
+	formContent = append(formContent, passwordLabel, m.passwordInput.View(), "")
 
 	// Name field for registration
 	if m.authMode == authModeRegister {
 		nameLabel := labelStyle.Render("Full Name")
-		var nameInput string
-		if m.authFocus == 2 {
-			nameInput = activeInputStyle.Render(m.name + "█")
-		} else {
-			nameInput = inactiveInputStyle.Render(m.name)
-		}
-		formContent = append(formContent, nameLabel, nameInput, "")
+		formContent = append(formContent, nameLabel, m.nameInput.View(), "")
 	}
 
 	// Submit button
@@ -818,18 +919,23 @@ func (m model) viewSettings() string {
 func (m model) loginUser() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]string{
-			"email":    m.email,
-			"password": m.password,
+			"email":    m.emailInput.Value(),
+			"password": m.passwordInput.Value(),
 		}
 
 		data, _ := json.Marshal(payload)
-		resp, err := http.Post(m.serverURL+"/auth/login", "application/json", bytes.NewBuffer(data))
+		req, _ := http.NewRequest("POST", m.serverURL+"/auth/login", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -859,19 +965,24 @@ func (m model) loginUser() tea.Cmd {
 func (m model) registerUser() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]string{
-			"email":    m.email,
-			"password": m.password,
-			"name":     m.name,
+			"email":    m.emailInput.Value(),
+			"password": m.passwordInput.Value(),
+			"name":     m.nameInput.Value(),
 		}
 
 		data, _ := json.Marshal(payload)
-		resp, err := http.Post(m.serverURL+"/auth/register", "application/json", bytes.NewBuffer(data))
+		req, _ := http.NewRequest("POST", m.serverURL+"/auth/register", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 201 { // Registration returns 201 on success
+		if resp.StatusCode != http.StatusCreated { // Registration returns 201 on success
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -882,19 +993,8 @@ func (m model) registerUser() tea.Cmd {
 			return apiError{error: fmt.Sprintf("Registration failed (status %d)", resp.StatusCode)}
 		}
 
-		var authResp struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    int64  `json:"id"`
-				Email string `json:"email"`
-				Name  string `json:"name"`
-			} `json:"user"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
-			return apiError{error: "Registration response error"}
-		}
-
-		return authSuccess{token: authResp.Token}
+		// Registration successful, now show success message and return to login
+		return registrationSuccess{}
 	}
 }
 
@@ -909,15 +1009,59 @@ func (m model) createGame() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/new", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
-		client := &http.Client{}
+		// Don't follow redirects automatically
+		client := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 && resp.StatusCode != 307 {
+		// Handle redirect response
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			// Extract game slug from Location header
+			location := resp.Header.Get("Location")
+			if location == "" {
+				return apiError{error: "Game creation redirect missing location"}
+			}
+
+			// Extract slug from "/game/{slug}"
+			parts := strings.Split(location, "/")
+			if len(parts) < 3 || parts[1] != "game" {
+				return apiError{error: "Invalid game location format"}
+			}
+			gameSlug := parts[2]
+
+			// Now fetch the game data with a GET request
+			getReq, _ := http.NewRequest("GET", m.serverURL+"/game/"+gameSlug, nil)
+			getReq.Header.Set("Authorization", "Bearer "+m.token)
+			getReq.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
+
+			getResp, err := client.Do(getReq)
+			if err != nil {
+				return apiError{error: fmt.Sprintf("Failed to fetch created game: %v", err)}
+			}
+			defer getResp.Body.Close()
+
+			if getResp.StatusCode != http.StatusOK {
+				return apiError{error: fmt.Sprintf("Failed to fetch game data (status %d)", getResp.StatusCode)}
+			}
+
+			var game GameData
+			if err := json.NewDecoder(getResp.Body).Decode(&game); err != nil {
+				return apiError{error: "Game data parsing error"}
+			}
+
+			return gameLoaded{game: &game}
+		}
+
+		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -928,12 +1072,7 @@ func (m model) createGame() tea.Cmd {
 			return apiError{error: fmt.Sprintf("Create game failed (status %d)", resp.StatusCode)}
 		}
 
-		var game GameData
-		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
-			return apiError{error: "Game creation response error"}
-		}
-
-		return gameLoaded{game: &game}
+		return apiError{error: "Unexpected response from server"}
 	}
 }
 
@@ -950,6 +1089,7 @@ func (m model) submitMove() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
@@ -958,7 +1098,7 @@ func (m model) submitMove() tea.Cmd {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -983,6 +1123,8 @@ func (m model) submitMove() tea.Cmd {
 type authSuccess struct {
 	token string
 }
+
+type registrationSuccess struct{}
 
 type gameLoaded struct {
 	game *GameData
