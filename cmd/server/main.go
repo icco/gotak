@@ -247,7 +247,6 @@ type CreateGameRequest struct {
 	Size string `json:"size" example:"8" description:"Board size (4-9)"`
 }
 
-
 // @Summary Create a new game
 // @Description Creates a new Tak game with the specified board size
 // @Tags game

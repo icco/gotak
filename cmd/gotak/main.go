@@ -859,7 +859,7 @@ func (m model) loginUser() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/auth/login", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
-		
+
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -906,7 +906,7 @@ func (m model) registerUser() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/auth/register", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
-		
+
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -962,37 +962,37 @@ func (m model) createGame() tea.Cmd {
 			if location == "" {
 				return apiError{error: "Game creation redirect missing location"}
 			}
-			
+
 			// Extract slug from "/game/{slug}"
 			parts := strings.Split(location, "/")
 			if len(parts) < 3 || parts[1] != "game" {
 				return apiError{error: "Invalid game location format"}
 			}
 			gameSlug := parts[2]
-			
+
 			// Now fetch the game data with a GET request
 			getReq, _ := http.NewRequest("GET", m.serverURL+"/game/"+gameSlug, nil)
 			getReq.Header.Set("Authorization", "Bearer "+m.token)
 			getReq.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
-			
+
 			getResp, err := client.Do(getReq)
 			if err != nil {
 				return apiError{error: fmt.Sprintf("Failed to fetch created game: %v", err)}
 			}
 			defer getResp.Body.Close()
-			
+
 			if getResp.StatusCode != http.StatusOK {
 				return apiError{error: fmt.Sprintf("Failed to fetch game data (status %d)", getResp.StatusCode)}
 			}
-			
+
 			var game GameData
 			if err := json.NewDecoder(getResp.Body).Decode(&game); err != nil {
 				return apiError{error: "Game data parsing error"}
 			}
-			
+
 			return gameLoaded{game: &game}
 		}
-		
+
 		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
