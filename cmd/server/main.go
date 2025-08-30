@@ -22,7 +22,6 @@ import (
 
 	"github.com/icco/gotak"
 	"github.com/icco/gotak/cmd/server/docs"
-	_ "github.com/icco/gotak/cmd/server/docs"
 )
 
 var (
