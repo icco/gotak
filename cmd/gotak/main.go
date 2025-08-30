@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,9 +15,12 @@ import (
 	"github.com/icco/gotak"
 )
 
-const (
-	version = "1.0.0"
-)
+func getVersion() string {
+	if tag := os.Getenv("GIT_TAG"); tag != "" {
+		return tag
+	}
+	return "dev"
+}
 
 var (
 	localFlag = flag.Bool("local", false, "Use local server instead of https://gotak.app")
@@ -200,6 +204,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.error = ""
 		return m, nil
 
+	case tea.ClipboardMsg:
+		if m.screen == screenAuth {
+			clipboardText := string(msg)
+			switch m.authFocus {
+			case 0:
+				m.email += clipboardText
+			case 1:
+				m.password += clipboardText
+			case 2:
+				m.name += clipboardText
+			}
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.screen {
 		case screenAuthMode:
@@ -338,6 +356,8 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	case "ctrl+v":
+		return m, tea.GetClipboard()
 	default:
 		if len(msg.String()) == 1 {
 			switch m.authFocus {
@@ -838,7 +858,7 @@ func (m model) loginUser() tea.Cmd {
 		data, _ := json.Marshal(payload)
 		req, _ := http.NewRequest("POST", m.serverURL+"/auth/login", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 		
 		client := &http.Client{}
 		resp, err := client.Do(req)
@@ -847,7 +867,7 @@ func (m model) loginUser() tea.Cmd {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -885,7 +905,7 @@ func (m model) registerUser() tea.Cmd {
 		data, _ := json.Marshal(payload)
 		req, _ := http.NewRequest("POST", m.serverURL+"/auth/register", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 		
 		client := &http.Client{}
 		resp, err := client.Do(req)
@@ -894,7 +914,7 @@ func (m model) registerUser() tea.Cmd {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 201 { // Registration returns 201 on success
+		if resp.StatusCode != http.StatusCreated { // Registration returns 201 on success
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -921,7 +941,7 @@ func (m model) createGame() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/new", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
-		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
 		// Don't follow redirects automatically
 		client := &http.Client{
@@ -936,7 +956,7 @@ func (m model) createGame() tea.Cmd {
 		defer resp.Body.Close()
 
 		// Handle redirect response
-		if resp.StatusCode == 307 {
+		if resp.StatusCode == http.StatusTemporaryRedirect {
 			// Extract game slug from Location header
 			location := resp.Header.Get("Location")
 			if location == "" {
@@ -961,7 +981,7 @@ func (m model) createGame() tea.Cmd {
 			}
 			defer getResp.Body.Close()
 			
-			if getResp.StatusCode != 200 {
+			if getResp.StatusCode != http.StatusOK {
 				return apiError{error: fmt.Sprintf("Failed to fetch game data (status %d)", getResp.StatusCode)}
 			}
 			
@@ -973,7 +993,7 @@ func (m model) createGame() tea.Cmd {
 			return gameLoaded{game: &game}
 		}
 		
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -1001,7 +1021,7 @@ func (m model) submitMove() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
-		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
@@ -1010,7 +1030,7 @@ func (m model) submitMove() tea.Cmd {
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
