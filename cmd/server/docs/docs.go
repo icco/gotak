@@ -640,7 +640,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_icco_gotak_server.MoveRequest"
+                            "$ref": "#/definitions/main.MoveRequest"
                         }
                     }
                 ],
@@ -748,23 +748,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_icco_gotak_server.MoveRequest": {
-            "type": "object",
-            "properties": {
-                "move": {
-                    "type": "string",
-                    "example": "c3"
-                },
-                "player": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "turn": {
-                    "type": "integer",
-                    "example": 1
-                }
-            }
-        },
         "gotak.Board": {
             "type": "object",
             "properties": {
@@ -926,6 +909,23 @@ const docTemplate = `{
                 "password": {
                     "type": "string",
                     "example": "secretpassword"
+                }
+            }
+        },
+        "main.MoveRequest": {
+            "type": "object",
+            "properties": {
+                "move": {
+                    "type": "string",
+                    "example": "c3"
+                },
+                "player": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "turn": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
