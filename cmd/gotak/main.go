@@ -2,54 +2,88 @@ package main
 
 import (
 	"bufio"
-	"context"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/icco/gotak"
-	"github.com/icco/gotak/ai"
 )
+
+const (
+	serverURL = "http://localhost:8080"
+)
+
+type GameResponse struct {
+	ID     int64  `json:"id"`
+	Slug   string `json:"slug"`
+	Status string `json:"status"`
+}
+
+type MoveRequest struct {
+	Move string `json:"move"`
+}
+
+type AIMoveRequest struct {
+	Level     string `json:"level"`
+	Style     string `json:"style"`
+	TimeLimit string `json:"time_limit"`
+}
+
+type AIMoveResponse struct {
+	Move string `json:"move"`
+	Hint string `json:"hint,omitempty"`
+}
 
 func main() {
 	fmt.Println("🎯 Welcome to GoTak!")
 	fmt.Println("A Tak game implementation with AI opponents")
 	fmt.Println()
 
+	// Start server in background
+	fmt.Println("🚀 Starting local server...")
+	serverCmd := exec.Command("go", "run", "./server")
+	err := serverCmd.Start()
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+	defer serverCmd.Process.Kill()
+
+	// Wait for server to start
+	fmt.Println("⏳ Waiting for server to start...")
+	time.Sleep(3 * time.Second)
+
+	// Test server connection
+	if !isServerReady() {
+		log.Fatalf("Server failed to start properly")
+	}
+
 	// Get game parameters
 	size := getBoardSize()
 	difficulty := getDifficulty()
 
-	// Create a new game
-	game, err := gotak.NewGame(size, 1, "cli-game")
+	// Create game via API
+	gameSlug, err := createGame(size)
 	if err != nil {
 		log.Fatalf("Failed to create game: %v", err)
 	}
 
-	// Create AI engine
-	engine := &ai.TakticianEngine{}
-	aiConfig := ai.AIConfig{
-		Level:     difficulty,
-		Style:     ai.Balanced,
-		TimeLimit: 10 * time.Second,
-	}
-
-	fmt.Printf("\n🎮 Starting a %dx%d game against %s AI\n", size, size, difficultyName(difficulty))
-	fmt.Println("You are White, AI is Black")
-	fmt.Println("Enter moves in PTN notation (e.g., 'a1', 'Ca1', 'Sa1', '3a3+3')")
-	fmt.Println("Type 'help' for commands, 'quit' to exit")
+	fmt.Printf("🎮 Starting %dx%d game against %s AI (Game: %s)\n", size, size, getDifficultyName(difficulty), gameSlug)
+	fmt.Println("💡 Type 'help' for commands, 'quit' to exit")
 	fmt.Println()
-
-	game.PrintCurrentState()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	gameOver := false
 
 	for !gameOver {
-		// Human turn (White)
+		// Show current game state
+		showGameState(gameSlug)
+
+		// Human turn
 		fmt.Print("Your move: ")
 		if !scanner.Scan() {
 			break
@@ -61,90 +95,192 @@ func main() {
 		case "quit", "exit":
 			fmt.Println("Thanks for playing!")
 			return
-		case "help":
+		case "help", "h":
 			showHelp()
 			continue
-		case "board":
-			game.PrintCurrentState()
+		case "status":
+			showGameState(gameSlug)
 			continue
 		case "":
 			continue
 		}
 
-		// Try to make human move
-		if err := makeMove(game, input); err != nil {
+		// Make human move via API
+		err := makeMove(gameSlug, input)
+		if err != nil {
 			fmt.Printf("❌ Invalid move: %v\nTry again.\n", err)
 			continue
 		}
 
-		game.PrintCurrentState()
-
-		// Check if game is over
-		if winner, over := game.GameOver(); over {
-			gameOver = true
-			if winner == 0 {
-				fmt.Println("🤝 It's a tie!")
-			} else if winner == int(gotak.PlayerWhite) {
-				fmt.Println("🎉 You win!")
-			} else {
-				fmt.Println("💻 AI wins!")
-			}
-			break
-		}
-
-		// AI turn (Black)
+		// AI turn
 		fmt.Print("🤖 AI thinking...")
 
-		ctx := context.Background()
-		aiMove, err := engine.GetMove(ctx, game, aiConfig)
+		aiMove, err := getAIMove(gameSlug, difficulty)
 		if err != nil {
 			fmt.Printf("\n❌ AI error: %v\n", err)
-			continue
+			// Game might be over
+			showGameState(gameSlug)
+			break
 		}
 
 		fmt.Printf(" AI plays: %s\n", aiMove)
 
-		if err := makeMove(game, aiMove); err != nil {
-			fmt.Printf("❌ AI made invalid move %s: %v\n", aiMove, err)
-			continue
-		}
-
-		game.PrintCurrentState()
-
-		// Check if game is over after AI move
-		if winner, over := game.GameOver(); over {
-			gameOver = true
-			if winner == 0 {
-				fmt.Println("🤝 It's a tie!")
-			} else if winner == int(gotak.PlayerWhite) {
-				fmt.Println("🎉 You win!")
-			} else {
-				fmt.Println("💻 AI wins!")
-			}
+		err = makeMove(gameSlug, aiMove)
+		if err != nil {
+			fmt.Printf("❌ Failed to make AI move: %v\n", err)
+			break
 		}
 	}
+
+	fmt.Println("\nThanks for playing GoTak! 🎯")
 }
 
-func getBoardSize() int64 {
-	fmt.Print("Choose board size (4-8) [default: 5]: ")
+// API Helper Functions
+
+func isServerReady() bool {
+	for i := 0; i < 10; i++ {
+		resp, err := http.Get(serverURL + "/healthz")
+		if err == nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			return true
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return false
+}
+
+func createGame(size int) (string, error) {
+	payload := map[string]interface{}{
+		"size": size,
+	}
+	
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := http.Post(serverURL+"/game/new", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return "", fmt.Errorf("server error: %d", resp.StatusCode)
+	}
+
+	var game GameResponse
+	err = json.NewDecoder(resp.Body).Decode(&game)
+	if err != nil {
+		return "", err
+	}
+
+	return game.Slug, nil
+}
+
+func makeMove(gameSlug, move string) error {
+	payload := MoveRequest{Move: move}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(serverURL+"/game/"+gameSlug+"/move", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("move rejected by server: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func getAIMove(gameSlug string, difficulty DifficultyLevel) (string, error) {
+	payload := AIMoveRequest{
+		Level:     getDifficultyName(difficulty),
+		Style:     "balanced", 
+		TimeLimit: "10s",
+	}
+	
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := http.Post(serverURL+"/game/"+gameSlug+"/ai-move", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("AI request failed: %d", resp.StatusCode)
+	}
+
+	var aiResp AIMoveResponse
+	err = json.NewDecoder(resp.Body).Decode(&aiResp)
+	if err != nil {
+		return "", err
+	}
+
+	return aiResp.Move, nil
+}
+
+func showGameState(gameSlug string) {
+	resp, err := http.Get(serverURL + "/game/" + gameSlug)
+	if err != nil {
+		fmt.Printf("❌ Failed to get game state: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		fmt.Printf("❌ Server error getting game: %d\n", resp.StatusCode)
+		return
+	}
+
+	// For now, just show that we got the state
+	fmt.Println("📋 Game state updated")
+}
+
+// UI Helper Functions
+
+type DifficultyLevel int
+
+const (
+	Beginner DifficultyLevel = iota
+	Intermediate
+	Advanced
+	Expert
+)
+
+func getBoardSize() int {
+	fmt.Println("📏 Board Size Selection:")
+	fmt.Println("1. 4x4 (Quick)")
+	fmt.Println("2. 5x5 (Standard)")
+	fmt.Println("3. 6x6 (Extended)")
+	fmt.Print("Select [1-3, default: 2]: ")
+
 	scanner := bufio.NewScanner(os.Stdin)
 	if scanner.Scan() {
 		input := strings.TrimSpace(scanner.Text())
-		if input == "" {
+		switch input {
+		case "1":
+			return 4
+		case "3":
+			return 6
+		default:
 			return 5
 		}
-		if size, err := strconv.ParseInt(input, 10, 64); err == nil {
-			if size >= 4 && size <= 8 {
-				return size
-			}
-		}
 	}
-	fmt.Println("Invalid size, using 5x5")
 	return 5
 }
 
-func getDifficulty() ai.DifficultyLevel {
-	fmt.Println("\nChoose AI difficulty:")
+func getDifficulty() DifficultyLevel {
+	fmt.Println("\n🤖 AI Difficulty Selection:")
 	fmt.Println("1. Beginner (Random moves)")
 	fmt.Println("2. Intermediate (Minimax depth 3)")
 	fmt.Println("3. Advanced (Minimax depth 5)")
@@ -156,68 +292,42 @@ func getDifficulty() ai.DifficultyLevel {
 		input := strings.TrimSpace(scanner.Text())
 		switch input {
 		case "1":
-			return ai.Beginner
-		case "", "2":
-			return ai.Intermediate
+			return Beginner
 		case "3":
-			return ai.Advanced
+			return Advanced
 		case "4":
-			return ai.Expert
+			return Expert
+		default:
+			return Intermediate
 		}
 	}
-	return ai.Intermediate
+	return Intermediate
 }
 
-func difficultyName(level ai.DifficultyLevel) string {
-	switch level {
-	case ai.Beginner:
-		return "Beginner"
-	case ai.Intermediate:
-		return "Intermediate"
-	case ai.Advanced:
-		return "Advanced"
-	case ai.Expert:
-		return "Expert"
+func getDifficultyName(d DifficultyLevel) string {
+	switch d {
+	case Beginner:
+		return "beginner"
+	case Intermediate:
+		return "intermediate"
+	case Advanced:
+		return "advanced"
+	case Expert:
+		return "expert"
 	default:
-		return "Unknown"
+		return "intermediate"
 	}
-}
-
-func makeMove(game *gotak.Game, moveStr string) error {
-	// Determine current player based on turn count and moves within current turn
-	player := gotak.PlayerWhite
-	moveCount := 0
-	
-	// Count total moves made so far
-	for _, turn := range game.Turns {
-		if turn.First != nil {
-			moveCount++
-		}
-		if turn.Second != nil {
-			moveCount++
-		}
-	}
-	
-	// Player alternates: White (even move count), Black (odd move count)
-	if moveCount%2 == 1 {
-		player = gotak.PlayerBlack
-	}
-
-	// Use the game's DoSingleMove method which properly handles turn history
-	return game.DoSingleMove(moveStr, player)
 }
 
 func showHelp() {
 	fmt.Println("\n📖 GoTak Commands:")
 	fmt.Println("  help    - Show this help")
-	fmt.Println("  board   - Show current board")
+	fmt.Println("  status  - Show current game state")
 	fmt.Println("  quit    - Exit the game")
-	fmt.Println("\n📋 Move Notation (PTN):")
+	fmt.Println("\n📝 Move Format:")
 	fmt.Println("  a1      - Place flat stone at a1")
 	fmt.Println("  Sa1     - Place standing stone at a1")
 	fmt.Println("  Ca1     - Place capstone at a1")
-	fmt.Println("  3a3+3   - Move 3 stones from a3 up, dropping all 3")
-	fmt.Println("  4a4>121 - Move 4 stones from a4 right, dropping 1,2,1")
-	fmt.Println("  Directions: + (up), - (down), > (right), < (left)")
+	fmt.Println("  3a1>21  - Move 3 stones from a1 right, dropping 2,1")
 	fmt.Println()
 }
