@@ -27,6 +27,27 @@ var placeRegex = regexp.MustCompile(`^([CSF])?([a-z]\d+)$`)
 // (count)(square)(direction)(drop counts)(stone)
 var moveRegex = regexp.MustCompile(`^([1-9]*)([a-z]\d+)([<>+\-])(\d*)([CSF])?$`)
 
+// IsValidMoveCharacter checks if a character is valid for PTN move input
+func IsValidMoveCharacter(char string) bool {
+	if len(char) != 1 {
+		return false
+	}
+	
+	// Check for alphanumeric characters
+	if char >= "a" && char <= "z" {
+		return true
+	}
+	if char >= "A" && char <= "Z" {
+		return true
+	}
+	if char >= "0" && char <= "9" {
+		return true
+	}
+	
+	// Check for PTN-specific characters: direction markers, stone types
+	return strings.Contains("<>+-SsCcFf", char)
+}
+
 // Directions
 const (
 	MoveUp    = "+"

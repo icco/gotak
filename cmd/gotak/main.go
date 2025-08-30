@@ -11,6 +11,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	
+	"github.com/icco/gotak"
 )
 
 var (
@@ -382,10 +384,7 @@ func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	default:
-		if len(msg.String()) == 1 && (msg.String() >= "a" && msg.String() <= "z" || 
-			msg.String() >= "A" && msg.String() <= "Z" ||
-			msg.String() >= "0" && msg.String() <= "9" ||
-			strings.Contains("<>+-SsCcFf", msg.String())) {
+		if gotak.IsValidMoveCharacter(msg.String()) {
 			m.moveInput += msg.String()
 		}
 		return m, nil
