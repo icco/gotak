@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -128,9 +129,11 @@ type model struct {
 	moveInput string
 
 	// UI state
-	width  int
-	height int
-	error  string
+	width     int
+	height    int
+	error     string
+	spinner   spinner.Model
+	isLoading bool
 }
 
 type GameData struct {
@@ -156,15 +159,20 @@ func initialModel(serverURL string) model {
 	emailInput := textinput.New()
 	emailInput.Placeholder = "Email address"
 	emailInput.CharLimit = 320
-	
+
 	passwordInput := textinput.New()
 	passwordInput.Placeholder = "Password"
 	passwordInput.EchoMode = textinput.EchoPassword
 	passwordInput.CharLimit = 128
-	
+
 	nameInput := textinput.New()
 	nameInput.Placeholder = "Full name"
 	nameInput.CharLimit = 128
+
+	// Initialize spinner
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
 		serverURL:     serverURL,
@@ -173,16 +181,19 @@ func initialModel(serverURL string) model {
 		emailInput:    emailInput,
 		passwordInput: passwordInput,
 		nameInput:     nameInput,
+		spinner:       s,
 		boardSize:     5,
 		authenticated: false,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, m.spinner.Tick)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -194,6 +205,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.authenticated = true
 		m.screen = screenMenu
 		m.error = ""
+		m.isLoading = false
 		return m, nil
 
 	case registrationSuccess:
@@ -203,6 +215,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.authMode = authModeLogin
 		m.authFocus = 0
 		m.error = "Registration successful! Please login with your credentials."
+		m.isLoading = false
 		return m, nil
 
 	case gameLoaded:
@@ -210,16 +223,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.gameSlug = msg.game.Slug
 		m.screen = screenGame
 		m.error = ""
+		m.isLoading = false
 		return m, nil
 
 	case apiError:
 		m.error = msg.error
+		m.isLoading = false
 		return m, nil
 
 	case moveSubmitted:
 		m.gameData = msg.game
 		m.moveInput = ""
 		m.error = ""
+		m.isLoading = false
 		return m, nil
 
 	case tea.KeyMsg:
@@ -237,7 +253,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, nil
+	// Update spinner
+	m.spinner, cmd = m.spinner.Update(msg)
+	return m, cmd
 }
 
 func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -266,12 +284,12 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenAuth
 		m.authFocus = 0 // Start at first field
 		m.error = ""    // Clear any errors
-		
+
 		// Focus the email field
 		m.emailInput.Focus()
 		m.passwordInput.Blur()
 		m.nameInput.Blur()
-		
+
 		return m, nil
 	}
 	return m, nil
@@ -279,7 +297,7 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	
+
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -293,7 +311,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.authMode == authModeRegister {
 			maxFields = 3 // email, password, name, submit button (register)
 		}
-		
+
 		// Blur current field
 		switch m.authFocus {
 		case 0:
@@ -303,14 +321,14 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 2:
 			m.nameInput.Blur()
 		}
-		
+
 		if m.authFocus < maxFields {
 			m.authFocus++
 		} else {
 			// Loop back to first field
 			m.authFocus = 0
 		}
-		
+
 		// Focus new field
 		switch m.authFocus {
 		case 0:
@@ -320,7 +338,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 2:
 			m.nameInput.Focus()
 		}
-		
+
 		return m, nil
 	case "up", "shift+tab":
 		// Blur current field
@@ -332,7 +350,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 2:
 			m.nameInput.Blur()
 		}
-		
+
 		if m.authFocus > 0 {
 			m.authFocus--
 		} else {
@@ -343,7 +361,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.authFocus = maxFields
 		}
-		
+
 		// Focus new field
 		switch m.authFocus {
 		case 0:
@@ -353,7 +371,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 2:
 			m.nameInput.Focus()
 		}
-		
+
 		return m, nil
 	case "enter":
 		maxFocus := 1
@@ -367,7 +385,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			email := strings.TrimSpace(m.emailInput.Value())
 			password := strings.TrimSpace(m.passwordInput.Value())
 			name := strings.TrimSpace(m.nameInput.Value())
-			
+
 			// Basic validation
 			if email == "" {
 				m.error = "Email address is required"
@@ -393,6 +411,10 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Clear any previous errors
 			m.error = ""
 
+			// Start loading
+			m.isLoading = true
+			m.error = ""
+
 			if m.authMode == authModeLogin {
 				return m, m.loginUser()
 			} else {
@@ -401,7 +423,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	
+
 	// Handle input for the focused field
 	switch m.authFocus {
 	case 0:
@@ -413,7 +435,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.nameInput, cmd = m.nameInput.Update(msg)
 		}
 	}
-	
+
 	return m, cmd
 }
 
@@ -432,6 +454,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter", " ":
 		switch m.menuCursor {
 		case 0: // New Game
+			m.isLoading = true
 			return m, m.createGame()
 		case 1: // Settings
 			m.screen = screenSettings
@@ -451,6 +474,7 @@ func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "enter":
 		if m.moveInput != "" {
+			m.isLoading = true
 			return m, m.submitMove()
 		}
 		return m, nil
@@ -479,20 +503,56 @@ func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+	var content string
+
 	switch m.screen {
 	case screenAuthMode:
-		return m.viewAuthMode()
+		content = m.viewAuthMode()
 	case screenAuth:
-		return m.viewAuth()
+		content = m.viewAuth()
 	case screenMenu:
-		return m.viewMenu()
+		content = m.viewMenu()
 	case screenGame:
-		return m.viewGame()
+		content = m.viewGame()
 	case screenSettings:
-		return m.viewSettings()
+		content = m.viewSettings()
 	default:
-		return "Unknown screen"
+		content = "Unknown screen"
 	}
+
+	// Add spinner in bottom right if loading
+	if m.isLoading {
+		content = m.withSpinner(content)
+	}
+
+	return content
+}
+
+func (m model) withSpinner(content string) string {
+	if m.width <= 0 || m.height <= 0 {
+		return content
+	}
+
+	spinnerStr := m.spinner.View() + " Loading..."
+
+	// Position spinner in bottom right
+	spinnerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Align(lipgloss.Right).
+		Width(m.width).
+		Height(1)
+
+	bottomLine := spinnerStyle.Render(spinnerStr)
+
+	// Split content into lines and replace the last line with spinner
+	lines := strings.Split(content, "\n")
+	if len(lines) > 0 {
+		lines[len(lines)-1] = bottomLine
+	} else {
+		lines = []string{bottomLine}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (m model) viewAuthMode() string {
@@ -611,7 +671,6 @@ func (m model) viewAuth() string {
 	labelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("247")).
 		MarginBottom(0)
-
 
 	// Button styles
 	activeButtonStyle := lipgloss.NewStyle().
