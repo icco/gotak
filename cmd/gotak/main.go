@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -19,31 +20,39 @@ var (
 	titleStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("205")).
-		MarginLeft(2)
+		Align(lipgloss.Center).
+		MarginBottom(2)
 		
 	menuItemStyle = lipgloss.NewStyle().
-		MarginLeft(2)
+		PaddingLeft(2)
 		
 	selectedMenuItemStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("170")).
 		Bold(true).
-		MarginLeft(2)
+		PaddingLeft(2)
 		
 	boardStyle = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("240")).
-		Padding(1).
-		MarginLeft(2)
+		Padding(2).
+		Align(lipgloss.Center)
 		
 	cellStyle = lipgloss.NewStyle().
-		Width(3).
-		Height(1).
+		Width(4).
+		Height(2).
 		Align(lipgloss.Center)
 		
 	errorStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("196")).
 		Bold(true).
-		MarginLeft(2)
+		Align(lipgloss.Center).
+		MarginTop(1)
+		
+	inputStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(1).
+		MarginTop(1)
 )
 
 func main() {
@@ -59,7 +68,6 @@ func main() {
 	p := tea.NewProgram(
 		initialModel(serverURL),
 		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
 	)
 
 	if _, err := p.Run(); err != nil {
@@ -70,29 +78,42 @@ func main() {
 type screen int
 
 const (
-	screenMenu screen = iota
+	screenAuth screen = iota
+	screenMenu
 	screenGame
 	screenSettings
+)
+
+type authMode int
+
+const (
+	authModeLogin authMode = iota
+	authModeRegister
 )
 
 type model struct {
 	serverURL string
 	screen    screen
 	
-	// Menu state
+	// Auth state
+	authMode     authMode
+	email        string
+	password     string
+	name         string
+	token        string
+	authenticated bool
+	authFocus    int
+	
+	// Menu state  
 	menuCursor int
 	
 	// Game state
-	boardSize  int
-	difficulty string
-	game       *GameState
 	gameSlug   string
+	gameData   *GameData
+	boardSize  int
 	
-	// Board interaction state
-	cursorX    int
-	cursorY    int
-	inputMode  inputMode
-	moveInput  string
+	// Move input
+	moveInput string
 	
 	// UI state
 	width  int
@@ -100,46 +121,31 @@ type model struct {
 	error  string
 }
 
-type inputMode int
-
-const (
-	inputModeNormal inputMode = iota
-	inputModeMove
-)
-
-type GameState struct {
-	Board   [][]Cell
-	Status  string
-	Turn    int
-	Player  int
-	Winner  int
-	Moves   []string
+type GameData struct {
+	ID     int64      `json:"id"`
+	Slug   string     `json:"slug"`
+	Status string     `json:"status"`
+	Size   int        `json:"size"`
+	Turns  []GameTurn `json:"turns"`
+	Tags   map[string]string `json:"tags"`
 }
 
-type Cell struct {
-	Stones []Stone
+type GameTurn struct {
+	Moves []GameMove `json:"moves"`
 }
 
-type Stone struct {
-	Type   StoneType
-	Player int
+type GameMove struct {
+	Player int    `json:"player"`
+	Text   string `json:"text"`
 }
-
-type StoneType int
-
-const (
-	StoneFlat StoneType = iota
-	StoneStanding
-	StoneCapstone
-)
 
 func initialModel(serverURL string) model {
 	return model{
-		serverURL:  serverURL,
-		screen:     screenMenu,
-		menuCursor: 0,
-		boardSize:  5,
-		difficulty: "intermediate",
+		serverURL:     serverURL,
+		screen:        screenAuth,
+		authMode:      authModeLogin,
+		boardSize:     5,
+		authenticated: false,
 	}
 }
 
@@ -154,27 +160,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 		
-	case gameStarted:
-		m.game = msg.game
-		m.gameSlug = msg.slug
-		return m, nil
-		
-	case moveApplied:
-		m.game = msg.game
-		m.game.Moves = append(m.game.Moves, msg.move)
-		m.inputMode = inputModeNormal
-		m.moveInput = ""
+	case authSuccess:
+		m.token = msg.token
+		m.authenticated = true
+		m.screen = screenMenu
 		m.error = ""
 		return m, nil
 		
-	case moveError:
+	case gameLoaded:
+		m.gameData = msg.game
+		m.gameSlug = msg.game.Slug
+		m.screen = screenGame
+		m.error = ""
+		return m, nil
+		
+	case apiError:
 		m.error = msg.error
-		m.inputMode = inputModeNormal
-		m.moveInput = ""
 		return m, nil
 		
 	case tea.KeyMsg:
 		switch m.screen {
+		case screenAuth:
+			return m.updateAuth(msg)
 		case screenMenu:
 			return m.updateMenu(msg)
 		case screenGame:
@@ -187,69 +194,104 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "tab":
+		if m.authMode == authModeLogin {
+			m.authMode = authModeRegister
+		} else {
+			m.authMode = authModeLogin
+		}
+		m.authFocus = 0
+		return m, nil
+	case "up", "shift+tab":
+		if m.authFocus > 0 {
+			m.authFocus--
+		}
+		return m, nil
+	case "down":
+		maxFields := 2
+		if m.authMode == authModeRegister {
+			maxFields = 3
+		}
+		if m.authFocus < maxFields {
+			m.authFocus++
+		}
+		return m, nil
+	case "enter":
+		if m.authMode == authModeLogin {
+			return m, m.loginUser()
+		} else {
+			return m, m.registerUser()
+		}
+	case "backspace":
+		switch m.authFocus {
+		case 0:
+			if len(m.email) > 0 {
+				m.email = m.email[:len(m.email)-1]
+			}
+		case 1:
+			if len(m.password) > 0 {
+				m.password = m.password[:len(m.password)-1]
+			}
+		case 2:
+			if len(m.name) > 0 {
+				m.name = m.name[:len(m.name)-1]
+			}
+		}
+		return m, nil
+	default:
+		if len(msg.String()) == 1 {
+			switch m.authFocus {
+			case 0:
+				m.email += msg.String()
+			case 1:
+				m.password += msg.String()
+			case 2:
+				m.name += msg.String()
+			}
+		}
+		return m, nil
+	}
+}
+
 func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
-		
 	case "up", "k":
 		if m.menuCursor > 0 {
 			m.menuCursor--
 		}
-		
 	case "down", "j":
-		if m.menuCursor < 2 { // 3 menu items
+		if m.menuCursor < 2 {
 			m.menuCursor++
 		}
-		
 	case "enter", " ":
 		switch m.menuCursor {
 		case 0: // New Game
-			m.screen = screenGame
-			return m, m.startNewGame()
+			return m, m.createGame()
 		case 1: // Settings
 			m.screen = screenSettings
 		case 2: // Quit
 			return m, tea.Quit
 		}
 	}
-	
 	return m, nil
 }
 
 func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.game == nil {
-		switch msg.String() {
-		case "q":
-			m.screen = screenMenu
-			return m, nil
-		case "ctrl+c":
-			return m, tea.Quit
-		}
-		return m, nil
-	}
-	
-	// Handle different input modes
-	switch m.inputMode {
-	case inputModeMove:
-		return m.updateMoveInput(msg)
-	case inputModeNormal:
-		return m.updateNormalInput(msg)
-	}
-	
-	return m, nil
-}
-
-func (m model) updateMoveInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
-		m.inputMode = inputModeNormal
-		m.moveInput = ""
-		m.error = ""
+	case "q":
+		m.screen = screenMenu
 		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
 	case "enter":
 		if m.moveInput != "" {
-			return m, m.makeMove(m.moveInput)
+			return m, m.submitMove()
 		}
 		return m, nil
 	case "backspace":
@@ -258,62 +300,14 @@ func (m model) updateMoveInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	default:
-		// Add character to move input
-		if len(msg.String()) == 1 {
+		if len(msg.String()) == 1 && (msg.String() >= "a" && msg.String() <= "z" || 
+			msg.String() >= "A" && msg.String() <= "Z" ||
+			msg.String() >= "0" && msg.String() <= "9" ||
+			strings.Contains("<>+-SsCcFf", msg.String())) {
 			m.moveInput += msg.String()
 		}
 		return m, nil
 	}
-}
-
-func (m model) updateNormalInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q":
-		m.screen = screenMenu
-		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
-	case "m":
-		// Enter move input mode
-		m.inputMode = inputModeMove
-		m.moveInput = ""
-		m.error = ""
-		return m, nil
-	case "up", "k":
-		if m.cursorY < len(m.game.Board)-1 {
-			m.cursorY++
-		}
-		return m, nil
-	case "down", "j":
-		if m.cursorY > 0 {
-			m.cursorY--
-		}
-		return m, nil
-	case "left", "h":
-		if m.cursorX > 0 {
-			m.cursorX--
-		}
-		return m, nil
-	case "right", "l":
-		if m.cursorX < len(m.game.Board)-1 {
-			m.cursorX++
-		}
-		return m, nil
-	case "enter", " ":
-		// Place flat stone at cursor position
-		square := fmt.Sprintf("%c%d", 'a'+m.cursorX, m.cursorY+1)
-		return m, m.makeMove(square)
-	case "s":
-		// Place standing stone at cursor position
-		square := fmt.Sprintf("S%c%d", 'a'+m.cursorX, m.cursorY+1)
-		return m, m.makeMove(square)
-	case "c":
-		// Place capstone at cursor position
-		square := fmt.Sprintf("C%c%d", 'a'+m.cursorX, m.cursorY+1)
-		return m, m.makeMove(square)
-	}
-	
-	return m, nil
 }
 
 func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -324,12 +318,13 @@ func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	}
-	
 	return m, nil
 }
 
 func (m model) View() string {
 	switch m.screen {
+	case screenAuth:
+		return m.viewAuth()
 	case screenMenu:
 		return m.viewMenu()
 	case screenGame:
@@ -341,16 +336,62 @@ func (m model) View() string {
 	}
 }
 
+func (m model) viewAuth() string {
+	var title string
+	if m.authMode == authModeLogin {
+		title = titleStyle.Width(m.width).Render("🎯 GoTak - Login")
+	} else {
+		title = titleStyle.Width(m.width).Render("🎯 GoTak - Register")
+	}
+
+	// Create input fields
+	emailLabel := "Email:"
+	if m.authFocus == 0 {
+		emailLabel = "> Email:"
+	}
+	emailField := emailLabel + " " + m.email
+	
+	passwordLabel := "Password:"
+	if m.authFocus == 1 {
+		passwordLabel = "> Password:"
+	}
+	passwordField := passwordLabel + " " + strings.Repeat("*", len(m.password))
+	
+	fields := []string{emailField, passwordField}
+	
+	if m.authMode == authModeRegister {
+		nameLabel := "Name:"
+		if m.authFocus == 2 {
+			nameLabel = "> Name:"
+		}
+		nameField := nameLabel + " " + m.name
+		fields = append(fields, nameField)
+	}
+	
+	form := inputStyle.Width(60).Render(strings.Join(fields, "\n"))
+	
+	instructions := menuItemStyle.Render("↑/↓: Navigate | Enter: Submit | Tab: Switch mode | Ctrl+C: Quit")
+	
+	content := lipgloss.JoinVertical(lipgloss.Center, title, form, instructions)
+	
+	if m.error != "" {
+		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
+		content = lipgloss.JoinVertical(lipgloss.Center, content, errorMsg)
+	}
+	
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
 func (m model) viewMenu() string {
-	title := titleStyle.Render("🎯 GoTak - A Tak Game Implementation")
+	title := titleStyle.Width(m.width).Render("🎯 GoTak - Main Menu")
 	
 	choices := []string{
 		"🎮 New Game",
-		"⚙️  Settings", 
+		"⚙️  Settings",
 		"🚪 Quit",
 	}
 	
-	menu := ""
+	var menu string
 	for i, choice := range choices {
 		if m.menuCursor == i {
 			menu += selectedMenuItemStyle.Render(fmt.Sprintf("> %s", choice)) + "\n"
@@ -360,71 +401,104 @@ func (m model) viewMenu() string {
 	}
 	
 	info := menuItemStyle.Render(fmt.Sprintf("Server: %s", m.serverURL))
-	help := menuItemStyle.Render("Press ↑/↓ to navigate, Enter to select, q to quit")
+	help := menuItemStyle.Render("↑/↓: Navigate | Enter: Select | Q: Quit")
 	
-	content := lipgloss.JoinVertical(lipgloss.Left, title, "", menu, info, "", help)
+	content := lipgloss.JoinVertical(lipgloss.Center, title, menu, info, help)
 	
 	if m.error != "" {
-		errorMsg := errorStyle.Render(fmt.Sprintf("❌ Error: %s", m.error))
-		content = lipgloss.JoinVertical(lipgloss.Left, content, "", errorMsg)
+		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
+		content = lipgloss.JoinVertical(lipgloss.Center, content, errorMsg)
 	}
 	
-	return content
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (m model) viewGame() string {
-	title := titleStyle.Render("🎯 GoTak Game")
-	
-	if m.game == nil {
-		loading := menuItemStyle.Render("Starting game...")
-		help := menuItemStyle.Render("Press q to go back to menu")
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", loading, "", help)
+	if m.gameData == nil {
+		loading := titleStyle.Width(m.width).Render("Loading game...")
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, loading)
 	}
+
+	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 	
-	// Render board
-	board := m.renderBoard()
-	gameInfo := menuItemStyle.Render(fmt.Sprintf("Turn: %d | Player: %d | Status: %s", 
-		m.game.Turn, m.game.Player, m.game.Status))
+	// Create a much larger board that fills most of the screen
+	board := m.renderLargeBoard()
 	
-	// Show input mode and controls
-	var controls string
-	switch m.inputMode {
-	case inputModeMove:
-		controls = menuItemStyle.Render(fmt.Sprintf("Move Input: %s | Press Enter to submit, Esc to cancel", m.moveInput))
-	case inputModeNormal:
-		cursorPos := fmt.Sprintf("%c%d", 'a'+m.cursorX, m.cursorY+1)
-		controls = menuItemStyle.Render(fmt.Sprintf("Cursor: %s | ↑↓←→/hjkl: move | Enter: flat | S: standing | C: capstone | M: manual input | Q: menu", cursorPos))
-	}
+	// Move input area
+	inputArea := inputStyle.Width(60).Render(fmt.Sprintf("Move: %s", m.moveInput))
 	
-	// Show recent moves
-	moveHistory := ""
-	if len(m.game.Moves) > 0 {
-		recent := m.game.Moves
-		if len(recent) > 5 {
-			recent = recent[len(recent)-5:]
-		}
-		moveHistory = menuItemStyle.Render("Recent moves: " + fmt.Sprintf("%v", recent))
-	}
+	// Game info
+	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Moves: %d", 
+		m.gameData.Status, m.getTotalMoves()))
 	
-	content := []string{title, "", gameInfo, "", board, "", controls}
-	if moveHistory != "" {
-		content = append(content, "", moveHistory)
-	}
+	// Help text with proper Tak move examples
+	help := menuItemStyle.Render("Move Examples: a1 (flat) | Sa1 (standing) | Ca1 (capstone) | 3a1>21 (move 3 stones) | Q: Menu")
+	
+	content := lipgloss.JoinVertical(lipgloss.Center, title, board, inputArea, gameInfo, help)
 	
 	if m.error != "" {
-		errorMsg := errorStyle.Render(fmt.Sprintf("❌ Error: %s", m.error))
-		content = append(content, "", errorMsg)
+		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
+		content = lipgloss.JoinVertical(lipgloss.Center, content, errorMsg)
 	}
 	
-	return lipgloss.JoinVertical(lipgloss.Left, content...)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
+func (m model) renderLargeBoard() string {
+	size := m.gameData.Size
+	if size == 0 {
+		size = 5
+	}
+	
+	// Create a much larger board representation
+	var rows []string
+	
+	// Column headers
+	header := "    "
+	for i := 0; i < size; i++ {
+		header += fmt.Sprintf("  %c  ", 'a'+i)
+	}
+	rows = append(rows, header)
+	
+	// Board rows (reverse order for proper display)
+	for i := size - 1; i >= 0; i-- {
+		row := fmt.Sprintf("%2d  ", i+1)
+		for j := 0; j < size; j++ {
+			// For now, show empty cells - we'll populate from server data
+			cell := cellStyle.
+				Background(lipgloss.Color("235")).
+				Foreground(lipgloss.Color("240")).
+				Render("·")
+			row += cell
+		}
+		row += fmt.Sprintf("  %d", i+1)
+		rows = append(rows, row)
+	}
+	
+	// Bottom column headers
+	footer := "    "
+	for i := 0; i < size; i++ {
+		footer += fmt.Sprintf("  %c  ", 'a'+i)
+	}
+	rows = append(rows, footer)
+	
+	boardContent := strings.Join(rows, "\n")
+	return boardStyle.Width(size*6 + 10).Render(boardContent)
+}
+
+func (m model) getTotalMoves() int {
+	total := 0
+	for _, turn := range m.gameData.Turns {
+		total += len(turn.Moves)
+	}
+	return total
 }
 
 func (m model) viewSettings() string {
-	title := titleStyle.Render("⚙️ Settings")
+	title := titleStyle.Width(m.width).Render("⚙️ Settings")
 	
 	settings := []string{
 		fmt.Sprintf("Board Size: %dx%d", m.boardSize, m.boardSize),
-		fmt.Sprintf("AI Difficulty: %s", m.difficulty),
 		fmt.Sprintf("Server: %s", m.serverURL),
 	}
 	
@@ -433,387 +507,147 @@ func (m model) viewSettings() string {
 		settingsContent += menuItemStyle.Render(setting) + "\n"
 	}
 	
-	help := menuItemStyle.Render("Press q to go back to menu")
+	help := menuItemStyle.Render("Q: Back to menu")
 	
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", settingsContent, help)
+	content := lipgloss.JoinVertical(lipgloss.Center, title, settingsContent, help)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-func (m model) renderBoard() string {
-	if m.game == nil || m.game.Board == nil {
-		return "No game board"
-	}
-	
-	size := len(m.game.Board)
-	var rows []string
-	
-	// Top column headers
-	header := "   "
-	for i := 0; i < size; i++ {
-		header += fmt.Sprintf(" %c ", 'a'+i)
-	}
-	rows = append(rows, header)
-	
-	// Board rows (reverse order for proper display)
-	for i := size - 1; i >= 0; i-- {
-		row := fmt.Sprintf("%2d ", i+1)
-		for j := 0; j < size; j++ {
-			cell := m.game.Board[i][j]
-			content := m.renderCell(cell, j, i)
-			row += content
-		}
-		row += fmt.Sprintf(" %d", i+1)
-		rows = append(rows, row)
-	}
-	
-	// Bottom column headers
-	footer := "   "
-	for i := 0; i < size; i++ {
-		footer += fmt.Sprintf(" %c ", 'a'+i)
-	}
-	rows = append(rows, footer)
-	
-	boardContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	return boardStyle.Render(boardContent)
-}
-
-func (m model) renderCell(cell Cell, x, y int) string {
-	isCursor := (x == m.cursorX && y == m.cursorY)
-	
-	var content string
-	var bgColor, fgColor string
-	
-	if len(cell.Stones) == 0 {
-		// Empty cell
-		content = "·"
-		bgColor = "235"
-		fgColor = "240"
-	} else {
-		// Cell has stones - show the top stone
-		topStone := cell.Stones[len(cell.Stones)-1]
-		content = m.renderStone(topStone)
-		
-		// Color based on player
-		if topStone.Player == 1 {
-			bgColor = "240"
-			fgColor = "255"  // White pieces
-		} else {
-			bgColor = "240"
-			fgColor = "240"  // Black pieces
-		}
-	}
-	
-	// Highlight cursor
-	if isCursor {
-		bgColor = "220"  // Yellow background for cursor
-		fgColor = "16"   // Black text on yellow
-	}
-	
-	return cellStyle.
-		Background(lipgloss.Color(bgColor)).
-		Foreground(lipgloss.Color(fgColor)).
-		Render(content)
-}
-
-func (m model) renderStone(stone Stone) string {
-	switch stone.Type {
-	case StoneFlat:
-		if stone.Player == 1 {
-			return "○"  // White flat stone
-		} else {
-			return "●"  // Black flat stone
-		}
-	case StoneStanding:
-		if stone.Player == 1 {
-			return "□"  // White standing stone
-		} else {
-			return "■"  // Black standing stone
-		}
-	case StoneCapstone:
-		if stone.Player == 1 {
-			return "◇"  // White capstone
-		} else {
-			return "◆"  // Black capstone
-		}
-	default:
-		return "?"
-	}
-}
-
-// API types matching server
-type APIGameResponse struct {
-	ID     int64             `json:"id"`
-	Slug   string            `json:"slug"`
-	Status string            `json:"status"`
-	Size   int               `json:"size"`
-	Turns  []APITurn         `json:"turns"`
-	Tags   map[string]string `json:"tags"`
-}
-
-type APITurn struct {
-	Moves []APIMove `json:"moves"`
-}
-
-type APIMove struct {
-	Player int    `json:"player"`
-	Text   string `json:"text"`
-}
-
-type APIMoveRequest struct {
-	Player int    `json:"player"`
-	Move   string `json:"move"`
-	Turn   int64  `json:"turn"`
-}
-
-// Commands
-func (m model) startNewGame() tea.Cmd {
+// API Commands
+func (m model) loginUser() tea.Cmd {
 	return func() tea.Msg {
-		// Try API first, fallback to local mode
-		if game, slug, err := m.startGameViaAPI(); err == nil {
-			return gameStarted{game: game, slug: slug}
+		payload := map[string]string{
+			"email":    m.email,
+			"password": m.password,
 		}
 		
-		// Fallback to local mode for testing
-		game := m.startLocalGame()
-		return gameStarted{game: game, slug: "local-game"}
-	}
-}
-
-func (m model) startGameViaAPI() (*GameState, string, error) {
-	payload := map[string]interface{}{
-		"size": m.boardSize,
-	}
-	
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, "", err
-	}
-
-	resp, err := http.Post(m.serverURL+"/game/new", "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusTemporaryRedirect {
-		return nil, "", fmt.Errorf("server error: %d", resp.StatusCode)
-	}
-
-	var gameResp APIGameResponse
-	if err := json.NewDecoder(resp.Body).Decode(&gameResp); err != nil {
-		return nil, "", err
-	}
-
-	game := m.convertAPIGameToState(gameResp)
-	return game, gameResp.Slug, nil
-}
-
-func (m model) startLocalGame() *GameState {
-	// Create empty board for local testing
-	board := make([][]Cell, m.boardSize)
-	for i := range board {
-		board[i] = make([]Cell, m.boardSize)
-		for j := range board[i] {
-			board[i][j] = Cell{Stones: []Stone{}}
+		data, _ := json.Marshal(payload)
+		resp, err := http.Post(m.serverURL+"/auth/login", "application/json", bytes.NewBuffer(data))
+		if err != nil {
+			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
-	}
-	
-	return &GameState{
-		Board:  board,
-		Status: "active",
-		Turn:   1,
-		Player: 1,
-		Winner: 0,
-		Moves:  []string{},
+		defer resp.Body.Close()
+		
+		if resp.StatusCode != 200 {
+			return apiError{error: "Invalid credentials"}
+		}
+		
+		var authResp struct {
+			Token string `json:"token"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+			return apiError{error: "Login response error"}
+		}
+		
+		return authSuccess{token: authResp.Token}
 	}
 }
 
-func (m model) makeMove(moveStr string) tea.Cmd {
+func (m model) registerUser() tea.Cmd {
 	return func() tea.Msg {
-		if m.game == nil {
-			return moveError{error: "No active game"}
+		payload := map[string]string{
+			"email":    m.email,
+			"password": m.password,
+			"name":     m.name,
 		}
-
-		// If local game, process locally
-		if m.gameSlug == "local-game" {
-			return m.makeLocalMove(moveStr)
+		
+		data, _ := json.Marshal(payload)
+		resp, err := http.Post(m.serverURL+"/auth/register", "application/json", bytes.NewBuffer(data))
+		if err != nil {
+			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
-
-		// Try API move
-		if game, err := m.makeMoveViaAPI(moveStr); err == nil {
-			return moveApplied{game: game, move: moveStr}
-		} else {
-			// Fallback to local for testing
-			return m.makeLocalMove(moveStr)
+		defer resp.Body.Close()
+		
+		if resp.StatusCode != 200 {
+			return apiError{error: "Registration failed"}
 		}
+		
+		var authResp struct {
+			Token string `json:"token"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+			return apiError{error: "Registration response error"}
+		}
+		
+		return authSuccess{token: authResp.Token}
 	}
 }
 
-func (m model) makeMoveViaAPI(moveStr string) (*GameState, error) {
-	moveReq := APIMoveRequest{
-		Player: m.game.Player,
-		Move:   moveStr,
-		Turn:   int64(m.game.Turn),
-	}
-
-	data, err := json.Marshal(moveReq)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.Post(m.serverURL+"/game/"+m.gameSlug+"/move", "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("move rejected: %d", resp.StatusCode)
-	}
-
-	var gameResp APIGameResponse
-	if err := json.NewDecoder(resp.Body).Decode(&gameResp); err != nil {
-		return nil, err
-	}
-
-	return m.convertAPIGameToState(gameResp), nil
-}
-
-func (m model) makeLocalMove(moveStr string) tea.Msg {
-	// Simple local move validation and application
-	if err := m.applyMoveToBoard(m.game.Board, moveStr, m.game.Player); err != nil {
-		return moveError{error: err.Error()}
-	}
-
-	// Create new game state
-	newGame := &GameState{
-		Board:  make([][]Cell, len(m.game.Board)),
-		Status: m.game.Status,
-		Turn:   m.game.Turn + 1,
-		Player: 3 - m.game.Player, // Switch between 1 and 2
-		Winner: m.game.Winner,
-		Moves:  make([]string, len(m.game.Moves)),
-	}
-
-	// Deep copy board
-	for i := range m.game.Board {
-		newGame.Board[i] = make([]Cell, len(m.game.Board[i]))
-		for j := range m.game.Board[i] {
-			newGame.Board[i][j] = Cell{
-				Stones: make([]Stone, len(m.game.Board[i][j].Stones)),
-			}
-			copy(newGame.Board[i][j].Stones, m.game.Board[i][j].Stones)
+func (m model) createGame() tea.Cmd {
+	return func() tea.Msg {
+		payload := map[string]interface{}{
+			"size": m.boardSize,
 		}
-	}
-
-	// Copy moves
-	copy(newGame.Moves, m.game.Moves)
-
-	return moveApplied{game: newGame, move: moveStr}
-}
-
-func (m model) convertAPIGameToState(apiGame APIGameResponse) *GameState {
-	// Create empty board
-	board := make([][]Cell, apiGame.Size)
-	for i := range board {
-		board[i] = make([]Cell, apiGame.Size)
-		for j := range board[i] {
-			board[i][j] = Cell{Stones: []Stone{}}
+		
+		data, _ := json.Marshal(payload)
+		
+		req, _ := http.NewRequest("POST", m.serverURL+"/game/new", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+m.token)
+		
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
-	}
-	
-	// Extract moves from API turns
-	var moves []string
-	currentPlayer := 1
-	
-	// Process each turn and its moves
-	for _, turn := range apiGame.Turns {
-		for _, move := range turn.Moves {
-			moves = append(moves, move.Text)
-			
-			// Parse and apply move to board (basic implementation)
-			// This is a simplified version - in practice you'd use the actual gotak game logic
-			if err := m.applyMoveToBoard(board, move.Text, move.Player); err != nil {
-				// Handle error - for now just continue
-				continue
-			}
+		defer resp.Body.Close()
+		
+		if resp.StatusCode != 200 && resp.StatusCode != 307 {
+			return apiError{error: "Failed to create game"}
 		}
-	}
-	
-	// Determine current player based on move count
-	if len(moves)%2 == 0 {
-		currentPlayer = 1
-	} else {
-		currentPlayer = 2
-	}
-	
-	return &GameState{
-		Board:  board,
-		Status: apiGame.Status,
-		Turn:   len(moves) + 1,
-		Player: currentPlayer,
-		Winner: 0,
-		Moves:  moves,
+		
+		var game GameData
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
+			return apiError{error: "Game creation response error"}
+		}
+		
+		return gameLoaded{game: &game}
 	}
 }
 
-func (m model) applyMoveToBoard(board [][]Cell, moveText string, player int) error {
-	// Simple move parsing for placement moves only
-	// This is a basic implementation - you'd want to use the full gotak parsing logic
-	
-	if len(moveText) < 2 {
-		return fmt.Errorf("invalid move")
+func (m model) submitMove() tea.Cmd {
+	return func() tea.Msg {
+		payload := map[string]interface{}{
+			"player": 1, // TODO: determine actual player
+			"move":   m.moveInput,
+			"turn":   int64(m.getTotalMoves() + 1),
+		}
+		
+		data, _ := json.Marshal(payload)
+		
+		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+m.token)
+		
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return apiError{error: fmt.Sprintf("Move failed: %v", err)}
+		}
+		defer resp.Body.Close()
+		
+		if resp.StatusCode != 200 {
+			return apiError{error: "Invalid move"}
+		}
+		
+		var game GameData
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
+			return apiError{error: "Move response error"}
+		}
+		
+		return gameLoaded{game: &game}
 	}
-	
-	stoneType := StoneFlat
-	i := 0
-	
-	// Check for stone type prefix
-	switch moveText[0] {
-	case 'S':
-		stoneType = StoneStanding
-		i = 1
-	case 'C':
-		stoneType = StoneCapstone
-		i = 1
-	case 'F':
-		stoneType = StoneFlat
-		i = 1
-	}
-	
-	if i+1 >= len(moveText) {
-		return fmt.Errorf("invalid move format")
-	}
-	
-	// Parse column and row
-	col := int(moveText[i] - 'a')
-	row := int(moveText[i+1] - '1')
-	
-	// Check bounds
-	if col < 0 || col >= len(board) || row < 0 || row >= len(board) {
-		return fmt.Errorf("move out of bounds")
-	}
-	
-	// Add stone to board
-	stone := Stone{
-		Type:   stoneType,
-		Player: player,
-	}
-	board[row][col].Stones = append(board[row][col].Stones, stone)
-	
-	return nil
 }
 
 // Messages
-type gameStarted struct {
-	game *GameState
-	slug string
+type authSuccess struct {
+	token string
 }
 
-type moveApplied struct {
-	game *GameState
-	move string
+type gameLoaded struct {
+	game *GameData
 }
 
-type moveError struct {
+type apiError struct {
 	error string
 }
