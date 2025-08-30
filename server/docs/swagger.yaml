@@ -1,5 +1,17 @@
 basePath: /
 definitions:
+  github_com_icco_gotak_server.MoveRequest:
+    properties:
+      move:
+        example: c3
+        type: string
+      player:
+        example: 1
+        type: integer
+      turn:
+        example: 1
+        type: integer
+    type: object
   gotak.Board:
     properties:
       size:
@@ -109,18 +121,6 @@ definitions:
       password:
         example: secretpassword
         type: string
-    type: object
-  main.MoveRequest:
-    properties:
-      move:
-        example: c3
-        type: string
-      player:
-        example: 1
-        type: integer
-      turn:
-        example: 1
-        type: integer
     type: object
   main.RegisterRequest:
     properties:
@@ -544,7 +544,7 @@ paths:
         name: move
         required: true
         schema:
-          $ref: '#/definitions/main.MoveRequest'
+          $ref: '#/definitions/github_com_icco_gotak_server.MoveRequest'
       produces:
       - application/json
       responses:
