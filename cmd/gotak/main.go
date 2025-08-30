@@ -206,8 +206,7 @@ func (m model) View() string {
 }
 
 func (m model) viewMenu() string {
-	s := "\n"
-	s += "🎯 GoTak - A Tak Game Implementation\n\n"
+	title := titleStyle.Render("🎯 GoTak - A Tak Game Implementation")
 	
 	choices := []string{
 		"🎮 New Game",
@@ -215,38 +214,44 @@ func (m model) viewMenu() string {
 		"🚪 Quit",
 	}
 	
+	menu := ""
 	for i, choice := range choices {
-		cursor := " "
 		if m.menuCursor == i {
-			cursor = ">"
+			menu += selectedMenuItemStyle.Render(fmt.Sprintf("> %s", choice)) + "\n"
+		} else {
+			menu += menuItemStyle.Render(fmt.Sprintf("  %s", choice)) + "\n"
 		}
-		s += fmt.Sprintf(" %s %s\n", cursor, choice)
 	}
 	
-	s += fmt.Sprintf("\nServer: %s\n", m.serverURL)
-	s += "\nPress ↑/↓ to navigate, Enter to select, q to quit"
+	info := menuItemStyle.Render(fmt.Sprintf("Server: %s", m.serverURL))
+	help := menuItemStyle.Render("Press ↑/↓ to navigate, Enter to select, q to quit")
+	
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", menu, info, "", help)
 	
 	if m.error != "" {
-		s += fmt.Sprintf("\n\n❌ Error: %s", m.error)
+		errorMsg := errorStyle.Render(fmt.Sprintf("❌ Error: %s", m.error))
+		content = lipgloss.JoinVertical(lipgloss.Left, content, "", errorMsg)
 	}
 	
-	return s
+	return content
 }
 
 func (m model) viewGame() string {
-	s := "\n🎯 GoTak Game\n\n"
+	title := titleStyle.Render("🎯 GoTak Game")
 	
 	if m.game == nil {
-		s += "Starting game...\n"
-		s += "Press q to go back to menu"
-		return s
+		loading := menuItemStyle.Render("Starting game...")
+		help := menuItemStyle.Render("Press q to go back to menu")
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", loading, "", help)
 	}
 	
 	// Render board
-	s += m.renderBoard()
-	s += "\n\nPress q to go back to menu"
+	board := m.renderBoard()
+	gameInfo := menuItemStyle.Render(fmt.Sprintf("Turn: %d | Player: %d | Status: %s", 
+		m.game.Turn, m.game.Player, m.game.Status))
+	help := menuItemStyle.Render("Press q to go back to menu")
 	
-	return s
+	return lipgloss.JoinVertical(lipgloss.Left, title, "", gameInfo, "", board, "", help)
 }
 
 func (m model) viewSettings() string {
