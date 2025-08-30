@@ -22,7 +22,10 @@ import (
 // Define context key type to avoid collisions
 type contextKey string
 
-const userContextKey contextKey = "user"
+const (
+	userContextKey     contextKey = "user"
+	emptyJSONObject                = "{}" // Default empty JSON for user preferences
+)
 
 func newAuthService() *auth2.Service {
 	issuer := "gotak-app"
@@ -177,7 +180,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        req.Email,
 		Name:         req.Name,
 		PasswordHash: string(hashedPassword),
-		Preferences:  "{}",  // Initialize with empty JSON object
+		Preferences:  emptyJSONObject,
 	}
 
 	if err := db.Create(&user).Error; err != nil {
