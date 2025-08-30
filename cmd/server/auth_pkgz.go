@@ -148,7 +148,7 @@ func AuthRoutes() http.Handler {
 // @Accept json
 // @Produce json
 // @Param user body RegisterRequest true "User registration data"
-// @Success 201 {object} AuthResponse
+// @Success 201 {object} map[string]string
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /auth/register [post]
@@ -231,21 +231,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
-	token, err := generateJWTForUser(&user)
-	if err != nil {
-		log.Errorw("failed to generate token", zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "token generation error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
-	// Hide password hash in response
-	user.PasswordHash = ""
-
 	log.Infow("user registered successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
-	if err := Renderer.JSON(w, http.StatusCreated, AuthResponse{Token: token, User: user}); err != nil {
+	if err := Renderer.JSON(w, http.StatusCreated, map[string]string{"message": "user registered successfully, please login"}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
