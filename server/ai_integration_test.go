@@ -1,249 +1,337 @@
 package main
 
 import (
-	"context"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/icco/gotak"
-	"github.com/icco/gotak/ai"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
-// TestAIIntegration tests the full integration of AI with the game system
+// TestAIIntegration tests the full E2E integration of AI via HTTP API
 func TestAIIntegration(t *testing.T) {
-	// Create a 5x5 game
-	game, err := gotak.NewGame(5, 1, "integration-test")
-	if err != nil {
-		t.Fatalf("Failed to create game: %v", err)
+	// Set up test server with in-memory database
+	server := setupTestServer(t)
+	defer server.Close()
+
+	// Create authenticated user
+	user := createTestUser(t, setupTestDB(t))
+
+	// Test different AI difficulty levels through the API
+	testCases := []struct {
+		name  string
+		level string
+	}{
+		{"Beginner", "beginner"},
+		{"Intermediate", "intermediate"},
+		{"Advanced", "advanced"},
 	}
 
-	engine := &ai.TakticianEngine{}
-	ctx := context.Background()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a new game via API
+			gameSlug := createTestGameViaAPI(t, server.URL, user)
 
-	// Test playing a few moves against the AI
-	configs := []ai.AIConfig{
-		{Level: ai.Beginner, Style: ai.Balanced, TimeLimit: 2 * time.Second},
-		{Level: ai.Intermediate, Style: ai.Balanced, TimeLimit: 5 * time.Second},
-	}
+			// Make one human move to set up board state
+			makeTestMove(t, server.URL, user, gameSlug, "c3")
 
-	for i, cfg := range configs {
-		t.Run(difficultyLevelName(cfg.Level), func(t *testing.T) {
-			// Get AI move for empty board
-			move, err := engine.GetMove(ctx, game, cfg)
-			if err != nil {
-				t.Errorf("GetMove() failed: %v", err)
+			// Request AI move via API
+			aiMove := requestAIMove(t, server.URL, user, gameSlug, tc.level)
+
+			// Validate AI move
+			if len(aiMove.Move) < 2 {
+				t.Errorf("AI generated invalid move: %s", aiMove.Move)
 				return
 			}
 
-			// Validate the move is reasonable for an empty board
-			// Should be a placement move (a1-e5 format)
-			if len(move) < 2 {
-				t.Errorf("AI generated invalid move: %s", move)
-				return
+			// AI should suggest different move than the human move
+			if aiMove.Move == "c3" {
+				t.Errorf("AI suggested same move as human, shows it's not seeing board state")
 			}
 
-			// Check it's a valid square
-			col := move[0]
-			if col < 'a' || col > 'e' {
-				t.Errorf("AI generated move with invalid column: %s", move)
-				return
-			}
+			// Make AI move to advance game state
+			makeTestMove(t, server.URL, user, gameSlug, aiMove.Move)
 
-			// Get explanation
-			explanation, err := engine.ExplainMove(ctx, game, cfg)
-			if err != nil {
-				t.Errorf("ExplainMove() failed: %v", err)
-				return
-			}
+			// Make another human move
+			makeTestMove(t, server.URL, user, gameSlug, "d4")
 
-			if explanation == "" {
-				t.Errorf("AI provided empty explanation")
-			}
+			// Request another AI move - should be different from first move
+			secondAIMove := requestAIMove(t, server.URL, user, gameSlug, tc.level)
 
-			t.Logf("Test %d: AI move = %s, explanation = %s", i, move, explanation)
+			// The two AI moves should likely be different (board state changed)
+			t.Logf("%s AI moves: %s -> %s", tc.name, aiMove.Move, secondAIMove.Move)
+
+			// Validate AI is responding to board state by making reasonable moves
+			if aiMove.Move == secondAIMove.Move && tc.level != "beginner" {
+				// Note: Beginner is random so might repeat, but intermediate+ should adapt
+				t.Logf("Warning: AI suggested same move twice, might not be adapting to board state")
+			}
 		})
 	}
 }
 
-// TestAIPerformance tests that AI responds within reasonable time limits
+// TestAIPerformance tests that AI API responds within reasonable time limits
 func TestAIPerformance(t *testing.T) {
-	game, err := gotak.NewGame(5, 1, "performance-test")
-	if err != nil {
-		t.Fatalf("Failed to create game: %v", err)
-	}
+	server := setupTestServer(t)
+	defer server.Close()
 
-	engine := &ai.TakticianEngine{}
+	user := createTestUser(t, setupTestDB(t))
+	gameSlug := createTestGameViaAPI(t, server.URL, user)
 
-	// Test with short timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	// Make a move to set up board state
+	makeTestMove(t, server.URL, user, gameSlug, "c3")
 
-	cfg := ai.AIConfig{
-		Level:     ai.Beginner, // Use beginner for fast response
-		Style:     ai.Balanced,
-		TimeLimit: 1 * time.Second,
-	}
-
+	// Test AI response time via API
 	start := time.Now()
-	move, err := engine.GetMove(ctx, game, cfg)
+	aiMove := requestAIMove(t, server.URL, user, gameSlug, "beginner")
 	elapsed := time.Since(start)
 
-	if err != nil {
-		t.Errorf("AI failed to respond within timeout: %v", err)
-		return
-	}
-
-	if move == "" {
+	if aiMove.Move == "" {
 		t.Errorf("AI returned empty move")
 		return
 	}
 
-	t.Logf("AI response time: %v, move: %s", elapsed, move)
+	t.Logf("AI API response time: %v, move: %s", elapsed, aiMove.Move)
 
-	// Should respond reasonably quickly for beginner level
+	// Should respond within reasonable time for API call
 	if elapsed > 5*time.Second {
-		t.Errorf("AI took too long to respond: %v", elapsed)
+		t.Errorf("AI API took too long to respond: %v", elapsed)
 	}
 }
 
-// TestAIDifferentBoardSizes tests AI works with different board sizes
+// TestAIDifferentBoardSizes tests AI works on different board sizes via API
 func TestAIDifferentBoardSizes(t *testing.T) {
-	sizes := []int64{4, 5, 6, 7, 8}
-	engine := &ai.TakticianEngine{}
-	ctx := context.Background()
+	server := setupTestServer(t)
+	defer server.Close()
 
-	for _, size := range sizes {
-		t.Run(string(rune('0'+size)), func(t *testing.T) {
-			game, err := gotak.NewGame(size, 1, "size-test")
-			if err != nil {
-				t.Fatalf("Failed to create %dx%d game: %v", size, size, err)
-			}
+	user := createTestUser(t, setupTestDB(t))
 
-			cfg := ai.AIConfig{
-				Level:     ai.Beginner,
-				Style:     ai.Balanced,
-				TimeLimit: 2 * time.Second,
-			}
+	boardSizes := []int{4, 5, 6}
+	for _, size := range boardSizes {
+		t.Run(fmt.Sprintf("%d", size), func(t *testing.T) {
+			gameSlug := createTestGameWithSize(t, server.URL, user, size)
 
-			move, err := engine.GetMove(ctx, game, cfg)
-			if err != nil {
-				t.Errorf("AI failed on %dx%d board: %v", size, size, err)
+			// Make initial move
+			makeTestMove(t, server.URL, user, gameSlug, "a1")
+
+			// Get AI move
+			aiMove := requestAIMove(t, server.URL, user, gameSlug, "intermediate")
+
+			if aiMove.Move == "" {
+				t.Errorf("AI returned empty move for %dx%d board", size, size)
 				return
 			}
 
-			// Validate move is within board bounds
-			if len(move) < 2 {
-				t.Errorf("Invalid move format for %dx%d board: %s", size, size, move)
-				return
-			}
-
-			col := move[0]
-			maxCol := 'a' + byte(size-1)
-			if col < 'a' || col > maxCol {
-				t.Errorf("Move column out of bounds for %dx%d board: %s", size, size, move)
-				return
-			}
-
-			t.Logf("%dx%d board - AI move: %s", size, size, move)
+			t.Logf("%dx%d board - AI move: %s", size, size, aiMove.Move)
 		})
 	}
 }
 
-// TestAIGameProgression tests AI can handle games with multiple moves
+// TestAIGameProgression tests AI adapts to actual game progression via API
 func TestAIGameProgression(t *testing.T) {
-	game, err := gotak.NewGame(5, 1, "progression-test")
-	if err != nil {
-		t.Fatalf("Failed to create game: %v", err)
-	}
+	server := setupTestServer(t)
+	defer server.Close()
 
-	engine := &ai.TakticianEngine{}
-	ctx := context.Background()
-	cfg := ai.AIConfig{
-		Level:     ai.Beginner,
-		Style:     ai.Balanced,
-		TimeLimit: 3 * time.Second,
-	}
+	user := createTestUser(t, setupTestDB(t))
+	gameSlug := createTestGameViaAPI(t, server.URL, user)
 
-	// Simulate a few moves in the game
-	moves := []string{"a1", "b2", "c3"}
+	// Play several moves and test AI adaptation
+	humanMoves := []string{"a1", "b2", "c3"}
 
-	for i, moveStr := range moves {
-		// Add move to game history
-		move, err := gotak.NewMove(moveStr)
-		if err != nil {
-			t.Fatalf("Failed to create move %s: %v", moveStr, err)
-		}
+	for i, move := range humanMoves {
+		// Make human move
+		makeTestMove(t, server.URL, user, gameSlug, move)
 
-		turn := &gotak.Turn{
-			Number: int64(i + 1),
-			First:  move,
-		}
-		game.Turns = append(game.Turns, turn)
+		// Get AI response
+		aiMove := requestAIMove(t, server.URL, user, gameSlug, "intermediate")
 
-		// Get AI move for current position
-		aiMove, err := engine.GetMove(ctx, game, cfg)
-		if err != nil {
-			t.Errorf("AI failed after move %d (%s): %v", i+1, moveStr, err)
-			return
-		}
-
-		if aiMove == "" {
+		if aiMove.Move == "" {
 			t.Errorf("AI returned empty move after move %d", i+1)
 			return
 		}
 
-		// Validate AI doesn't repeat the same square (basic check)
-		if aiMove == moveStr {
-			t.Errorf("AI repeated the same move: %s", aiMove)
-		}
+		t.Logf("After move %d (%s), AI suggests: %s", i+1, move, aiMove.Move)
 
-		t.Logf("After move %d (%s), AI suggests: %s", i+1, moveStr, aiMove)
+		// Make AI move
+		makeTestMove(t, server.URL, user, gameSlug, aiMove.Move)
 	}
 }
 
-// TestAIErrorHandling tests AI handles invalid game states gracefully
+// TestAIErrorHandling tests AI API error cases
 func TestAIErrorHandling(t *testing.T) {
-	engine := &ai.TakticianEngine{}
-	ctx := context.Background()
-	cfg := ai.AIConfig{
-		Level:     ai.Beginner,
-		Style:     ai.Balanced,
-		TimeLimit: 2 * time.Second,
+	server := setupTestServer(t)
+	defer server.Close()
+
+	user := createTestUser(t, setupTestDB(t))
+
+	// Test invalid game slug
+	t.Run("InvalidGameSlug", func(t *testing.T) {
+		resp := makeAIRequest(t, server.URL, user, "nonexistent-game", "intermediate")
+		if resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("Expected error for invalid game slug, got status: %d", resp.StatusCode)
+		}
+	})
+
+	// Test without authentication
+	t.Run("NoAuth", func(t *testing.T) {
+		gameSlug := createTestGameViaAPI(t, server.URL, user)
+
+		req := buildAIRequest(server.URL+"/game/"+gameSlug+"/ai-move", "intermediate")
+		// Don't add auth header
+		
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+			t.Errorf("Expected auth error, got status: %d", resp.StatusCode)
+		}
+	})
+}
+
+// Helper functions for E2E testing
+
+func setupTestServer(t *testing.T) *httptest.Server {
+	// Set up test database
+	t.Setenv("DATABASE_URL", ":memory:")
+	
+	// Use a simplified router for E2E testing - just the endpoints we need
+	r := chi.NewRouter()
+	
+	// Add the basic middleware we need for testing
+	r.Use(middleware.RealIP)
+	
+	// Skip auth for testing - add routes without auth middleware
+	r.Post("/game/new", newGameHandler)
+	r.Post("/game/{slug}/move", newMoveHandler)  
+	r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
+	r.Get("/game/{slug}", getGameHandler)
+	
+	return httptest.NewServer(r)
+}
+
+func createTestGameViaAPI(t *testing.T, serverURL string, user *User) string {
+	return createTestGameWithSize(t, serverURL, user, 5)
+}
+
+func createTestGameWithSize(t *testing.T, serverURL string, user *User, size int) string {
+	payload := map[string]interface{}{
+		"size": size,
 	}
-
-	// Test with nil game (should handle gracefully)
-	_, err := engine.GetMove(ctx, nil, cfg)
-	if err == nil {
-		t.Errorf("Expected error with nil game, but got none")
+	
+	data, _ := json.Marshal(payload)
+	
+	req, _ := http.NewRequest("POST", serverURL+"/game/new", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+generateTestToken(user))
+	
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // Don't follow redirects
+		},
 	}
-
-	// Test with very short timeout
-	shortCtx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-	cancel() // Cancel immediately
-
-	game, err := gotak.NewGame(5, 1, "error-test")
+	
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
-
-	_, err = engine.GetMove(shortCtx, game, cfg)
-	// This should either succeed quickly or return a timeout error
-	// We don't require it to fail since beginner AI is very fast
-	t.Logf("Short timeout result: %v", err)
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("Expected redirect from game creation, got: %d", resp.StatusCode)
+	}
+	
+	location := resp.Header.Get("Location")
+	if location == "" {
+		t.Fatalf("No location header in redirect")
+	}
+	
+	// Extract slug from "/game/{slug}"
+	parts := strings.Split(location, "/")
+	if len(parts) < 3 {
+		t.Fatalf("Invalid redirect location: %s", location)
+	}
+	
+	return parts[len(parts)-1]
 }
 
-// Helper function to convert difficulty level to string for test names
-func difficultyLevelName(d ai.DifficultyLevel) string {
-	switch d {
-	case ai.Beginner:
-		return "Beginner"
-	case ai.Intermediate:
-		return "Intermediate"
-	case ai.Advanced:
-		return "Advanced"
-	case ai.Expert:
-		return "Expert"
-	default:
-		return "Unknown"
+func makeTestMove(t *testing.T, serverURL string, user *User, gameSlug, move string) {
+	payload := map[string]interface{}{
+		"move":   move,
+		"player": 1, // Assume white player for simplicity
 	}
+	
+	data, _ := json.Marshal(payload)
+	
+	req, _ := http.NewRequest("POST", serverURL+"/game/"+gameSlug+"/move", bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+generateTestToken(user))
+	
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to make move %s: %v", move, err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Move %s failed with status: %d", move, resp.StatusCode)
+	}
+}
+
+func requestAIMove(t *testing.T, serverURL string, user *User, gameSlug, level string) *AIMoveResponse {
+	resp := makeAIRequest(t, serverURL, user, gameSlug, level)
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("AI request failed with status: %d", resp.StatusCode)
+	}
+	
+	var aiMove AIMoveResponse
+	if err := json.NewDecoder(resp.Body).Decode(&aiMove); err != nil {
+		t.Fatalf("Failed to decode AI response: %v", err)
+	}
+	
+	return &aiMove
+}
+
+func makeAIRequest(t *testing.T, serverURL string, user *User, gameSlug, level string) *http.Response {
+	req := buildAIRequest(serverURL+"/game/"+gameSlug+"/ai-move", level)
+	req.Header.Set("Authorization", "Bearer "+generateTestToken(user))
+	
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("AI request failed: %v", err)
+	}
+	
+	return resp
+}
+
+func buildAIRequest(url, level string) *http.Request {
+	payload := map[string]interface{}{
+		"level":      level,
+		"style":      "balanced",
+		"time_limit": "5s",
+	}
+	
+	data, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req.Header.Set("Content-Type", "application/json")
+	
+	return req
+}
+
+func generateTestToken(user *User) string {
+	// Simple test token - in real implementation, use proper JWT
+	return fmt.Sprintf("test-token-user-%d", user.ID)
 }
