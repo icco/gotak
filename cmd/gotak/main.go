@@ -78,7 +78,8 @@ func main() {
 type screen int
 
 const (
-	screenAuth screen = iota
+	screenAuthMode screen = iota  // Choose login or register
+	screenAuth                    // Login/register form
 	screenMenu
 	screenGame
 	screenSettings
@@ -97,6 +98,7 @@ type model struct {
 	
 	// Auth state
 	authMode     authMode
+	authModeCursor int  // For selecting login/register
 	email        string
 	password     string
 	name         string
@@ -142,7 +144,7 @@ type GameMove struct {
 func initialModel(serverURL string) model {
 	return model{
 		serverURL:     serverURL,
-		screen:        screenAuth,
+		screen:        screenAuthMode,  // Start with mode selection
 		authMode:      authModeLogin,
 		boardSize:     5,
 		authenticated: false,
@@ -186,6 +188,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 	case tea.KeyMsg:
 		switch m.screen {
+		case screenAuthMode:
+			return m.updateAuthMode(msg)
 		case screenAuth:
 			return m.updateAuth(msg)
 		case screenMenu:
@@ -200,18 +204,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "esc":
 		return m, tea.Quit
-	case "f1":  // F1 to switch modes
-		if m.authMode == authModeLogin {
-			m.authMode = authModeRegister
-		} else {
-			m.authMode = authModeLogin
+	case "up", "k":
+		if m.authModeCursor > 0 {
+			m.authModeCursor--
 		}
-		m.authFocus = 0
-		m.error = ""  // Clear any errors when switching modes
+		return m, nil
+	case "down", "j":
+		if m.authModeCursor < 1 {  // 0: Login, 1: Register
+			m.authModeCursor++
+		}
+		return m, nil
+	case "enter":
+		// Set the auth mode based on selection
+		if m.authModeCursor == 0 {
+			m.authMode = authModeLogin
+		} else {
+			m.authMode = authModeRegister
+		}
+		m.screen = screenAuth
+		m.authFocus = 0  // Start at first field
+		m.error = ""     // Clear any errors
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "esc":
+		// Go back to auth mode selection
+		m.screen = screenAuthMode
+		m.error = ""
 		return m, nil
 	case "tab", "down":
 		maxFields := 2  // email, password, submit button (login)
@@ -374,6 +401,8 @@ func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	switch m.screen {
+	case screenAuthMode:
+		return m.viewAuthMode()
 	case screenAuth:
 		return m.viewAuth()
 	case screenMenu:
@@ -385,6 +414,99 @@ func (m model) View() string {
 	default:
 		return "Unknown screen"
 	}
+}
+
+func (m model) viewAuthMode() string {
+	formWidth := 40
+	cardPadding := 2
+	
+	// Card style with border and background
+	cardStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Background(lipgloss.Color("235")).
+		Padding(cardPadding).
+		Width(formWidth)
+	
+	// Header style
+	headerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
+		Bold(true).
+		Align(lipgloss.Center).
+		MarginBottom(1)
+	
+	// Option styles
+	activeOptionStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("39")).
+		Foreground(lipgloss.Color("15")).
+		Bold(true).
+		Padding(1, 2).
+		MarginTop(1).
+		Align(lipgloss.Center).
+		Width(formWidth - cardPadding*2)
+	
+	inactiveOptionStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("240")).
+		Foreground(lipgloss.Color("247")).
+		Padding(1, 2).
+		MarginTop(1).
+		Align(lipgloss.Center).
+		Width(formWidth - cardPadding*2)
+	
+	// Form content
+	formContent := []string{
+		headerStyle.Render("Welcome to GoTak"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Align(lipgloss.Center).Render("Please choose an option"),
+		"", // spacer
+	}
+	
+	// Login option
+	var loginOption string
+	if m.authModeCursor == 0 {
+		loginOption = activeOptionStyle.Render("► Sign In")
+	} else {
+		loginOption = inactiveOptionStyle.Render("Sign In")
+	}
+	formContent = append(formContent, loginOption)
+	
+	// Register option
+	var registerOption string
+	if m.authModeCursor == 1 {
+		registerOption = activeOptionStyle.Render("► Create Account")
+	} else {
+		registerOption = inactiveOptionStyle.Render("Create Account")
+	}
+	formContent = append(formContent, registerOption)
+	
+	// Instructions
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Align(lipgloss.Center).
+		MarginTop(2).
+		Render("↑/↓: Navigate • Enter: Select • Esc: Quit")
+	formContent = append(formContent, "", instructions)
+	
+	// Create the form card
+	form := cardStyle.Render(strings.Join(formContent, "\n"))
+	
+	// Error message if any
+	var content string
+	if m.error != "" {
+		errorCard := lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("196")).
+			Background(lipgloss.Color("52")).
+			Foreground(lipgloss.Color("15")).
+			Padding(1).
+			Width(formWidth).
+			MarginBottom(2).
+			Render("⚠ " + m.error)
+		content = lipgloss.JoinVertical(lipgloss.Center, errorCard, form)
+	} else {
+		content = form
+	}
+	
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (m model) viewAuth() string {
@@ -512,24 +634,12 @@ func (m model) viewAuth() string {
 	}
 	formContent = append(formContent, submitButton)
 	
-	// Mode switch
-	switchText := "Need an account? Press F1 to register"
-	if m.authMode == authModeRegister {
-		switchText = "Have an account? Press F1 to sign in"
-	}
-	switchMsg := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")).
-		Align(lipgloss.Center).
-		MarginTop(1).
-		Render(switchText)
-	formContent = append(formContent, "", switchMsg)
-	
 	// Instructions
 	instructions := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
 		Align(lipgloss.Center).
 		MarginTop(1).
-		Render("Tab/↑/↓: Navigate • Enter: Submit • Esc: Quit")
+		Render("Tab/↑/↓: Navigate • Enter: Submit • Esc: Back")
 	formContent = append(formContent, "", instructions)
 	
 	// Create the form card
