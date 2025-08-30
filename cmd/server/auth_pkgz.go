@@ -177,11 +177,26 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        req.Email,
 		Name:         req.Name,
 		PasswordHash: string(hashedPassword),
+		Preferences:  "{}",  // Initialize with empty JSON object
 	}
 
 	if err := db.Create(&user).Error; err != nil {
 		log.Errorw("failed to create user", "email", req.Email, "error", err.Error(), "remote_addr", r.RemoteAddr)
-		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create user"}); err != nil {
+		
+		// Provide more specific error messages based on the database error
+		errorMsg := "registration failed"
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
+			errorMsg = "email address is already registered"
+		} else if strings.Contains(errStr, "constraint") {
+			errorMsg = "invalid registration data"
+		} else if strings.Contains(errStr, "json") || strings.Contains(errStr, "22p02") {
+			errorMsg = "server configuration error, please try again later"
+		} else if strings.Contains(errStr, "connection") || strings.Contains(errStr, "timeout") {
+			errorMsg = "service temporarily unavailable, please try again"
+		}
+		
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": errorMsg}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return

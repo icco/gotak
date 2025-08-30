@@ -218,20 +218,54 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "down":
-		maxFields := 2
+		maxFields := 2  // email, password, submit button (login)
 		if m.authMode == authModeRegister {
-			maxFields = 3
+			maxFields = 3  // email, password, name, submit button (register)
 		}
 		if m.authFocus < maxFields {
 			m.authFocus++
 		}
 		return m, nil
 	case "enter":
-		if m.authMode == authModeLogin {
-			return m, m.loginUser()
-		} else {
-			return m, m.registerUser()
+		maxFocus := 1
+		if m.authMode == authModeRegister {
+			maxFocus = 2
 		}
+		
+		// If on submit button or any field, validate and submit the form
+		if m.authFocus == maxFocus+1 || m.authFocus <= maxFocus {
+			// Basic validation
+			if strings.TrimSpace(m.email) == "" {
+				m.error = "Email address is required"
+				return m, nil
+			}
+			if !strings.Contains(m.email, "@") || !strings.Contains(m.email, ".") {
+				m.error = "Please enter a valid email address"
+				return m, nil
+			}
+			if strings.TrimSpace(m.password) == "" {
+				m.error = "Password is required"
+				return m, nil
+			}
+			if len(m.password) < 8 {
+				m.error = "Password must be at least 8 characters long"
+				return m, nil
+			}
+			if m.authMode == authModeRegister && strings.TrimSpace(m.name) == "" {
+				m.error = "Full name is required for registration"
+				return m, nil
+			}
+			
+			// Clear any previous errors
+			m.error = ""
+			
+			if m.authMode == authModeLogin {
+				return m, m.loginUser()
+			} else {
+				return m, m.registerUser()
+			}
+		}
+		return m, nil
 	case "backspace":
 		switch m.authFocus {
 		case 0:
@@ -343,46 +377,168 @@ func (m model) View() string {
 }
 
 func (m model) viewAuth() string {
-	var title string
+	formWidth := 50
+	cardPadding := 2
+	
+	// Card style with border and background
+	cardStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Background(lipgloss.Color("235")).
+		Padding(cardPadding).
+		Width(formWidth)
+	
+	// Header style
+	headerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39")).
+		Bold(true).
+		Align(lipgloss.Center).
+		MarginBottom(1)
+	
+	// Input field styles
+	labelStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("247")).
+		MarginBottom(0)
+	
+	activeInputStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("39")).
+		Background(lipgloss.Color("237")).
+		Padding(0, 1).
+		Width(formWidth - cardPadding*2 - 2)
+	
+	inactiveInputStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Background(lipgloss.Color("236")).
+		Padding(0, 1).
+		Width(formWidth - cardPadding*2 - 2)
+	
+	// Button styles
+	activeButtonStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("39")).
+		Foreground(lipgloss.Color("15")).
+		Bold(true).
+		Padding(0, 2).
+		MarginTop(1).
+		Align(lipgloss.Center)
+	
+	inactiveButtonStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("240")).
+		Foreground(lipgloss.Color("247")).
+		Padding(0, 2).
+		MarginTop(1).
+		Align(lipgloss.Center)
+	
+	// Form title
+	var title, subtitle string
 	if m.authMode == authModeLogin {
-		title = titleStyle.Width(m.width).Render("🎯 GoTak - Login")
+		title = "Welcome Back"
+		subtitle = "Sign in to your account"
 	} else {
-		title = titleStyle.Width(m.width).Render("🎯 GoTak - Register")
+		title = "Create Account"
+		subtitle = "Join GoTak to start playing"
 	}
-
-	// Create input fields
-	emailLabel := "Email:"
+	
+	formContent := []string{
+		headerStyle.Render(title),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Align(lipgloss.Center).Render(subtitle),
+		"", // spacer
+	}
+	
+	// Email field
+	emailLabel := labelStyle.Render("Email Address")
+	var emailInput string
 	if m.authFocus == 0 {
-		emailLabel = "> Email:"
+		emailInput = activeInputStyle.Render(m.email + "█")
+	} else {
+		emailInput = inactiveInputStyle.Render(m.email)
 	}
-	emailField := emailLabel + " " + m.email
+	formContent = append(formContent, emailLabel, emailInput, "")
 	
-	passwordLabel := "Password:"
+	// Password field
+	passwordLabel := labelStyle.Render("Password")
+	passwordDisplay := strings.Repeat("•", len(m.password))
 	if m.authFocus == 1 {
-		passwordLabel = "> Password:"
+		passwordDisplay += "█"
 	}
-	passwordField := passwordLabel + " " + strings.Repeat("*", len(m.password))
+	var passwordInput string
+	if m.authFocus == 1 {
+		passwordInput = activeInputStyle.Render(passwordDisplay)
+	} else {
+		passwordInput = inactiveInputStyle.Render(passwordDisplay)
+	}
+	formContent = append(formContent, passwordLabel, passwordInput, "")
 	
-	fields := []string{emailField, passwordField}
-	
+	// Name field for registration
 	if m.authMode == authModeRegister {
-		nameLabel := "Name:"
+		nameLabel := labelStyle.Render("Full Name")
+		var nameInput string
 		if m.authFocus == 2 {
-			nameLabel = "> Name:"
+			nameInput = activeInputStyle.Render(m.name + "█")
+		} else {
+			nameInput = inactiveInputStyle.Render(m.name)
 		}
-		nameField := nameLabel + " " + m.name
-		fields = append(fields, nameField)
+		formContent = append(formContent, nameLabel, nameInput, "")
 	}
 	
-	form := inputStyle.Width(60).Render(strings.Join(fields, "\n"))
+	// Submit button
+	buttonText := "Sign In"
+	if m.authMode == authModeRegister {
+		buttonText = "Create Account"
+	}
 	
-	instructions := menuItemStyle.Render("↑/↓: Navigate | Enter: Submit | Tab: Switch mode | Ctrl+C: Quit")
+	maxFocus := 1
+	if m.authMode == authModeRegister {
+		maxFocus = 2
+	}
 	
-	content := lipgloss.JoinVertical(lipgloss.Center, title, form, instructions)
+	var submitButton string
+	if m.authFocus == maxFocus+1 {
+		submitButton = activeButtonStyle.Width(formWidth - cardPadding*2).Render("► " + buttonText)
+	} else {
+		submitButton = inactiveButtonStyle.Width(formWidth - cardPadding*2).Render(buttonText)
+	}
+	formContent = append(formContent, submitButton)
 	
+	// Mode switch
+	switchText := "Need an account? Press Tab to register"
+	if m.authMode == authModeRegister {
+		switchText = "Have an account? Press Tab to sign in"
+	}
+	switchMsg := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("243")).
+		Align(lipgloss.Center).
+		MarginTop(1).
+		Render(switchText)
+	formContent = append(formContent, "", switchMsg)
+	
+	// Instructions
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Align(lipgloss.Center).
+		MarginTop(1).
+		Render("↑/↓: Navigate • Enter: Submit • Esc: Quit")
+	formContent = append(formContent, "", instructions)
+	
+	// Create the form card
+	form := cardStyle.Render(strings.Join(formContent, "\n"))
+	
+	// Error message if any
+	var content string
 	if m.error != "" {
-		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
-		content = lipgloss.JoinVertical(lipgloss.Center, content, errorMsg)
+		errorCard := lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("196")).
+			Background(lipgloss.Color("52")).
+			Foreground(lipgloss.Color("15")).
+			Padding(1).
+			Width(formWidth).
+			MarginBottom(2).
+			Render("⚠ " + m.error)
+		content = lipgloss.JoinVertical(lipgloss.Center, errorCard, form)
+	} else {
+		content = form
 	}
 	
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
