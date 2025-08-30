@@ -25,8 +25,8 @@ import (
 type contextKey string
 
 const (
-	userContextKey     contextKey = "user"
-	emptyJSONObject                = "{}" // Default empty JSON for user preferences
+	userContextKey  contextKey = "user"
+	emptyJSONObject            = "{}" // Default empty JSON for user preferences
 )
 
 // getDBErrorMessage returns a user-friendly error message based on the database error
@@ -220,10 +220,10 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := db.Create(&user).Error; err != nil {
 		log.Errorw("failed to create user", "email", req.Email, "error", err.Error(), "remote_addr", r.RemoteAddr)
-		
+
 		// Get user-friendly error message using typed error handling
 		errorMsg := getDBErrorMessage(err)
-		
+
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": errorMsg}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}

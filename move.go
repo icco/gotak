@@ -32,7 +32,7 @@ func IsValidMoveCharacter(char string) bool {
 	if len(char) != 1 {
 		return false
 	}
-	
+
 	// Check for alphanumeric characters
 	if char >= "a" && char <= "z" {
 		return true
@@ -43,7 +43,7 @@ func IsValidMoveCharacter(char string) bool {
 	if char >= "0" && char <= "9" {
 		return true
 	}
-	
+
 	// Check for PTN-specific characters: direction markers, stone types
 	return strings.Contains("<>+-SsCcFf", char)
 }

@@ -11,55 +11,55 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	
+
 	"github.com/icco/gotak"
 )
 
 var (
 	localFlag = flag.Bool("local", false, "Use local server instead of https://gotak.app")
-	
+
 	// Styles
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("205")).
-		Align(lipgloss.Center).
-		MarginBottom(2)
-		
+			Bold(true).
+			Foreground(lipgloss.Color("205")).
+			Align(lipgloss.Center).
+			MarginBottom(2)
+
 	menuItemStyle = lipgloss.NewStyle().
-		PaddingLeft(2)
-		
+			PaddingLeft(2)
+
 	selectedMenuItemStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("170")).
-		Bold(true).
-		PaddingLeft(2)
-		
+				Foreground(lipgloss.Color("170")).
+				Bold(true).
+				PaddingLeft(2)
+
 	boardStyle = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(2).
-		Align(lipgloss.Center)
-		
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(2).
+			Align(lipgloss.Center)
+
 	cellStyle = lipgloss.NewStyle().
-		Width(4).
-		Height(2).
-		Align(lipgloss.Center)
-		
+			Width(4).
+			Height(2).
+			Align(lipgloss.Center)
+
 	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196")).
-		Bold(true).
-		Align(lipgloss.Center).
-		MarginTop(1)
-		
+			Foreground(lipgloss.Color("196")).
+			Bold(true).
+			Align(lipgloss.Center).
+			MarginTop(1)
+
 	inputStyle = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(1).
-		MarginTop(1)
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(1).
+			MarginTop(1)
 )
 
 func main() {
 	flag.Parse()
-	
+
 	var serverURL string
 	if *localFlag {
 		serverURL = "http://localhost:8080"
@@ -80,8 +80,8 @@ func main() {
 type screen int
 
 const (
-	screenAuthMode screen = iota  // Choose login or register
-	screenAuth                    // Login/register form
+	screenAuthMode screen = iota // Choose login or register
+	screenAuth                   // Login/register form
 	screenMenu
 	screenGame
 	screenSettings
@@ -97,28 +97,28 @@ const (
 type model struct {
 	serverURL string
 	screen    screen
-	
+
 	// Auth state
-	authMode     authMode
-	authModeCursor int  // For selecting login/register
-	email        string
-	password     string
-	name         string
-	token        string
-	authenticated bool
-	authFocus    int
-	
-	// Menu state  
+	authMode       authMode
+	authModeCursor int // For selecting login/register
+	email          string
+	password       string
+	name           string
+	token          string
+	authenticated  bool
+	authFocus      int
+
+	// Menu state
 	menuCursor int
-	
+
 	// Game state
-	gameSlug   string
-	gameData   *GameData
-	boardSize  int
-	
+	gameSlug  string
+	gameData  *GameData
+	boardSize int
+
 	// Move input
 	moveInput string
-	
+
 	// UI state
 	width  int
 	height int
@@ -126,11 +126,11 @@ type model struct {
 }
 
 type GameData struct {
-	ID     int64      `json:"id"`
-	Slug   string     `json:"slug"`
-	Status string     `json:"status"`
-	Size   int        `json:"size"`
-	Turns  []GameTurn `json:"turns"`
+	ID     int64             `json:"id"`
+	Slug   string            `json:"slug"`
+	Status string            `json:"status"`
+	Size   int               `json:"size"`
+	Turns  []GameTurn        `json:"turns"`
 	Tags   map[string]string `json:"tags"`
 }
 
@@ -146,7 +146,7 @@ type GameMove struct {
 func initialModel(serverURL string) model {
 	return model{
 		serverURL:     serverURL,
-		screen:        screenAuthMode,  // Start with mode selection
+		screen:        screenAuthMode, // Start with mode selection
 		authMode:      authModeLogin,
 		boardSize:     5,
 		authenticated: false,
@@ -163,31 +163,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
-		
+
 	case authSuccess:
 		m.token = msg.token
 		m.authenticated = true
 		m.screen = screenMenu
 		m.error = ""
 		return m, nil
-		
+
 	case gameLoaded:
 		m.gameData = msg.game
 		m.gameSlug = msg.game.Slug
 		m.screen = screenGame
 		m.error = ""
 		return m, nil
-		
+
 	case apiError:
 		m.error = msg.error
 		return m, nil
-		
+
 	case moveSubmitted:
 		m.gameData = msg.game
 		m.moveInput = ""
 		m.error = ""
 		return m, nil
-		
+
 	case tea.KeyMsg:
 		switch m.screen {
 		case screenAuthMode:
@@ -202,7 +202,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateSettings(msg)
 		}
 	}
-	
+
 	return m, nil
 }
 
@@ -218,7 +218,7 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "down", "j":
-		if m.authModeCursor < 1 {  // 0: Login, 1: Register
+		if m.authModeCursor < 1 { // 0: Login, 1: Register
 			m.authModeCursor++
 		}
 		return m, nil
@@ -230,8 +230,8 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.authMode = authModeRegister
 		}
 		m.screen = screenAuth
-		m.authFocus = 0  // Start at first field
-		m.error = ""     // Clear any errors
+		m.authFocus = 0 // Start at first field
+		m.error = ""    // Clear any errors
 		return m, nil
 	}
 	return m, nil
@@ -247,9 +247,9 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.error = ""
 		return m, nil
 	case "tab", "down":
-		maxFields := 2  // email, password, submit button (login)
+		maxFields := 2 // email, password, submit button (login)
 		if m.authMode == authModeRegister {
-			maxFields = 3  // email, password, name, submit button (register)
+			maxFields = 3 // email, password, name, submit button (register)
 		}
 		if m.authFocus < maxFields {
 			m.authFocus++
@@ -263,9 +263,9 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.authFocus--
 		} else {
 			// Loop to last field
-			maxFields := 2  // email, password, submit button (login)
+			maxFields := 2 // email, password, submit button (login)
 			if m.authMode == authModeRegister {
-				maxFields = 3  // email, password, name, submit button (register)
+				maxFields = 3 // email, password, name, submit button (register)
 			}
 			m.authFocus = maxFields
 		}
@@ -275,7 +275,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.authMode == authModeRegister {
 			maxFocus = 2
 		}
-		
+
 		// If on submit button or any field, validate and submit the form
 		if m.authFocus == maxFocus+1 || m.authFocus <= maxFocus {
 			// Basic validation
@@ -299,10 +299,10 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.error = "Full name is required for registration"
 				return m, nil
 			}
-			
+
 			// Clear any previous errors
 			m.error = ""
-			
+
 			if m.authMode == authModeLogin {
 				return m, m.loginUser()
 			} else {
@@ -422,7 +422,7 @@ func (m model) View() string {
 func (m model) viewAuthMode() string {
 	formWidth := 40
 	cardPadding := 2
-	
+
 	// Card style with border and background
 	cardStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -430,14 +430,14 @@ func (m model) viewAuthMode() string {
 		Background(lipgloss.Color("235")).
 		Padding(cardPadding).
 		Width(formWidth)
-	
+
 	// Header style
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("39")).
 		Bold(true).
 		Align(lipgloss.Center).
 		MarginBottom(1)
-	
+
 	// Option styles
 	activeOptionStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("39")).
@@ -447,7 +447,7 @@ func (m model) viewAuthMode() string {
 		MarginTop(1).
 		Align(lipgloss.Center).
 		Width(formWidth - cardPadding*2)
-	
+
 	inactiveOptionStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("240")).
 		Foreground(lipgloss.Color("247")).
@@ -455,14 +455,14 @@ func (m model) viewAuthMode() string {
 		MarginTop(1).
 		Align(lipgloss.Center).
 		Width(formWidth - cardPadding*2)
-	
+
 	// Form content
 	formContent := []string{
 		headerStyle.Render("Welcome to GoTak"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Align(lipgloss.Center).Render("Please choose an option"),
 		"", // spacer
 	}
-	
+
 	// Login option
 	var loginOption string
 	if m.authModeCursor == 0 {
@@ -471,7 +471,7 @@ func (m model) viewAuthMode() string {
 		loginOption = inactiveOptionStyle.Render("Sign In")
 	}
 	formContent = append(formContent, loginOption)
-	
+
 	// Register option
 	var registerOption string
 	if m.authModeCursor == 1 {
@@ -480,7 +480,7 @@ func (m model) viewAuthMode() string {
 		registerOption = inactiveOptionStyle.Render("Create Account")
 	}
 	formContent = append(formContent, registerOption)
-	
+
 	// Instructions
 	instructions := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
@@ -488,10 +488,10 @@ func (m model) viewAuthMode() string {
 		MarginTop(2).
 		Render("↑/↓: Navigate • Enter: Select • Esc: Quit")
 	formContent = append(formContent, "", instructions)
-	
+
 	// Create the form card
 	form := cardStyle.Render(strings.Join(formContent, "\n"))
-	
+
 	// Error message if any
 	var content string
 	if m.error != "" {
@@ -508,14 +508,14 @@ func (m model) viewAuthMode() string {
 	} else {
 		content = form
 	}
-	
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (m model) viewAuth() string {
 	formWidth := 50
 	cardPadding := 2
-	
+
 	// Card style with border and background
 	cardStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -523,33 +523,33 @@ func (m model) viewAuth() string {
 		Background(lipgloss.Color("235")).
 		Padding(cardPadding).
 		Width(formWidth)
-	
+
 	// Header style
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("39")).
 		Bold(true).
 		Align(lipgloss.Center).
 		MarginBottom(1)
-	
+
 	// Input field styles
 	labelStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("247")).
 		MarginBottom(0)
-	
+
 	activeInputStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("39")).
 		Background(lipgloss.Color("237")).
 		Padding(0, 1).
 		Width(formWidth - cardPadding*2 - 2)
-	
+
 	inactiveInputStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		Background(lipgloss.Color("236")).
 		Padding(0, 1).
 		Width(formWidth - cardPadding*2 - 2)
-	
+
 	// Button styles
 	activeButtonStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("39")).
@@ -558,14 +558,14 @@ func (m model) viewAuth() string {
 		Padding(0, 2).
 		MarginTop(1).
 		Align(lipgloss.Center)
-	
+
 	inactiveButtonStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("240")).
 		Foreground(lipgloss.Color("247")).
 		Padding(0, 2).
 		MarginTop(1).
 		Align(lipgloss.Center)
-	
+
 	// Form title
 	var title, subtitle string
 	if m.authMode == authModeLogin {
@@ -575,13 +575,13 @@ func (m model) viewAuth() string {
 		title = "Create Account"
 		subtitle = "Join GoTak to start playing"
 	}
-	
+
 	formContent := []string{
 		headerStyle.Render(title),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Align(lipgloss.Center).Render(subtitle),
 		"", // spacer
 	}
-	
+
 	// Email field
 	emailLabel := labelStyle.Render("Email Address")
 	var emailInput string
@@ -591,7 +591,7 @@ func (m model) viewAuth() string {
 		emailInput = inactiveInputStyle.Render(m.email)
 	}
 	formContent = append(formContent, emailLabel, emailInput, "")
-	
+
 	// Password field
 	passwordLabel := labelStyle.Render("Password")
 	passwordDisplay := strings.Repeat("•", len(m.password))
@@ -605,7 +605,7 @@ func (m model) viewAuth() string {
 		passwordInput = inactiveInputStyle.Render(passwordDisplay)
 	}
 	formContent = append(formContent, passwordLabel, passwordInput, "")
-	
+
 	// Name field for registration
 	if m.authMode == authModeRegister {
 		nameLabel := labelStyle.Render("Full Name")
@@ -617,18 +617,18 @@ func (m model) viewAuth() string {
 		}
 		formContent = append(formContent, nameLabel, nameInput, "")
 	}
-	
+
 	// Submit button
 	buttonText := "Sign In"
 	if m.authMode == authModeRegister {
 		buttonText = "Create Account"
 	}
-	
+
 	maxFocus := 1
 	if m.authMode == authModeRegister {
 		maxFocus = 2
 	}
-	
+
 	var submitButton string
 	if m.authFocus == maxFocus+1 {
 		submitButton = activeButtonStyle.Width(formWidth - cardPadding*2).Render("► " + buttonText)
@@ -636,7 +636,7 @@ func (m model) viewAuth() string {
 		submitButton = inactiveButtonStyle.Width(formWidth - cardPadding*2).Render(buttonText)
 	}
 	formContent = append(formContent, submitButton)
-	
+
 	// Instructions
 	instructions := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
@@ -644,10 +644,10 @@ func (m model) viewAuth() string {
 		MarginTop(1).
 		Render("Tab/↑/↓: Navigate • Enter: Submit • Esc: Back • Ctrl+C: Quit")
 	formContent = append(formContent, "", instructions)
-	
+
 	// Create the form card
 	form := cardStyle.Render(strings.Join(formContent, "\n"))
-	
+
 	// Error message if any
 	var content string
 	if m.error != "" {
@@ -664,19 +664,19 @@ func (m model) viewAuth() string {
 	} else {
 		content = form
 	}
-	
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (m model) viewMenu() string {
 	title := titleStyle.Width(m.width).Render("🎯 GoTak - Main Menu")
-	
+
 	choices := []string{
 		"🎮 New Game",
 		"⚙️  Settings",
 		"🚪 Quit",
 	}
-	
+
 	var menu string
 	for i, choice := range choices {
 		if m.menuCursor == i {
@@ -685,17 +685,17 @@ func (m model) viewMenu() string {
 			menu += menuItemStyle.Render(fmt.Sprintf("  %s", choice)) + "\n"
 		}
 	}
-	
+
 	info := menuItemStyle.Render(fmt.Sprintf("Server: %s", m.serverURL))
 	help := menuItemStyle.Render("↑/↓: Navigate | Enter: Select | Q: Quit")
-	
+
 	content := lipgloss.JoinVertical(lipgloss.Center, title, menu, info, help)
-	
+
 	if m.error != "" {
 		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
 		content = lipgloss.JoinVertical(lipgloss.Center, content, errorMsg)
 	}
-	
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
@@ -706,27 +706,27 @@ func (m model) viewGame() string {
 	}
 
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
-	
+
 	// Create a much larger board that fills most of the screen
 	board := m.renderLargeBoard()
-	
+
 	// Move input area
 	inputArea := inputStyle.Width(60).Render(fmt.Sprintf("Move: %s", m.moveInput))
-	
+
 	// Game info
-	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Moves: %d", 
+	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Moves: %d",
 		m.gameData.Status, m.getTotalMoves()))
-	
+
 	// Help text with proper Tak move examples
 	help := menuItemStyle.Render("Move Examples: a1 (flat) | Sa1 (standing) | Ca1 (capstone) | 3a1>21 (move 3 stones) | Q: Menu")
-	
+
 	content := lipgloss.JoinVertical(lipgloss.Center, title, board, inputArea, gameInfo, help)
-	
+
 	if m.error != "" {
 		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
 		content = lipgloss.JoinVertical(lipgloss.Center, content, errorMsg)
 	}
-	
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
@@ -735,17 +735,17 @@ func (m model) renderLargeBoard() string {
 	if size == 0 {
 		size = 5
 	}
-	
+
 	// Create a much larger board representation
 	var rows []string
-	
+
 	// Column headers
 	header := "    "
 	for i := 0; i < size; i++ {
 		header += fmt.Sprintf("  %c  ", 'a'+i)
 	}
 	rows = append(rows, header)
-	
+
 	// Board rows (reverse order for proper display)
 	for i := size - 1; i >= 0; i-- {
 		row := fmt.Sprintf("%2d  ", i+1)
@@ -760,14 +760,14 @@ func (m model) renderLargeBoard() string {
 		row += fmt.Sprintf("  %d", i+1)
 		rows = append(rows, row)
 	}
-	
+
 	// Bottom column headers
 	footer := "    "
 	for i := 0; i < size; i++ {
 		footer += fmt.Sprintf("  %c  ", 'a'+i)
 	}
 	rows = append(rows, footer)
-	
+
 	boardContent := strings.Join(rows, "\n")
 	return boardStyle.Width(size*6 + 10).Render(boardContent)
 }
@@ -786,7 +786,7 @@ func (m model) getCurrentPlayer() int {
 	if m.gameData == nil {
 		return 1 // Default to player 1 if no game data
 	}
-	
+
 	totalMoves := m.getTotalMoves()
 	// Player 1 starts, so on even total moves it's player 1's turn
 	// On odd total moves it's player 2's turn
@@ -798,19 +798,19 @@ func (m model) getCurrentPlayer() int {
 
 func (m model) viewSettings() string {
 	title := titleStyle.Width(m.width).Render("⚙️ Settings")
-	
+
 	settings := []string{
 		fmt.Sprintf("Board Size: %dx%d", m.boardSize, m.boardSize),
 		fmt.Sprintf("Server: %s", m.serverURL),
 	}
-	
+
 	settingsContent := ""
 	for _, setting := range settings {
 		settingsContent += menuItemStyle.Render(setting) + "\n"
 	}
-	
+
 	help := menuItemStyle.Render("Q: Back to menu")
-	
+
 	content := lipgloss.JoinVertical(lipgloss.Center, title, settingsContent, help)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
@@ -822,14 +822,14 @@ func (m model) loginUser() tea.Cmd {
 			"email":    m.email,
 			"password": m.password,
 		}
-		
+
 		data, _ := json.Marshal(payload)
 		resp, err := http.Post(m.serverURL+"/auth/login", "application/json", bytes.NewBuffer(data))
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
-		
+
 		if resp.StatusCode != 200 {
 			// Read the actual error message from server
 			var errorResp struct {
@@ -840,7 +840,7 @@ func (m model) loginUser() tea.Cmd {
 			}
 			return apiError{error: fmt.Sprintf("Login failed (status %d)", resp.StatusCode)}
 		}
-		
+
 		var authResp struct {
 			Token string `json:"token"`
 			User  struct {
@@ -852,7 +852,7 @@ func (m model) loginUser() tea.Cmd {
 		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
 			return apiError{error: "Login response error"}
 		}
-		
+
 		return authSuccess{token: authResp.Token}
 	}
 }
@@ -864,14 +864,14 @@ func (m model) registerUser() tea.Cmd {
 			"password": m.password,
 			"name":     m.name,
 		}
-		
+
 		data, _ := json.Marshal(payload)
 		resp, err := http.Post(m.serverURL+"/auth/register", "application/json", bytes.NewBuffer(data))
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
-		
+
 		if resp.StatusCode != 201 { // Registration returns 201 on success
 			// Read the actual error message from server
 			var errorResp struct {
@@ -882,7 +882,7 @@ func (m model) registerUser() tea.Cmd {
 			}
 			return apiError{error: fmt.Sprintf("Registration failed (status %d)", resp.StatusCode)}
 		}
-		
+
 		var authResp struct {
 			Token string `json:"token"`
 			User  struct {
@@ -894,7 +894,7 @@ func (m model) registerUser() tea.Cmd {
 		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
 			return apiError{error: "Registration response error"}
 		}
-		
+
 		return authSuccess{token: authResp.Token}
 	}
 }
@@ -904,20 +904,20 @@ func (m model) createGame() tea.Cmd {
 		payload := map[string]interface{}{
 			"size": m.boardSize,
 		}
-		
+
 		data, _ := json.Marshal(payload)
-		
+
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/new", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
-		
+
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
-		
+
 		if resp.StatusCode != 200 && resp.StatusCode != 307 {
 			// Read the actual error message from server
 			var errorResp struct {
@@ -928,12 +928,12 @@ func (m model) createGame() tea.Cmd {
 			}
 			return apiError{error: fmt.Sprintf("Create game failed (status %d)", resp.StatusCode)}
 		}
-		
+
 		var game GameData
 		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 			return apiError{error: "Game creation response error"}
 		}
-		
+
 		return gameLoaded{game: &game}
 	}
 }
@@ -945,20 +945,20 @@ func (m model) submitMove() tea.Cmd {
 			"move":   m.moveInput,
 			"turn":   int64(m.getTotalMoves() + 1),
 		}
-		
+
 		data, _ := json.Marshal(payload)
-		
+
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
-		
+
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Move failed: %v", err)}
 		}
 		defer resp.Body.Close()
-		
+
 		if resp.StatusCode != 200 {
 			// Read the actual error message from server
 			var errorResp struct {
@@ -969,12 +969,12 @@ func (m model) submitMove() tea.Cmd {
 			}
 			return apiError{error: fmt.Sprintf("Move failed (status %d)", resp.StatusCode)}
 		}
-		
+
 		var game GameData
 		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 			return apiError{error: "Move response error"}
 		}
-		
+
 		// Clear the move input on successful move
 		return moveSubmitted{game: &game}
 	}

@@ -3,10 +3,10 @@ package ai
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"time"
-	"math"
 
 	"github.com/icco/gotak"
 	taktician "github.com/nelhage/taktician/ai"

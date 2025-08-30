@@ -15,10 +15,10 @@ type SwaggerSpec struct {
 
 // PathInfo contains information about an API endpoint
 type PathInfo struct {
-	Summary     string            `json:"summary"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Parameters  []interface{}     `json:"parameters"`
+	Summary     string                 `json:"summary"`
+	Description string                 `json:"description"`
+	Tags        []string               `json:"tags"`
+	Parameters  []interface{}          `json:"parameters"`
 	Responses   map[string]interface{} `json:"responses"`
 }
 
