@@ -14,6 +14,10 @@ import (
 	"github.com/icco/gotak"
 )
 
+const (
+	version = "1.0.0"
+)
+
 var (
 	localFlag = flag.Bool("local", false, "Use local server instead of https://gotak.app")
 
@@ -832,7 +836,12 @@ func (m model) loginUser() tea.Cmd {
 		}
 
 		data, _ := json.Marshal(payload)
-		resp, err := http.Post(m.serverURL+"/auth/login", "application/json", bytes.NewBuffer(data))
+		req, _ := http.NewRequest("POST", m.serverURL+"/auth/login", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+		
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
@@ -874,7 +883,12 @@ func (m model) registerUser() tea.Cmd {
 		}
 
 		data, _ := json.Marshal(payload)
-		resp, err := http.Post(m.serverURL+"/auth/register", "application/json", bytes.NewBuffer(data))
+		req, _ := http.NewRequest("POST", m.serverURL+"/auth/register", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
+		
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
@@ -907,6 +921,7 @@ func (m model) createGame() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/new", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
 
 		// Don't follow redirects automatically
 		client := &http.Client{
@@ -938,6 +953,7 @@ func (m model) createGame() tea.Cmd {
 			// Now fetch the game data with a GET request
 			getReq, _ := http.NewRequest("GET", m.serverURL+"/game/"+gameSlug, nil)
 			getReq.Header.Set("Authorization", "Bearer "+m.token)
+			getReq.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
 			
 			getResp, err := client.Do(getReq)
 			if err != nil {
@@ -985,6 +1001,7 @@ func (m model) submitMove() tea.Cmd {
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", version))
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
