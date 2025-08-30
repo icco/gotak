@@ -57,15 +57,15 @@ type Engine interface {
 type TakticianEngine struct{}
 
 func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
+	// Ensure board size is within expected bounds (Tak standard: 3 - 9)
+	if g.Board.Size < 3 || g.Board.Size > 9 {
+		return "", fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
+	}
+
 	// Convert gotak.Game to tak.Position
 	position, err := convertGameToPosition(g)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert game state: %w", err)
-	}
-
-	// Ensure board size is within expected bounds (Tak standard: 3 - 9)
-	if g.Board.Size < 3 || g.Board.Size > 9 {
-		return "", fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
 	}
 
 	// Safe conversion of int64 to int (already validated to be in range 3-9)

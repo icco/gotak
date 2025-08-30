@@ -365,7 +365,7 @@ func buildAIRequest(url, level string) *http.Request {
 	payload := map[string]interface{}{
 		"level":      level,
 		"style":      "balanced",
-		"time_limit": int64(5 * time.Second), // 5 seconds in nanoseconds
+		"time_limit": int64(5 * time.Second), // time.Duration representing 5 seconds, converted to nanoseconds
 	}
 	
 	data, _ := json.Marshal(payload)

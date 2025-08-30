@@ -41,8 +41,15 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 	// Get game slug from URL
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 
-	// Get current user (required by authMiddleware)
-	user := getMustUserFromContext(r)
+	// Get current user (return 401 if unauthenticated)
+	user := getUserFromContext(r)
+	if user == nil {
+		log.Errorw("unauthenticated request to AI move endpoint")
+		if err := Renderer.JSON(w, 401, map[string]string{"error": "unauthenticated"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
 
 	// Verify user can access this game
 	err = verifyGameParticipation(db, slug, user.ID)

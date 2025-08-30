@@ -50,7 +50,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-	defer serverCmd.Process.Kill()
+	defer func() {
+		if serverCmd.Process != nil {
+			// Attempt graceful shutdown
+			err := serverCmd.Process.Signal(os.Interrupt)
+			if err != nil {
+				// If process already exited, ignore error
+				if !strings.Contains(err.Error(), "process already finished") {
+					log.Printf("Failed to send interrupt to server process: %v", err)
+				}
+			} else {
+				// Wait for process to exit after interrupt
+				_ = serverCmd.Wait()
+			}
+		}
+	}()
 
 	// Wait for server to start
 	fmt.Println("⏳ Waiting for server to start...")
@@ -164,7 +178,7 @@ func createGame(size int) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 307 {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusTemporaryRedirect {
 		return "", fmt.Errorf("server error: %d", resp.StatusCode)
 	}
 
@@ -190,7 +204,7 @@ func makeMove(gameSlug, move string) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("move rejected by server: %d", resp.StatusCode)
 	}
 
@@ -215,7 +229,7 @@ func getAIMove(gameSlug string, difficulty DifficultyLevel) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("AI request failed: %d", resp.StatusCode)
 	}
 
@@ -236,7 +250,7 @@ func showGameState(gameSlug string) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("❌ Server error getting game: %d\n", resp.StatusCode)
 		return
 	}
