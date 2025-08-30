@@ -16,6 +16,7 @@ import (
 	auth2 "github.com/go-pkgz/auth/v2"
 	"github.com/go-pkgz/auth/v2/avatar"
 	"github.com/go-pkgz/auth/v2/token"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -26,7 +27,7 @@ type contextKey string
 
 const (
 	userContextKey  contextKey = "user"
-	emptyJSONObject            = "{}" // Default empty JSON for user preferences
+	emptyJSONObject string     = "{}" // Default empty JSON for user preferences
 )
 
 // getDBErrorMessage returns a user-friendly error message based on the database error
@@ -231,7 +232,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token
-	token, err := generateJWT(user.ID)
+	token, err := generateJWTForUser(&user)
 	if err != nil {
 		log.Errorw("failed to generate token", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "token generation error"}); err != nil {
@@ -451,17 +452,45 @@ func generateProviderID() string {
 }
 
 func generateJWT(userID int64) (string, error) {
+	// Get the database to fetch the user's information
+	db, err := getDB()
+	if err != nil {
+		return "", fmt.Errorf("database connection error: %w", err)
+	}
+
+	var user User
+	if err := db.First(&user, userID).Error; err != nil {
+		return "", fmt.Errorf("user not found: %v", err)
+	}
+
+	return generateJWTForUser(&user)
+}
+
+func generateJWTForUser(user *User) (string, error) {
 	auth := newAuthService()
 	tokenService := auth.TokenService()
+
+	// Create JWT claims with proper structure
+	now := time.Now()
 	claims := token.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "gotak-app",
+			Subject:   fmt.Sprintf("%d", user.ID),
+			Audience:  []string{"gotak"},
+			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
+			NotBefore: jwt.NewNumericDate(now),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
 		User: &token.User{
-			ID:   fmt.Sprintf("%d", userID),
-			Name: fmt.Sprintf("user-%d", userID),
+			ID:    fmt.Sprintf("%d", user.ID),
+			Name:  user.Name,
+			Email: user.Email,
 		},
 	}
+
 	tokenString, err := tokenService.Token(claims)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to generate token: %w", err)
 	}
 	return tokenString, nil
 }
