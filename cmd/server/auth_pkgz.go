@@ -454,18 +454,18 @@ func generateProviderID() string {
 func generateJWT(userID int64) (string, error) {
 	auth := newAuthService()
 	tokenService := auth.TokenService()
-	
+
 	// Get the database to fetch the user's information
 	db, err := getDB()
 	if err != nil {
 		return "", fmt.Errorf("database connection error: %w", err)
 	}
-	
+
 	var user User
 	if err := db.First(&user, userID).Error; err != nil {
 		return "", fmt.Errorf("user not found: %v", err)
 	}
-	
+
 	// Create JWT claims with proper structure
 	now := time.Now()
 	claims := token.Claims{
@@ -483,7 +483,7 @@ func generateJWT(userID int64) (string, error) {
 			Email: user.Email,
 		},
 	}
-	
+
 	tokenString, err := tokenService.Token(claims)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate token: %w", err)
