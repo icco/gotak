@@ -202,28 +202,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c":
+	case "ctrl+c", "esc":
 		return m, tea.Quit
-	case "tab":
+	case "ctrl+m":  // Ctrl+M to switch modes
 		if m.authMode == authModeLogin {
 			m.authMode = authModeRegister
 		} else {
 			m.authMode = authModeLogin
 		}
 		m.authFocus = 0
+		m.error = ""  // Clear any errors when switching modes
 		return m, nil
-	case "up", "shift+tab":
-		if m.authFocus > 0 {
-			m.authFocus--
-		}
-		return m, nil
-	case "down":
+	case "tab", "down":
 		maxFields := 2  // email, password, submit button (login)
 		if m.authMode == authModeRegister {
 			maxFields = 3  // email, password, name, submit button (register)
 		}
 		if m.authFocus < maxFields {
 			m.authFocus++
+		}
+		return m, nil
+	case "up", "shift+tab":
+		if m.authFocus > 0 {
+			m.authFocus--
 		}
 		return m, nil
 	case "enter":
@@ -502,9 +503,9 @@ func (m model) viewAuth() string {
 	formContent = append(formContent, submitButton)
 	
 	// Mode switch
-	switchText := "Need an account? Press Tab to register"
+	switchText := "Need an account? Press Ctrl+M to register"
 	if m.authMode == authModeRegister {
-		switchText = "Have an account? Press Tab to sign in"
+		switchText = "Have an account? Press Ctrl+M to sign in"
 	}
 	switchMsg := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243")).
@@ -518,7 +519,7 @@ func (m model) viewAuth() string {
 		Foreground(lipgloss.Color("240")).
 		Align(lipgloss.Center).
 		MarginTop(1).
-		Render("↑/↓: Navigate • Enter: Submit • Esc: Quit")
+		Render("Tab/↑/↓: Navigate • Enter: Submit • Esc: Quit")
 	formContent = append(formContent, "", instructions)
 	
 	// Create the form card
