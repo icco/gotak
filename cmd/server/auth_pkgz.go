@@ -116,21 +116,24 @@ func AuthRoutes() http.Handler {
 func registerHandler(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request body"}); err != nil {
+		log.Warnw("invalid registration request body", "error", err.Error(), "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "email and password required"}); err != nil {
+		log.Warnw("registration missing required fields", "email_empty", req.Email == "", "password_empty", req.Password == "", "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "email and password required"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if len(req.Password) < 8 {
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "password must be at least 8 characters"}); err != nil {
+		log.Warnw("registration password too short", "password_length", len(req.Password), "email", req.Email, "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "password must be at least 8 characters"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -139,7 +142,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "database error"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "database error"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -148,7 +151,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user already exists
 	var existingUser User
 	if err := db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "user already exists"}); err != nil {
+		log.Warnw("registration attempt for existing user", "email", req.Email, "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "user already exists"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -158,7 +162,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Errorw("failed to hash password", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "password processing error"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "password processing error"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -176,8 +180,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := db.Create(&user).Error; err != nil {
-		log.Errorw("failed to create user", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "failed to create user"}); err != nil {
+		log.Errorw("failed to create user", "email", req.Email, "error", err.Error(), "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create user"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -187,7 +191,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := generateJWT(user.ID)
 	if err != nil {
 		log.Errorw("failed to generate token", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "token generation error"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "token generation error"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -196,7 +200,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	// Hide password hash in response
 	user.PasswordHash = ""
 
-	if err := Renderer.JSON(w, 201, AuthResponse{Token: token, User: user}); err != nil {
+	log.Infow("user registered successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
+	if err := Renderer.JSON(w, http.StatusCreated, AuthResponse{Token: token, User: user}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
@@ -215,14 +220,16 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request body"}); err != nil {
+		log.Warnw("invalid login request body", "error", err.Error(), "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "email and password required"}); err != nil {
+		log.Warnw("login missing required fields", "email_empty", req.Email == "", "password_empty", req.Password == "", "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "email and password required"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -231,7 +238,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := getDB()
 	if err != nil {
 		log.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "database error"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "database error"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -239,7 +246,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	var user User
 	if err := db.Where("email = ? AND provider = ?", req.Email, "local").First(&user).Error; err != nil {
-		if err := Renderer.JSON(w, 401, map[string]string{"error": "invalid credentials"}); err != nil {
+		log.Warnw("login attempt for non-existent user", "email", req.Email, "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -247,7 +255,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		if err := Renderer.JSON(w, 401, map[string]string{"error": "invalid credentials"}); err != nil {
+		log.Warnw("login attempt with invalid password", "email", req.Email, "user_id", user.ID, "remote_addr", r.RemoteAddr)
+		if err := Renderer.JSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -257,7 +266,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := generateJWT(user.ID)
 	if err != nil {
 		log.Errorw("failed to generate token", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "token generation error"}); err != nil {
+		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "token generation error"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -266,7 +275,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Hide password hash in response
 	user.PasswordHash = ""
 
-	if err := Renderer.JSON(w, 200, AuthResponse{Token: token, User: user}); err != nil {
+	log.Infow("user logged in successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
+	if err := Renderer.JSON(w, http.StatusOK, AuthResponse{Token: token, User: user}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
@@ -287,7 +297,7 @@ func profileHandler(w http.ResponseWriter, r *http.Request) {
 	// Hide password hash
 	user.PasswordHash = ""
 
-	if err := Renderer.JSON(w, 200, user); err != nil {
+	if err := Renderer.JSON(w, http.StatusOK, user); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}
 }

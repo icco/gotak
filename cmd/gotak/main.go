@@ -178,6 +178,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.error = msg.error
 		return m, nil
 		
+	case moveSubmitted:
+		m.gameData = msg.game
+		m.moveInput = ""
+		m.error = ""
+		return m, nil
+		
 	case tea.KeyMsg:
 		switch m.screen {
 		case screenAuth:
@@ -529,11 +535,23 @@ func (m model) loginUser() tea.Cmd {
 		defer resp.Body.Close()
 		
 		if resp.StatusCode != 200 {
-			return apiError{error: "Invalid credentials"}
+			// Read the actual error message from server
+			var errorResp struct {
+				Error string `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
+				return apiError{error: fmt.Sprintf("Login failed: %s", errorResp.Error)}
+			}
+			return apiError{error: fmt.Sprintf("Login failed (status %d)", resp.StatusCode)}
 		}
 		
 		var authResp struct {
 			Token string `json:"token"`
+			User  struct {
+				ID    int64  `json:"id"`
+				Email string `json:"email"`
+				Name  string `json:"name"`
+			} `json:"user"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
 			return apiError{error: "Login response error"}
@@ -558,12 +576,24 @@ func (m model) registerUser() tea.Cmd {
 		}
 		defer resp.Body.Close()
 		
-		if resp.StatusCode != 200 {
-			return apiError{error: "Registration failed"}
+		if resp.StatusCode != 201 { // Registration returns 201 on success
+			// Read the actual error message from server
+			var errorResp struct {
+				Error string `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
+				return apiError{error: fmt.Sprintf("Registration failed: %s", errorResp.Error)}
+			}
+			return apiError{error: fmt.Sprintf("Registration failed (status %d)", resp.StatusCode)}
 		}
 		
 		var authResp struct {
 			Token string `json:"token"`
+			User  struct {
+				ID    int64  `json:"id"`
+				Email string `json:"email"`
+				Name  string `json:"name"`
+			} `json:"user"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
 			return apiError{error: "Registration response error"}
@@ -593,7 +623,14 @@ func (m model) createGame() tea.Cmd {
 		defer resp.Body.Close()
 		
 		if resp.StatusCode != 200 && resp.StatusCode != 307 {
-			return apiError{error: "Failed to create game"}
+			// Read the actual error message from server
+			var errorResp struct {
+				Error string `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
+				return apiError{error: fmt.Sprintf("Create game failed: %s", errorResp.Error)}
+			}
+			return apiError{error: fmt.Sprintf("Create game failed (status %d)", resp.StatusCode)}
 		}
 		
 		var game GameData
@@ -627,7 +664,14 @@ func (m model) submitMove() tea.Cmd {
 		defer resp.Body.Close()
 		
 		if resp.StatusCode != 200 {
-			return apiError{error: "Invalid move"}
+			// Read the actual error message from server
+			var errorResp struct {
+				Error string `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
+				return apiError{error: fmt.Sprintf("Move failed: %s", errorResp.Error)}
+			}
+			return apiError{error: fmt.Sprintf("Move failed (status %d)", resp.StatusCode)}
 		}
 		
 		var game GameData
@@ -635,7 +679,8 @@ func (m model) submitMove() tea.Cmd {
 			return apiError{error: "Move response error"}
 		}
 		
-		return gameLoaded{game: &game}
+		// Clear the move input on successful move
+		return moveSubmitted{game: &game}
 	}
 }
 
@@ -645,6 +690,10 @@ type authSuccess struct {
 }
 
 type gameLoaded struct {
+	game *GameData
+}
+
+type moveSubmitted struct {
 	game *GameData
 }
 
