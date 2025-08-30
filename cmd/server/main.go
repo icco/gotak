@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -23,6 +24,9 @@ import (
 	"github.com/icco/gotak"
 	_ "github.com/icco/gotak/cmd/server/docs"
 )
+
+//go:embed docs/swagger.json
+var swaggerJSON []byte
 
 var (
 	// Renderer is a renderer for all occasions. These are our preferred default options.
@@ -163,17 +167,9 @@ func main() {
 // @Success 200 {string} string "HTML page with API information"
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	// Read swagger.json file
-	swaggerData, err := os.ReadFile("cmd/server/docs/swagger.json")
-	if err != nil {
-		log.Errorw("failed to read swagger.json", zap.Error(err))
-		// Fallback to static content
-		writeStaticHomePage(w)
-		return
-	}
-
+	// Use embedded swagger.json data
 	var spec SwaggerSpec
-	if err := json.Unmarshal(swaggerData, &spec); err != nil {
+	if err := json.Unmarshal(swaggerJSON, &spec); err != nil {
 		log.Errorw("failed to parse swagger.json", zap.Error(err))
 		// Fallback to static content
 		writeStaticHomePage(w)
