@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/icco/gotak"
@@ -108,9 +109,9 @@ type model struct {
 	// Auth state
 	authMode       authMode
 	authModeCursor int // For selecting login/register
-	email          string
-	password       string
-	name           string
+	emailInput     textinput.Model
+	passwordInput  textinput.Model
+	nameInput      textinput.Model
 	token          string
 	authenticated  bool
 	authFocus      int
@@ -151,17 +152,34 @@ type GameMove struct {
 }
 
 func initialModel(serverURL string) model {
+	// Initialize text inputs
+	emailInput := textinput.New()
+	emailInput.Placeholder = "Email address"
+	emailInput.CharLimit = 320
+	
+	passwordInput := textinput.New()
+	passwordInput.Placeholder = "Password"
+	passwordInput.EchoMode = textinput.EchoPassword
+	passwordInput.CharLimit = 128
+	
+	nameInput := textinput.New()
+	nameInput.Placeholder = "Full name"
+	nameInput.CharLimit = 128
+
 	return model{
 		serverURL:     serverURL,
 		screen:        screenAuthMode, // Start with mode selection
 		authMode:      authModeLogin,
+		emailInput:    emailInput,
+		passwordInput: passwordInput,
+		nameInput:     nameInput,
 		boardSize:     5,
 		authenticated: false,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -180,8 +198,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case registrationSuccess:
 		// Clear form data and show success, then switch to login mode
-		m.password = ""
-		m.name = ""
+		m.passwordInput.SetValue("")
+		m.nameInput.SetValue("")
 		m.authMode = authModeLogin
 		m.authFocus = 0
 		m.error = "Registration successful! Please login with your credentials."
@@ -248,12 +266,20 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenAuth
 		m.authFocus = 0 // Start at first field
 		m.error = ""    // Clear any errors
+		
+		// Focus the email field
+		m.emailInput.Focus()
+		m.passwordInput.Blur()
+		m.nameInput.Blur()
+		
 		return m, nil
 	}
 	return m, nil
 }
 
 func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -267,14 +293,46 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.authMode == authModeRegister {
 			maxFields = 3 // email, password, name, submit button (register)
 		}
+		
+		// Blur current field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Blur()
+		case 1:
+			m.passwordInput.Blur()
+		case 2:
+			m.nameInput.Blur()
+		}
+		
 		if m.authFocus < maxFields {
 			m.authFocus++
 		} else {
 			// Loop back to first field
 			m.authFocus = 0
 		}
+		
+		// Focus new field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Focus()
+		case 1:
+			m.passwordInput.Focus()
+		case 2:
+			m.nameInput.Focus()
+		}
+		
 		return m, nil
 	case "up", "shift+tab":
+		// Blur current field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Blur()
+		case 1:
+			m.passwordInput.Blur()
+		case 2:
+			m.nameInput.Blur()
+		}
+		
 		if m.authFocus > 0 {
 			m.authFocus--
 		} else {
@@ -285,6 +343,17 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.authFocus = maxFields
 		}
+		
+		// Focus new field
+		switch m.authFocus {
+		case 0:
+			m.emailInput.Focus()
+		case 1:
+			m.passwordInput.Focus()
+		case 2:
+			m.nameInput.Focus()
+		}
+		
 		return m, nil
 	case "enter":
 		maxFocus := 1
@@ -294,24 +363,29 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// If on submit button or any field, validate and submit the form
 		if m.authFocus == maxFocus+1 || m.authFocus <= maxFocus {
+			// Get values from textinputs
+			email := strings.TrimSpace(m.emailInput.Value())
+			password := strings.TrimSpace(m.passwordInput.Value())
+			name := strings.TrimSpace(m.nameInput.Value())
+			
 			// Basic validation
-			if strings.TrimSpace(m.email) == "" {
+			if email == "" {
 				m.error = "Email address is required"
 				return m, nil
 			}
-			if !strings.Contains(m.email, "@") || !strings.Contains(m.email, ".") {
+			if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
 				m.error = "Please enter a valid email address"
 				return m, nil
 			}
-			if strings.TrimSpace(m.password) == "" {
+			if password == "" {
 				m.error = "Password is required"
 				return m, nil
 			}
-			if len(m.password) < 8 {
+			if len(password) < 8 {
 				m.error = "Password must be at least 8 characters long"
 				return m, nil
 			}
-			if m.authMode == authModeRegister && strings.TrimSpace(m.name) == "" {
+			if m.authMode == authModeRegister && name == "" {
 				m.error = "Full name is required for registration"
 				return m, nil
 			}
@@ -326,35 +400,21 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "backspace":
-		switch m.authFocus {
-		case 0:
-			if len(m.email) > 0 {
-				m.email = m.email[:len(m.email)-1]
-			}
-		case 1:
-			if len(m.password) > 0 {
-				m.password = m.password[:len(m.password)-1]
-			}
-		case 2:
-			if len(m.name) > 0 {
-				m.name = m.name[:len(m.name)-1]
-			}
-		}
-		return m, nil
-	default:
-		if len(msg.String()) == 1 {
-			switch m.authFocus {
-			case 0:
-				m.email += msg.String()
-			case 1:
-				m.password += msg.String()
-			case 2:
-				m.name += msg.String()
-			}
-		}
-		return m, nil
 	}
+	
+	// Handle input for the focused field
+	switch m.authFocus {
+	case 0:
+		m.emailInput, cmd = m.emailInput.Update(msg)
+	case 1:
+		m.passwordInput, cmd = m.passwordInput.Update(msg)
+	case 2:
+		if m.authMode == authModeRegister {
+			m.nameInput, cmd = m.nameInput.Update(msg)
+		}
+	}
+	
+	return m, cmd
 }
 
 func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -552,19 +612,6 @@ func (m model) viewAuth() string {
 		Foreground(lipgloss.Color("247")).
 		MarginBottom(0)
 
-	activeInputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("39")).
-		Background(lipgloss.Color("237")).
-		Padding(0, 1).
-		Width(formWidth - cardPadding*2 - 2)
-
-	inactiveInputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Background(lipgloss.Color("236")).
-		Padding(0, 1).
-		Width(formWidth - cardPadding*2 - 2)
 
 	// Button styles
 	activeButtonStyle := lipgloss.NewStyle().
@@ -600,38 +647,16 @@ func (m model) viewAuth() string {
 
 	// Email field
 	emailLabel := labelStyle.Render("Email Address")
-	var emailInput string
-	if m.authFocus == 0 {
-		emailInput = activeInputStyle.Render(m.email + "█")
-	} else {
-		emailInput = inactiveInputStyle.Render(m.email)
-	}
-	formContent = append(formContent, emailLabel, emailInput, "")
+	formContent = append(formContent, emailLabel, m.emailInput.View(), "")
 
 	// Password field
 	passwordLabel := labelStyle.Render("Password")
-	passwordDisplay := strings.Repeat("•", len(m.password))
-	if m.authFocus == 1 {
-		passwordDisplay += "█"
-	}
-	var passwordInput string
-	if m.authFocus == 1 {
-		passwordInput = activeInputStyle.Render(passwordDisplay)
-	} else {
-		passwordInput = inactiveInputStyle.Render(passwordDisplay)
-	}
-	formContent = append(formContent, passwordLabel, passwordInput, "")
+	formContent = append(formContent, passwordLabel, m.passwordInput.View(), "")
 
 	// Name field for registration
 	if m.authMode == authModeRegister {
 		nameLabel := labelStyle.Render("Full Name")
-		var nameInput string
-		if m.authFocus == 2 {
-			nameInput = activeInputStyle.Render(m.name + "█")
-		} else {
-			nameInput = inactiveInputStyle.Render(m.name)
-		}
-		formContent = append(formContent, nameLabel, nameInput, "")
+		formContent = append(formContent, nameLabel, m.nameInput.View(), "")
 	}
 
 	// Submit button
@@ -835,8 +860,8 @@ func (m model) viewSettings() string {
 func (m model) loginUser() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]string{
-			"email":    m.email,
-			"password": m.password,
+			"email":    m.emailInput.Value(),
+			"password": m.passwordInput.Value(),
 		}
 
 		data, _ := json.Marshal(payload)
@@ -881,9 +906,9 @@ func (m model) loginUser() tea.Cmd {
 func (m model) registerUser() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]string{
-			"email":    m.email,
-			"password": m.password,
-			"name":     m.name,
+			"email":    m.emailInput.Value(),
+			"password": m.passwordInput.Value(),
+			"name":     m.nameInput.Value(),
 		}
 
 		data, _ := json.Marshal(payload)
