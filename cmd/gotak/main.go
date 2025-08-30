@@ -908,14 +908,56 @@ func (m model) createGame() tea.Cmd {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
 
-		client := &http.Client{}
+		// Don't follow redirects automatically
+		client := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode != 200 && resp.StatusCode != 307 {
+		// Handle redirect response
+		if resp.StatusCode == 307 {
+			// Extract game slug from Location header
+			location := resp.Header.Get("Location")
+			if location == "" {
+				return apiError{error: "Game creation redirect missing location"}
+			}
+			
+			// Extract slug from "/game/{slug}"
+			parts := strings.Split(location, "/")
+			if len(parts) < 3 || parts[1] != "game" {
+				return apiError{error: "Invalid game location format"}
+			}
+			gameSlug := parts[2]
+			
+			// Now fetch the game data with a GET request
+			getReq, _ := http.NewRequest("GET", m.serverURL+"/game/"+gameSlug, nil)
+			getReq.Header.Set("Authorization", "Bearer "+m.token)
+			
+			getResp, err := client.Do(getReq)
+			if err != nil {
+				return apiError{error: fmt.Sprintf("Failed to fetch created game: %v", err)}
+			}
+			defer getResp.Body.Close()
+			
+			if getResp.StatusCode != 200 {
+				return apiError{error: fmt.Sprintf("Failed to fetch game data (status %d)", getResp.StatusCode)}
+			}
+			
+			var game GameData
+			if err := json.NewDecoder(getResp.Body).Decode(&game); err != nil {
+				return apiError{error: "Game data parsing error"}
+			}
+			
+			return gameLoaded{game: &game}
+		}
+		
+		if resp.StatusCode != 200 {
 			// Read the actual error message from server
 			var errorResp struct {
 				Error string `json:"error"`
@@ -926,12 +968,7 @@ func (m model) createGame() tea.Cmd {
 			return apiError{error: fmt.Sprintf("Create game failed (status %d)", resp.StatusCode)}
 		}
 
-		var game GameData
-		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
-			return apiError{error: "Game creation response error"}
-		}
-
-		return gameLoaded{game: &game}
+		return apiError{error: "Unexpected response from server"}
 	}
 }
 
