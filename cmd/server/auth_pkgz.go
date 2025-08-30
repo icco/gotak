@@ -232,7 +232,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token
-	token, err := generateJWT(user.ID)
+	token, err := generateJWTForUser(&user)
 	if err != nil {
 		log.Errorw("failed to generate token", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "token generation error"}); err != nil {
@@ -452,9 +452,6 @@ func generateProviderID() string {
 }
 
 func generateJWT(userID int64) (string, error) {
-	auth := newAuthService()
-	tokenService := auth.TokenService()
-
 	// Get the database to fetch the user's information
 	db, err := getDB()
 	if err != nil {
@@ -466,19 +463,26 @@ func generateJWT(userID int64) (string, error) {
 		return "", fmt.Errorf("user not found: %v", err)
 	}
 
+	return generateJWTForUser(&user)
+}
+
+func generateJWTForUser(user *User) (string, error) {
+	auth := newAuthService()
+	tokenService := auth.TokenService()
+
 	// Create JWT claims with proper structure
 	now := time.Now()
 	claims := token.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "gotak-app",
-			Subject:   fmt.Sprintf("%d", userID),
+			Subject:   fmt.Sprintf("%d", user.ID),
 			Audience:  []string{"gotak"},
 			ExpiresAt: jwt.NewNumericDate(now.Add(24 * time.Hour)),
 			NotBefore: jwt.NewNumericDate(now),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 		User: &token.User{
-			ID:    fmt.Sprintf("%d", userID),
+			ID:    fmt.Sprintf("%d", user.ID),
 			Name:  user.Name,
 			Email: user.Email,
 		},
