@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	"math"
 
 	"github.com/icco/gotak"
 	taktician "github.com/nelhage/taktician/ai"
@@ -112,6 +113,14 @@ func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
 	}
 	if g.Board == nil {
 		return nil, fmt.Errorf("game board cannot be nil")
+	}
+
+	// Validate board size and safe int64 -> int conversion
+	if g.Board.Size < 3 || g.Board.Size > 9 {
+		return nil, fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
+	}
+	if g.Board.Size > int64(math.MaxInt) || g.Board.Size < int64(math.MinInt) {
+		return nil, fmt.Errorf("board size %d exceeds platform int size limits", g.Board.Size)
 	}
 
 	// Create a new position with the same size
