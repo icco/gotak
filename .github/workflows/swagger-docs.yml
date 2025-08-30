@@ -23,7 +23,7 @@ jobs:
       - name: Install swag
         run: go install github.com/swaggo/swag/cmd/swag@latest
       - name: Generate Swagger documentation
-        run: swag init -g cmd/server/main.go -o cmd/server/docs
+        run: swag init -g cmd/server/main.go -d cmd/server -o cmd/server/docs
       - name: Check if docs changed
         id: verify-changed-files
         run: |
