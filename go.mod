@@ -10,6 +10,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-chi/cors v1.2.2
 	github.com/go-pkgz/auth/v2 v2.0.0
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/icco/gutil v0.0.0-20250523221334-351f1696528b
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
@@ -57,7 +58,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.24.0 // indirect
 	github.com/go-pkgz/repeater v1.2.0 // indirect
 	github.com/go-pkgz/rest v1.20.4 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/icco/zapdriver v1.4.0 // indirect
