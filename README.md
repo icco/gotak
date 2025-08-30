@@ -15,67 +15,15 @@ GoTak is a production-ready server for the board game [Tak](https://en.wikipedia
 - **Web Interface**: Dynamic home page with endpoint documentation
 - **Developer Tools**: Comprehensive testing, Swagger documentation, and CI/CD integration
 
-## Features
-
-### ✅ Implemented
-
-- **Complete Game Logic**
-  - Full Tak rules implementation (board sizes 4x4 to 9x9)
-  - Road detection using flood-fill algorithm
-  - Piece limits and carry restrictions
-  - Win condition detection (road wins, flat stone wins)
-  - First-turn rule enforcement (place opponent's stone)
-
-- **PTN (Portable Tak Notation) Support**
-  - Parse PTN files and notation strings
-  - Generate PTN from game state
-  - Support for drops: `a1`, `Ca1` (capstone), `Sa1` (standing stone)
-  - Support for moves: `3a3+3`, `4a4>121` (with drop counts)
-  - Game metadata and comments
-
-- **REST API**
-  - `GET /` - Dynamic home page with endpoint documentation
-  - `GET /game/{slug}` - Get current game state
-  - `GET /game/{slug}/{turn}` - Get game state at specific turn
-  - `GET /game/new` - Create new game (also supports POST)
-  - `POST /game/{slug}/join` - Join a waiting game as black player
-  - `POST /game/{slug}/move` - Submit move
-  - `GET /healthz` - Health check endpoint
-  - `GET /swagger/*` - Interactive API documentation
-
-- **Database Storage**
-  - PostgreSQL with automatic migrations
-  - Game persistence with slugs
-  - Move history tracking
-  - Game metadata storage
-
-- **Web Interface**
-  - Styled home page with endpoint summaries
-  - Swagger UI integration
-  - Responsive design with proper CSS styling
-
-- **Developer Experience**
-  - Comprehensive test coverage (69.3%)
-  - Real PTN game files for testing
-  - Automated CI/CD with GitHub Actions
-  - Security analysis with CodeQL
-  - Input sanitization and security headers
-
 ### Applications
 
 The project includes three main applications:
 
-1. **Web Server** (`./server`) - Production HTTP API server
+1. **Web Server** (`./cmd/server`) - Production HTTP API server
 2. **CLI Tool** (`./cmd/gotak`) - Command-line game demonstration
 3. **PTN Parser** (`./cmd/parse-ptn`) - Parse and validate PTN files
 
 ## Quick Start
-
-### Prerequisites
-
-- Go 1.23+
-- PostgreSQL (for the server)
-- Optional: Docker for containerized deployment
 
 ### Running the Server
 
@@ -166,4 +114,5 @@ See [CLAUDE.md](./CLAUDE.md) for detailed development commands and architecture 
 - [PlayTak.org](http://playtak.org) - Online Tak platform
 - [Taktician](https://github.com/nelhage/taktician) - Tak AI implementation
 - [Tak Subreddit Wiki](https://www.reddit.com/r/Tak/wiki/) - Rules and notation references
+- [Official Rules of Tak](https://ustak.org/play-beautiful-game-tak/)
 
