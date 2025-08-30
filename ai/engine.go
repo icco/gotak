@@ -67,6 +67,10 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 	if g.Board.Size < 3 || g.Board.Size > 9 {
 		return "", fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
 	}
+
+	// Safe conversion of int64 to int (already validated to be in range 3-9)
+	boardSize := int(g.Board.Size)
+
 	// Create appropriate AI based on configuration
 	var ai taktician.TakPlayer
 	switch cfg.Level {
@@ -74,17 +78,17 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 		ai = taktician.NewRandom(42)
 	case Intermediate:
 		ai = taktician.NewMinimax(taktician.MinimaxConfig{
-			Size:  int(g.Board.Size),
+			Size:  boardSize,
 			Depth: 3,
 		})
 	case Advanced:
 		ai = taktician.NewMinimax(taktician.MinimaxConfig{
-			Size:  int(g.Board.Size),
+			Size:  boardSize,
 			Depth: 5,
 		})
 	case Expert:
 		ai = mcts.NewMonteCarlo(mcts.MCTSConfig{
-			Size:  int(g.Board.Size),
+			Size:  boardSize,
 			Limit: cfg.TimeLimit,
 			C:     1.4, // Exploration parameter
 		})
@@ -94,7 +98,7 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 	move := ai.GetMove(ctx, position)
 
 	// Convert tak.Move to PTN string
-	ptnMove, err := convertMoveToString(move, int(g.Board.Size))
+	ptnMove, err := convertMoveToString(move, boardSize)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert move: %w", err)
 	}
@@ -123,9 +127,12 @@ func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
 		return nil, fmt.Errorf("board size %d exceeds platform int size limits", g.Board.Size)
 	}
 
+	// Safe conversion of int64 to int (already validated to be within range)
+	boardSize := int(g.Board.Size)
+
 	// Create a new position with the same size
 	config := tak.Config{
-		Size: int(g.Board.Size),
+		Size: boardSize,
 	}
 	position := tak.New(config)
 
@@ -146,7 +153,7 @@ func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
 			}
 
 			// Convert PTN move string to tak.Move
-			takMove, err := convertStringToMove(move.Text, int(g.Board.Size))
+			takMove, err := convertStringToMove(move.Text, boardSize)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert move %s: %w", move.Text, err)
 			}
