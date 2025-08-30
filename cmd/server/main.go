@@ -13,15 +13,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/icco/gotak"
+	"github.com/icco/gotak/cmd/server/docs"
 	"github.com/icco/gutil/logging"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/swaggo/http-swagger"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.uber.org/zap"
-
-	"github.com/icco/gotak"
-	"github.com/icco/gotak/cmd/server/docs"
 )
 
 var (
@@ -38,7 +37,7 @@ var (
 		IndentXML:                 true,
 		Layout:                    "layout",
 		RequirePartials:           true,
-		Funcs:                     []template.FuncMap{template.FuncMap{}},
+		Funcs:                     []template.FuncMap{},
 	})
 
 	log       = logging.Must(logging.NewLogger(gotak.Service))
