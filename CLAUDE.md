@@ -33,10 +33,10 @@ go build -o gotak ./cmd/gotak
 go run ./cmd/parse-ptn
 
 # Start the web server
-go run ./server
+go run ./cmd/server
 
 # Generate Swagger documentation (after making API changes)
-swag init -g server/main.go -o server/docs
+swag init -g cmd/server/main.go -o cmd/server/docs
 
 # Install swag tool globally (if not already installed)
 go install github.com/swaggo/swag/cmd/swag@latest

@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/icco/gotak"
-	_ "github.com/icco/gotak/server/docs"
+	_ "github.com/icco/gotak/cmd/server/docs"
 )
 
 var (
@@ -164,7 +164,7 @@ func main() {
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	// Read swagger.json file
-	swaggerData, err := os.ReadFile("server/docs/swagger.json")
+	swaggerData, err := os.ReadFile("cmd/server/docs/swagger.json")
 	if err != nil {
 		log.Errorw("failed to read swagger.json", zap.Error(err))
 		// Fallback to static content

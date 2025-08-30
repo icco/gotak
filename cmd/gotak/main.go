@@ -45,7 +45,7 @@ func main() {
 
 	// Start server in background
 	fmt.Println("🚀 Starting local server...")
-	serverCmd := exec.Command("go", "run", "./server")
+	serverCmd := exec.Command("go", "run", "./cmd/server")
 	err := serverCmd.Start()
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)

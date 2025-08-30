@@ -12,6 +12,6 @@ RUN apk add --no-cache git
 
 COPY . .
 
-RUN go build -o /go/bin/server ./server
+RUN go build -o /go/bin/server ./cmd/server
 
 CMD ["/go/bin/server"]
