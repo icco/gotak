@@ -48,10 +48,6 @@ var (
 			Padding(2).
 			Align(lipgloss.Center)
 
-	cellStyle = lipgloss.NewStyle().
-			Width(4).
-			Height(2).
-			Align(lipgloss.Center)
 
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("196")).
@@ -836,40 +832,194 @@ func (m model) renderLargeBoard() string {
 		size = 5
 	}
 
-	// Create a much larger board representation
+	// Reconstruct the board state from game moves
+	board := m.reconstructBoardState()
+
+	// Create a proper board representation
 	var rows []string
 
 	// Column headers
-	header := "    "
+	header := "     "
 	for i := 0; i < size; i++ {
-		header += fmt.Sprintf("  %c  ", 'a'+i)
+		header += fmt.Sprintf("   %c   ", 'a'+i)
 	}
 	rows = append(rows, header)
 
-	// Board rows (reverse order for proper display)
-	for i := size - 1; i >= 0; i-- {
-		row := fmt.Sprintf("%2d  ", i+1)
-		for j := 0; j < size; j++ {
-			// For now, show empty cells - we'll populate from server data
-			cell := cellStyle.
-				Background(lipgloss.Color("235")).
-				Foreground(lipgloss.Color("240")).
-				Render("·")
-			row += cell
+	// Top border
+	topBorder := "   ┌"
+	for i := 0; i < size; i++ {
+		topBorder += "──────"
+		if i < size-1 {
+			topBorder += "┬"
 		}
-		row += fmt.Sprintf("  %d", i+1)
+	}
+	topBorder += "┐"
+	rows = append(rows, topBorder)
+
+	// Board rows (reverse order for proper display - row 1 at bottom)
+	for i := size - 1; i >= 0; i-- {
+		// Row with content
+		row := fmt.Sprintf("%2d │", i+1)
+		for j := 0; j < size; j++ {
+			square := fmt.Sprintf("%c%d", 'a'+j, i+1)
+			cellContent := m.renderSquareContent(board, square)
+			
+			// Make cell content exactly 6 chars wide
+			cell := fmt.Sprintf("%-6s", cellContent)
+			if len(cell) > 6 {
+				cell = cell[:6]
+			}
+			
+			row += cell
+			if j < size-1 {
+				row += "│"
+			}
+		}
+		row += fmt.Sprintf("│ %d", i+1)
 		rows = append(rows, row)
+
+		// Add row separator (except for last row)
+		if i > 0 {
+			separator := "   ├"
+			for j := 0; j < size; j++ {
+				separator += "──────"
+				if j < size-1 {
+					separator += "┼"
+				}
+			}
+			separator += "┤"
+			rows = append(rows, separator)
+		}
 	}
 
-	// Bottom column headers
-	footer := "    "
+	// Bottom border
+	bottomBorder := "   └"
 	for i := 0; i < size; i++ {
-		footer += fmt.Sprintf("  %c  ", 'a'+i)
+		bottomBorder += "──────"
+		if i < size-1 {
+			bottomBorder += "┴"
+		}
+	}
+	bottomBorder += "┘"
+	rows = append(rows, bottomBorder)
+
+	// Bottom column headers
+	footer := "     "
+	for i := 0; i < size; i++ {
+		footer += fmt.Sprintf("   %c   ", 'a'+i)
 	}
 	rows = append(rows, footer)
 
 	boardContent := strings.Join(rows, "\n")
-	return boardStyle.Width(size*6 + 10).Render(boardContent)
+	return boardStyle.Width(size*7 + 10).Render(boardContent)
+}
+
+// reconstructBoardState recreates the board state by replaying all moves from the game data
+func (m model) reconstructBoardState() map[string][]*gotak.Stone {
+	if m.gameData == nil {
+		return make(map[string][]*gotak.Stone)
+	}
+
+	size := int64(m.gameData.Size)
+	if size == 0 {
+		size = 5
+	}
+
+	// Create a new board
+	board := &gotak.Board{Size: size}
+	board.Init()
+
+	// Replay all moves in order
+	for turnIndex, turn := range m.gameData.Turns {
+		for _, gameMove := range turn.Moves {
+			// Parse the move from PTN text
+			move, err := gotak.NewMove(gameMove.Text)
+			if err != nil {
+				continue // Skip invalid moves
+			}
+
+			// Apply the move to the board
+			// For the first turn, white places black's stone
+			player := gameMove.Player
+			if turnIndex == 0 && player == 1 {
+				player = 2 // First move: white places black stone
+			}
+
+			board.DoMove(move, player)
+		}
+	}
+
+	return board.Squares
+}
+
+// renderSquareContent displays the contents of a square with stacked pieces
+func (m model) renderSquareContent(board map[string][]*gotak.Stone, square string) string {
+	stones := board[square]
+	if len(stones) == 0 {
+		return "  ·   " // Empty square
+	}
+
+	var content strings.Builder
+	
+	if len(stones) == 1 {
+		// Single stone - show it centered
+		stone := stones[0]
+		symbol := m.getStoneSymbol(stone)
+		content.WriteString(fmt.Sprintf("  %s   ", symbol))
+	} else if len(stones) <= 3 {
+		// Small stack - show all stones
+		for i, stone := range stones {
+			if i > 0 {
+				content.WriteString("")
+			}
+			symbol := m.getStoneSymbol(stone)
+			content.WriteString(symbol)
+		}
+		// Pad to 6 characters
+		for content.Len() < 6 {
+			content.WriteString(" ")
+		}
+	} else {
+		// Large stack - show count and top stone
+		topStone := stones[len(stones)-1]
+		symbol := m.getStoneSymbol(topStone)
+		content.WriteString(fmt.Sprintf("%d%s", len(stones), symbol))
+		// Pad to 6 characters
+		for content.Len() < 6 {
+			content.WriteString(" ")
+		}
+	}
+
+	return content.String()
+}
+
+// getStoneSymbol returns a visual symbol for a stone
+func (m model) getStoneSymbol(stone *gotak.Stone) string {
+	var playerSymbol string
+	if stone.Player == gotak.PlayerWhite {
+		playerSymbol = "○" // White circle
+	} else {
+		playerSymbol = "●" // Black circle
+	}
+
+	switch stone.Type {
+	case gotak.StoneFlat:
+		return playerSymbol
+	case gotak.StoneStanding:
+		if stone.Player == gotak.PlayerWhite {
+			return "□" // White square for standing
+		} else {
+			return "■" // Black square for standing
+		}
+	case gotak.StoneCap:
+		if stone.Player == gotak.PlayerWhite {
+			return "◇" // White diamond for capstone
+		} else {
+			return "◆" // Black diamond for capstone
+		}
+	default:
+		return playerSymbol
+	}
 }
 
 func (m model) getTotalMoves() int {
