@@ -206,7 +206,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "esc":
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
 		return m, tea.Quit
 	case "up", "k":
 		if m.authModeCursor > 0 {
@@ -235,7 +237,9 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "esc":
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
 		// Go back to auth mode selection
 		m.screen = screenAuthMode
 		m.error = ""
@@ -639,7 +643,7 @@ func (m model) viewAuth() string {
 		Foreground(lipgloss.Color("240")).
 		Align(lipgloss.Center).
 		MarginTop(1).
-		Render("Tab/↑/↓: Navigate • Enter: Submit • Esc: Back")
+		Render("Tab/↑/↓: Navigate • Enter: Submit • Esc: Back • Ctrl+C: Quit")
 	formContent = append(formContent, "", instructions)
 	
 	// Create the form card
