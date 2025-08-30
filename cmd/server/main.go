@@ -13,15 +13,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/icco/gotak"
+	"github.com/icco/gotak/cmd/server/docs"
 	"github.com/icco/gutil/logging"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/swaggo/http-swagger"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.uber.org/zap"
-
-	"github.com/icco/gotak"
-	_ "github.com/icco/gotak/server/docs"
 )
 
 var (
@@ -38,24 +37,12 @@ var (
 		IndentXML:                 true,
 		Layout:                    "layout",
 		RequirePartials:           true,
-		Funcs:                     []template.FuncMap{template.FuncMap{}},
+		Funcs:                     []template.FuncMap{},
 	})
 
 	log       = logging.Must(logging.NewLogger(gotak.Service))
 	ugcPolicy = bluemonday.StrictPolicy()
 )
-
-// SwaggerSpec represents the structure of our swagger.json file
-type SwaggerSpec struct {
-	Paths map[string]map[string]PathInfo `json:"paths"`
-}
-
-// PathInfo represents endpoint information from swagger
-type PathInfo struct {
-	Summary     string   `json:"summary"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-}
 
 // @title GoTak API
 // @version 1.0
@@ -163,17 +150,9 @@ func main() {
 // @Success 200 {string} string "HTML page with API information"
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	// Read swagger.json file
-	swaggerData, err := os.ReadFile("server/docs/swagger.json")
+	// Use embedded swagger.json data from docs package
+	spec, err := docs.GetSwaggerSpec()
 	if err != nil {
-		log.Errorw("failed to read swagger.json", zap.Error(err))
-		// Fallback to static content
-		writeStaticHomePage(w)
-		return
-	}
-
-	var spec SwaggerSpec
-	if err := json.Unmarshal(swaggerData, &spec); err != nil {
 		log.Errorw("failed to parse swagger.json", zap.Error(err))
 		// Fallback to static content
 		writeStaticHomePage(w)

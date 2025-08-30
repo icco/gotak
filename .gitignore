@@ -13,7 +13,6 @@ coverage.out
 coverage.html
 
 # Project binaries
-gotak
 gotak-*
 server/server
 server/server-*

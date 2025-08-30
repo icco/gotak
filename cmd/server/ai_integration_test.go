@@ -24,7 +24,7 @@ import (
 // AI Integration E2E Tests
 //
 // These are proper E2E tests that:
-// - Make actual HTTP API calls (not direct function calls) 
+// - Make actual HTTP API calls (not direct function calls)
 // - Test database integration through the API
 // - Would catch the original "AI uses placeholder game" bug immediately
 //
@@ -133,7 +133,7 @@ func TestAIDifferentBoardSizes(t *testing.T) {
 			// Each board size test gets its own server to avoid slug collisions
 			subServer := setupTestServer(t)
 			defer subServer.Close()
-			
+
 			gameSlug := createTestGameWithSize(t, subServer.URL, user, size)
 
 			// Make initial move
@@ -205,7 +205,7 @@ func TestAIErrorHandling(t *testing.T) {
 
 		req := buildAIRequest(server.URL+"/game/"+gameSlug+"/ai-move", "intermediate")
 		// Auth bypassed at router level in test setup
-		
+
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -225,16 +225,16 @@ func TestAIErrorHandling(t *testing.T) {
 func setupTestServer(t *testing.T) *httptest.Server {
 	// Set up test database - use the same setup as other tests
 	testDB := setupTestDB(t)
-	
+
 	// Create a test user that all requests will use
 	testUser := createTestUser(t, testDB)
-	
+
 	// Store database and user for this test server instance
-	
+
 	// Create a router similar to the main server but without auth middleware
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
-	
+
 	// Create test-specific handlers that inject test user into context (bypass auth)
 	r.Post("/game/new", func(w http.ResponseWriter, r *http.Request) {
 		// Inject test user into context to bypass auth
@@ -256,7 +256,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		// Get game handler doesn't require auth in main server
 		testGetGameHandlerWithDB(w, r, testDB)
 	})
-	
+
 	return httptest.NewServer(r)
 }
 
@@ -271,40 +271,40 @@ func createTestGameWithSize(t *testing.T, serverURL string, user *User, size int
 	payload := map[string]interface{}{
 		"size": size,
 	}
-	
+
 	data, _ := json.Marshal(payload)
-	
+
 	req, _ := http.NewRequest("POST", serverURL+"/game/new", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
 	// Auth bypassed at router level - no need for authorization header
-	
+
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse // Don't follow redirects
 		},
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusTemporaryRedirect {
 		t.Fatalf("Expected redirect from game creation, got: %d", resp.StatusCode)
 	}
-	
+
 	location := resp.Header.Get("Location")
 	if location == "" {
 		t.Fatalf("No location header in redirect")
 	}
-	
+
 	// Extract slug from "/game/{slug}"
 	parts := strings.Split(location, "/")
 	if len(parts) < 3 {
 		t.Fatalf("Invalid redirect location: %s", location)
 	}
-	
+
 	return parts[len(parts)-1]
 }
 
@@ -313,20 +313,20 @@ func makeTestMove(t *testing.T, serverURL string, user *User, gameSlug, move str
 		"move":   move,
 		"player": 1, // Assume white player for simplicity
 	}
-	
+
 	data, _ := json.Marshal(payload)
-	
+
 	req, _ := http.NewRequest("POST", serverURL+"/game/"+gameSlug+"/move", bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
 	// Auth bypassed at router level
-	
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Failed to make move %s: %v", move, err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Move %s failed with status: %d", move, resp.StatusCode)
 	}
@@ -335,29 +335,29 @@ func makeTestMove(t *testing.T, serverURL string, user *User, gameSlug, move str
 func requestAIMove(t *testing.T, serverURL string, user *User, gameSlug, level string) *AIMoveResponse {
 	resp := makeAIRequest(t, serverURL, user, gameSlug, level)
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("AI request failed with status: %d", resp.StatusCode)
 	}
-	
+
 	var aiMove AIMoveResponse
 	if err := json.NewDecoder(resp.Body).Decode(&aiMove); err != nil {
 		t.Fatalf("Failed to decode AI response: %v", err)
 	}
-	
+
 	return &aiMove
 }
 
 func makeAIRequest(t *testing.T, serverURL string, user *User, gameSlug, level string) *http.Response {
 	req := buildAIRequest(serverURL+"/game/"+gameSlug+"/ai-move", level)
 	// Auth bypassed at router level
-	
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("AI request failed: %v", err)
 	}
-	
+
 	return resp
 }
 
@@ -367,11 +367,11 @@ func buildAIRequest(url, level string) *http.Request {
 		"style":      "balanced",
 		"time_limit": int64(5 * time.Second), // time.Duration representing 5 seconds, converted to nanoseconds
 	}
-	
+
 	data, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	return req
 }
 
