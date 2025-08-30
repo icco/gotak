@@ -1,346 +1,326 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	serverURL = "http://localhost:8080"
+var (
+	localFlag = flag.Bool("local", false, "Use local server instead of https://gotak.app")
+	
+	// Styles
+	titleStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("205")).
+		MarginLeft(2)
+		
+	menuItemStyle = lipgloss.NewStyle().
+		MarginLeft(2)
+		
+	selectedMenuItemStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("170")).
+		Bold(true).
+		MarginLeft(2)
+		
+	boardStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(1).
+		MarginLeft(2)
+		
+	cellStyle = lipgloss.NewStyle().
+		Width(3).
+		Height(1).
+		Align(lipgloss.Center)
+		
+	errorStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("196")).
+		Bold(true).
+		MarginLeft(2)
 )
-
-type GameResponse struct {
-	ID     int64  `json:"id"`
-	Slug   string `json:"slug"`
-	Status string `json:"status"`
-}
-
-type MoveRequest struct {
-	Move string `json:"move"`
-}
-
-type AIMoveRequest struct {
-	Level     string `json:"level"`
-	Style     string `json:"style"`
-	TimeLimit string `json:"time_limit"`
-}
-
-type AIMoveResponse struct {
-	Move string `json:"move"`
-	Hint string `json:"hint,omitempty"`
-}
 
 func main() {
-	fmt.Println("🎯 Welcome to GoTak!")
-	fmt.Println("A Tak game implementation with AI opponents")
-	fmt.Println()
-
-	// Start server in background
-	fmt.Println("🚀 Starting local server...")
-	serverCmd := exec.Command("go", "run", "./cmd/server")
-	err := serverCmd.Start()
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
-	defer func() {
-		if serverCmd.Process != nil {
-			// Attempt graceful shutdown
-			err := serverCmd.Process.Signal(os.Interrupt)
-			if err != nil {
-				// If process already exited, ignore error
-				if !strings.Contains(err.Error(), "process already finished") {
-					log.Printf("Failed to send interrupt to server process: %v", err)
-				}
-			} else {
-				// Wait for process to exit after interrupt
-				_ = serverCmd.Wait()
-			}
-		}
-	}()
-
-	// Wait for server to start
-	fmt.Println("⏳ Waiting for server to start...")
-	time.Sleep(3 * time.Second)
-
-	// Test server connection
-	if !isServerReady() {
-		log.Fatalf("Server failed to start properly")
-	}
-
-	// Get game parameters
-	size := getBoardSize()
-	difficulty := getDifficulty()
-
-	// Create game via API
-	gameSlug, err := createGame(size)
-	if err != nil {
-		log.Fatalf("Failed to create game: %v", err)
-	}
-
-	fmt.Printf("🎮 Starting %dx%d game against %s AI (Game: %s)\n", size, size, getDifficultyName(difficulty), gameSlug)
-	fmt.Println("💡 Type 'help' for commands, 'quit' to exit")
-	fmt.Println()
-
-	scanner := bufio.NewScanner(os.Stdin)
-	gameOver := false
-
-	for !gameOver {
-		// Show current game state
-		showGameState(gameSlug)
-
-		// Human turn
-		fmt.Print("Your move: ")
-		if !scanner.Scan() {
-			break
-		}
-
-		input := strings.TrimSpace(scanner.Text())
-
-		switch input {
-		case "quit", "exit":
-			fmt.Println("Thanks for playing!")
-			return
-		case "help", "h":
-			showHelp()
-			continue
-		case "status":
-			showGameState(gameSlug)
-			continue
-		case "":
-			continue
-		}
-
-		// Make human move via API
-		err := makeMove(gameSlug, input)
-		if err != nil {
-			fmt.Printf("❌ Invalid move: %v\nTry again.\n", err)
-			continue
-		}
-
-		// AI turn
-		fmt.Print("🤖 AI thinking...")
-
-		aiMove, err := getAIMove(gameSlug, difficulty)
-		if err != nil {
-			fmt.Printf("\n❌ AI error: %v\n", err)
-			// Game might be over
-			showGameState(gameSlug)
-			break
-		}
-
-		fmt.Printf(" AI plays: %s\n", aiMove)
-
-		err = makeMove(gameSlug, aiMove)
-		if err != nil {
-			fmt.Printf("❌ Failed to make AI move: %v\n", err)
-			break
-		}
-	}
-
-	fmt.Println("\nThanks for playing GoTak! 🎯")
-}
-
-// API Helper Functions
-
-func isServerReady() bool {
-	for i := 0; i < 10; i++ {
-		resp, err := http.Get(serverURL + "/healthz")
-		if err == nil && resp.StatusCode == 200 {
-			resp.Body.Close()
-			return true
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	return false
-}
-
-func createGame(size int) (string, error) {
-	payload := map[string]interface{}{
-		"size": size,
-	}
+	flag.Parse()
 	
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
+	var serverURL string
+	if *localFlag {
+		serverURL = "http://localhost:8080"
+	} else {
+		serverURL = "https://gotak.app"
 	}
 
-	resp, err := http.Post(serverURL+"/game/new", "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
+	p := tea.NewProgram(
+		initialModel(serverURL),
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusTemporaryRedirect {
-		return "", fmt.Errorf("server error: %d", resp.StatusCode)
+	if _, err := p.Run(); err != nil {
+		log.Fatal(err)
 	}
-
-	var game GameResponse
-	err = json.NewDecoder(resp.Body).Decode(&game)
-	if err != nil {
-		return "", err
-	}
-
-	return game.Slug, nil
 }
 
-func makeMove(gameSlug, move string) error {
-	payload := MoveRequest{Move: move}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
+type screen int
 
-	resp, err := http.Post(serverURL+"/game/"+gameSlug+"/move", "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+const (
+	screenMenu screen = iota
+	screenGame
+	screenSettings
+)
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("move rejected by server: %d", resp.StatusCode)
-	}
+type model struct {
+	serverURL string
+	screen    screen
+	
+	// Menu state
+	menuCursor int
+	
+	// Game state
+	gameSlug   string
+	boardSize  int
+	difficulty string
+	game       *GameState
+	
+	// UI state
+	width  int
+	height int
+	error  string
+}
 
+type GameState struct {
+	Board   [][]string
+	Status  string
+	Turn    int
+	Player  int
+	Winner  int
+}
+
+func initialModel(serverURL string) model {
+	return model{
+		serverURL:  serverURL,
+		screen:     screenMenu,
+		menuCursor: 0,
+		boardSize:  5,
+		difficulty: "intermediate",
+	}
+}
+
+func (m model) Init() tea.Cmd {
 	return nil
 }
 
-func getAIMove(gameSlug string, difficulty DifficultyLevel) (string, error) {
-	payload := AIMoveRequest{
-		Level:     getDifficultyName(difficulty),
-		Style:     "balanced", 
-		TimeLimit: "10s",
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+		
+	case gameStarted:
+		m.game = msg.game
+		return m, nil
+		
+	case tea.KeyMsg:
+		switch m.screen {
+		case screenMenu:
+			return m.updateMenu(msg)
+		case screenGame:
+			return m.updateGame(msg)
+		case screenSettings:
+			return m.updateSettings(msg)
+		}
 	}
 	
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := http.Post(serverURL+"/game/"+gameSlug+"/ai-move", "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("AI request failed: %d", resp.StatusCode)
-	}
-
-	var aiResp AIMoveResponse
-	err = json.NewDecoder(resp.Body).Decode(&aiResp)
-	if err != nil {
-		return "", err
-	}
-
-	return aiResp.Move, nil
+	return m, nil
 }
 
-func showGameState(gameSlug string) {
-	resp, err := http.Get(serverURL + "/game/" + gameSlug)
-	if err != nil {
-		fmt.Printf("❌ Failed to get game state: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("❌ Server error getting game: %d\n", resp.StatusCode)
-		return
-	}
-
-	// For now, just show that we got the state
-	fmt.Println("📋 Game state updated")
-}
-
-// UI Helper Functions
-
-type DifficultyLevel int
-
-const (
-	Beginner DifficultyLevel = iota
-	Intermediate
-	Advanced
-	Expert
-)
-
-func getBoardSize() int {
-	fmt.Println("📏 Board Size Selection:")
-	fmt.Println("1. 4x4 (Quick)")
-	fmt.Println("2. 5x5 (Standard)")
-	fmt.Println("3. 6x6 (Extended)")
-	fmt.Print("Select [1-3, default: 2]: ")
-
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		input := strings.TrimSpace(scanner.Text())
-		switch input {
-		case "1":
-			return 4
-		case "3":
-			return 6
-		default:
-			return 5
+func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+		
+	case "up", "k":
+		if m.menuCursor > 0 {
+			m.menuCursor--
+		}
+		
+	case "down", "j":
+		if m.menuCursor < 2 { // 3 menu items
+			m.menuCursor++
+		}
+		
+	case "enter", " ":
+		switch m.menuCursor {
+		case 0: // New Game
+			m.screen = screenGame
+			return m, m.startNewGame()
+		case 1: // Settings
+			m.screen = screenSettings
+		case 2: // Quit
+			return m, tea.Quit
 		}
 	}
-	return 5
+	
+	return m, nil
 }
 
-func getDifficulty() DifficultyLevel {
-	fmt.Println("\n🤖 AI Difficulty Selection:")
-	fmt.Println("1. Beginner (Random moves)")
-	fmt.Println("2. Intermediate (Minimax depth 3)")
-	fmt.Println("3. Advanced (Minimax depth 5)")
-	fmt.Println("4. Expert (Monte Carlo Tree Search)")
-	fmt.Print("Select [1-4, default: 2]: ")
-
-	scanner := bufio.NewScanner(os.Stdin)
-	if scanner.Scan() {
-		input := strings.TrimSpace(scanner.Text())
-		switch input {
-		case "1":
-			return Beginner
-		case "3":
-			return Advanced
-		case "4":
-			return Expert
-		default:
-			return Intermediate
-		}
+func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q":
+		m.screen = screenMenu
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
 	}
-	return Intermediate
+	
+	return m, nil
 }
 
-func getDifficultyName(d DifficultyLevel) string {
-	switch d {
-	case Beginner:
-		return "beginner"
-	case Intermediate:
-		return "intermediate"
-	case Advanced:
-		return "advanced"
-	case Expert:
-		return "expert"
+func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		m.screen = screenMenu
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	
+	return m, nil
+}
+
+func (m model) View() string {
+	switch m.screen {
+	case screenMenu:
+		return m.viewMenu()
+	case screenGame:
+		return m.viewGame()
+	case screenSettings:
+		return m.viewSettings()
 	default:
-		return "intermediate"
+		return "Unknown screen"
 	}
 }
 
-func showHelp() {
-	fmt.Println("\n📖 GoTak Commands:")
-	fmt.Println("  help    - Show this help")
-	fmt.Println("  status  - Show current game state")
-	fmt.Println("  quit    - Exit the game")
-	fmt.Println("\n📝 Move Format:")
-	fmt.Println("  a1      - Place flat stone at a1")
-	fmt.Println("  Sa1     - Place standing stone at a1")
-	fmt.Println("  Ca1     - Place capstone at a1")
-	fmt.Println("  3a1>21  - Move 3 stones from a1 right, dropping 2,1")
-	fmt.Println()
+func (m model) viewMenu() string {
+	s := "\n"
+	s += "🎯 GoTak - A Tak Game Implementation\n\n"
+	
+	choices := []string{
+		"🎮 New Game",
+		"⚙️  Settings", 
+		"🚪 Quit",
+	}
+	
+	for i, choice := range choices {
+		cursor := " "
+		if m.menuCursor == i {
+			cursor = ">"
+		}
+		s += fmt.Sprintf(" %s %s\n", cursor, choice)
+	}
+	
+	s += fmt.Sprintf("\nServer: %s\n", m.serverURL)
+	s += "\nPress ↑/↓ to navigate, Enter to select, q to quit"
+	
+	if m.error != "" {
+		s += fmt.Sprintf("\n\n❌ Error: %s", m.error)
+	}
+	
+	return s
+}
+
+func (m model) viewGame() string {
+	s := "\n🎯 GoTak Game\n\n"
+	
+	if m.game == nil {
+		s += "Starting game...\n"
+		s += "Press q to go back to menu"
+		return s
+	}
+	
+	// Render board
+	s += m.renderBoard()
+	s += "\n\nPress q to go back to menu"
+	
+	return s
+}
+
+func (m model) viewSettings() string {
+	s := "\n⚙️ Settings\n\n"
+	s += fmt.Sprintf("Board Size: %dx%d\n", m.boardSize, m.boardSize)
+	s += fmt.Sprintf("AI Difficulty: %s\n", m.difficulty)
+	s += fmt.Sprintf("Server: %s\n", m.serverURL)
+	s += "\nPress q to go back to menu"
+	
+	return s
+}
+
+func (m model) renderBoard() string {
+	if m.game == nil || m.game.Board == nil {
+		return "No game board"
+	}
+	
+	s := ""
+	size := len(m.game.Board)
+	
+	// Column headers
+	s += "   "
+	for i := 0; i < size; i++ {
+		s += fmt.Sprintf(" %c ", 'a'+i)
+	}
+	s += "\n"
+	
+	// Rows with row numbers
+	for i := size - 1; i >= 0; i-- {
+		s += fmt.Sprintf("%2d ", i+1)
+		for j := 0; j < size; j++ {
+			cell := m.game.Board[i][j]
+			if cell == "" {
+				s += " · "
+			} else {
+				s += fmt.Sprintf(" %s ", cell)
+			}
+		}
+		s += fmt.Sprintf(" %d\n", i+1)
+	}
+	
+	// Bottom column headers
+	s += "   "
+	for i := 0; i < size; i++ {
+		s += fmt.Sprintf(" %c ", 'a'+i)
+	}
+	s += "\n"
+	
+	return s
+}
+
+// Commands
+func (m model) startNewGame() tea.Cmd {
+	return func() tea.Msg {
+		// For now, create a simple game state
+		// Later we'll make actual API calls
+		board := make([][]string, m.boardSize)
+		for i := range board {
+			board[i] = make([]string, m.boardSize)
+		}
+		
+		return gameStarted{
+			game: &GameState{
+				Board:  board,
+				Status: "active",
+				Turn:   1,
+				Player: 1,
+				Winner: 0,
+			},
+		}
+	}
+}
+
+// Messages
+type gameStarted struct {
+	game *GameState
 }
