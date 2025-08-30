@@ -42,7 +42,7 @@ func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 	if size < 4 {
 		size = 6
 	}
-	
+
 	if userID == 0 {
 		return "", fmt.Errorf("user authentication required")
 	}
@@ -54,7 +54,7 @@ func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 
 	game := Game{
 		Slug:          slug,
-		WhitePlayerID: userID, // Creator becomes white player
+		WhitePlayerID: userID,    // Creator becomes white player
 		Status:        "waiting", // Waiting for second player
 	}
 
@@ -255,17 +255,17 @@ func verifyGameParticipation(db *gorm.DB, slug string, userID int64) error {
 	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
 		return err
 	}
-	
+
 	// Check if user is white player
 	if game.WhitePlayerID == userID {
 		return nil
 	}
-	
+
 	// Check if user is black player
 	if game.BlackPlayerID != nil && *game.BlackPlayerID == userID {
 		return nil
 	}
-	
+
 	return fmt.Errorf("unauthorized: user is not a participant in this game")
 }
 
@@ -275,39 +275,39 @@ func joinGame(db *gorm.DB, slug string, userID int64) error {
 	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
 		return err
 	}
-	
+
 	// Can't join if already a participant
 	if game.WhitePlayerID == userID {
 		return fmt.Errorf("user is already the white player in this game")
 	}
-	
+
 	if game.BlackPlayerID != nil {
 		if *game.BlackPlayerID == userID {
 			return fmt.Errorf("user is already the black player in this game")
 		}
 		return fmt.Errorf("game is full - both players already assigned")
 	}
-	
+
 	// Can only join games that are waiting
 	if game.Status != "waiting" {
 		return fmt.Errorf("can only join games with 'waiting' status")
 	}
-	
+
 	// Update game with black player and change status to active
 	updates := Game{
 		BlackPlayerID: &userID,
 		Status:        "active",
 	}
-	
+
 	result := db.Model(&game).Where("slug = ?", slug).Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("failed to join game - no rows affected")
 	}
-	
+
 	return nil
 }
 
@@ -317,14 +317,14 @@ func getPlayerNumber(db *gorm.DB, slug string, userID int64) (int, error) {
 	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
 		return 0, err
 	}
-	
+
 	if game.WhitePlayerID == userID {
 		return 1, nil // PlayerWhite
 	}
-	
+
 	if game.BlackPlayerID != nil && *game.BlackPlayerID == userID {
 		return 2, nil // PlayerBlack
 	}
-	
+
 	return 0, fmt.Errorf("user is not a participant in this game")
 }

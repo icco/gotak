@@ -85,12 +85,12 @@ func TestCreateGame(t *testing.T) {
 	} else if game.WhitePlayerID != user2.ID {
 		t.Errorf("Expected white player to be user %d, got %d", user2.ID, game.WhitePlayerID)
 	}
-	
+
 	// Test that black player is not set initially (game waiting for second player)
 	if game.BlackPlayerID != nil {
 		t.Error("Expected black player to be nil for new game")
 	}
-	
+
 	// Test that status is waiting
 	if game.Status != "waiting" {
 		t.Errorf("Expected status to be 'waiting', got '%s'", game.Status)
@@ -431,7 +431,7 @@ func TestAutoMigrate(t *testing.T) {
 
 	// Verify tables exist by trying to query them
 	var count int64
-	
+
 	err = db.Model(&Game{}).Count(&count).Error
 	if err != nil {
 		t.Errorf("Games table not created properly: %v", err)

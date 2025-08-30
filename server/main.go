@@ -138,6 +138,7 @@ func main() {
 			r.Post("/game/new", newGameHandler)
 			r.Post("/game/{slug}/join", joinGameHandler)
 			r.Post("/game/{slug}/move", newMoveHandler)
+			r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
 		})
 	})
 
@@ -337,7 +338,7 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
-	
+
 	// Get current user (must be authenticated to reach this handler)
 	user := getMustUserFromContext(r)
 
@@ -345,7 +346,7 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 	err = joinGame(db, slug, user.ID)
 	if err != nil {
 		log.Errorw("could not join game", "slug", slug, "user_id", user.ID, zap.Error(err))
-		
+
 		// Determine appropriate status code based on error
 		statusCode := 500
 		if strings.Contains(err.Error(), "already") || strings.Contains(err.Error(), "full") {
@@ -353,7 +354,7 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 		} else if strings.Contains(err.Error(), "can only join") {
 			statusCode = 400
 		}
-		
+
 		if err := Renderer.JSON(w, statusCode, map[string]string{"error": err.Error()}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
@@ -361,11 +362,11 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infow("user joined game", "slug", slug, "user_id", user.ID)
-	
+
 	if err := Renderer.JSON(w, 200, map[string]string{
 		"message": "successfully joined game",
-		"slug": slug,
-		"player": "black",
+		"slug":    slug,
+		"player":  "black",
 	}); err != nil {
 		log.Errorw("failed to render JSON", zap.Error(err))
 	}
@@ -403,10 +404,10 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get current user (must be authenticated to reach this handler)
 	user := getMustUserFromContext(r)
-	
+
 	// Get DB Entry
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
-	
+
 	// Verify user is a participant in the game
 	if err := verifyGameParticipation(db, slug, user.ID); err != nil {
 		log.Errorw("game participation verification failed", "slug", slug, "user_id", user.ID, zap.Error(err))
@@ -415,7 +416,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	
+
 	game, err := getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not get game", "slug", slug, zap.Error(err))

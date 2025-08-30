@@ -83,13 +83,13 @@ func Translate(square, direction string) string {
 
 	switch direction {
 	case "n", MoveUp:
-		vertical = string([]byte(vertical)[0] + 1)
+		vertical = string(rune(vertical[0]) + 1)
 	case "e", MoveRight:
-		horizontal = string([]byte(horizontal)[0] + 1)
+		horizontal = string(rune(horizontal[0]) + 1)
 	case "s", MoveDown:
-		vertical = string([]byte(vertical)[0] - 1)
+		vertical = string(rune(vertical[0]) - 1)
 	case "w", MoveLeft:
-		horizontal = string([]byte(horizontal)[0] - 1)
+		horizontal = string(rune(horizontal[0]) - 1)
 	}
 
 	return strings.Join([]string{horizontal, vertical}, "")
@@ -104,7 +104,7 @@ func (b *Board) IsEdge(l string) bool {
 		return true
 	}
 
-	if horizontal == string([]byte("a")[0]+byte(b.Size)-1) {
+	if horizontal == string(rune('a')+rune(b.Size)-1) {
 		return true
 	}
 

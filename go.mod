@@ -12,6 +12,7 @@ require (
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/nelhage/taktician v0.0.0-20240227154445-7af1aca31945
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
 	github.com/unrolled/render v1.7.0
