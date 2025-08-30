@@ -164,7 +164,7 @@ func createGame(size int) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+	if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 307 {
 		return "", fmt.Errorf("server error: %d", resp.StatusCode)
 	}
 
