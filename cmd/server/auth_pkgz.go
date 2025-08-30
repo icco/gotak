@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-pkgz/auth/v2/token"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // Define context key type to avoid collisions
@@ -26,6 +28,39 @@ const (
 	userContextKey     contextKey = "user"
 	emptyJSONObject                = "{}" // Default empty JSON for user preferences
 )
+
+// getDBErrorMessage returns a user-friendly error message based on the database error
+func getDBErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	// Handle GORM-specific errors first
+	if errors.Is(err, gorm.ErrDuplicatedKey) || errors.Is(err, gorm.ErrInvalidField) {
+		return "email address is already registered"
+	}
+	if errors.Is(err, gorm.ErrInvalidData) {
+		return "invalid registration data"
+	}
+	if errors.Is(err, gorm.ErrInvalidDB) || errors.Is(err, gorm.ErrInvalidTransaction) {
+		return "server configuration error, please try again later"
+	}
+
+	// Fallback to string matching for database-specific errors not covered by GORM
+	errStr := strings.ToLower(err.Error())
+	if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
+		return "email address is already registered"
+	}
+	if strings.Contains(errStr, "constraint") {
+		return "invalid registration data"
+	}
+	if strings.Contains(errStr, "connection") || strings.Contains(errStr, "timeout") {
+		return "service temporarily unavailable, please try again"
+	}
+
+	// Default generic message
+	return "registration failed, please try again"
+}
 
 func newAuthService() *auth2.Service {
 	issuer := "gotak-app"
@@ -186,18 +221,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	if err := db.Create(&user).Error; err != nil {
 		log.Errorw("failed to create user", "email", req.Email, "error", err.Error(), "remote_addr", r.RemoteAddr)
 		
-		// Provide more specific error messages based on the database error
-		errorMsg := "registration failed"
-		errStr := strings.ToLower(err.Error())
-		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
-			errorMsg = "email address is already registered"
-		} else if strings.Contains(errStr, "constraint") {
-			errorMsg = "invalid registration data"
-		} else if strings.Contains(errStr, "json") || strings.Contains(errStr, "22p02") {
-			errorMsg = "server configuration error, please try again later"
-		} else if strings.Contains(errStr, "connection") || strings.Contains(errStr, "timeout") {
-			errorMsg = "service temporarily unavailable, please try again"
-		}
+		// Get user-friendly error message using typed error handling
+		errorMsg := getDBErrorMessage(err)
 		
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": errorMsg}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
