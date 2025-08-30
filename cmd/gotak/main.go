@@ -835,83 +835,78 @@ func (m model) renderLargeBoard() string {
 	// Reconstruct the board state from game moves
 	board := m.reconstructBoardState()
 
-	// Create a proper board representation
 	var rows []string
 
 	// Column headers
-	header := "     "
+	header := "   "
 	for i := 0; i < size; i++ {
-		header += fmt.Sprintf("   %c   ", 'a'+i)
+		header += fmt.Sprintf("  %c ", 'a'+i)
 	}
 	rows = append(rows, header)
 
-	// Top border
-	topBorder := "   ┌"
-	for i := 0; i < size; i++ {
-		topBorder += "──────"
-		if i < size-1 {
-			topBorder += "┬"
-		}
-	}
-	topBorder += "┐"
-	rows = append(rows, topBorder)
+	// Add a separator
+	rows = append(rows, "")
 
 	// Board rows (reverse order for proper display - row 1 at bottom)
 	for i := size - 1; i >= 0; i-- {
-		// Row with content
-		row := fmt.Sprintf("%2d │", i+1)
+		row := fmt.Sprintf("%d ", i+1)
+		
 		for j := 0; j < size; j++ {
 			square := fmt.Sprintf("%c%d", 'a'+j, i+1)
-			cellContent := m.renderSquareContent(board, square)
+			stones := board[square]
 			
-			// Make cell content exactly 6 chars wide
-			cell := fmt.Sprintf("%-6s", cellContent)
-			if len(cell) > 6 {
-				cell = cell[:6]
-			}
-			
-			row += cell
-			if j < size-1 {
-				row += "│"
-			}
-		}
-		row += fmt.Sprintf("│ %d", i+1)
-		rows = append(rows, row)
-
-		// Add row separator (except for last row)
-		if i > 0 {
-			separator := "   ├"
-			for j := 0; j < size; j++ {
-				separator += "──────"
-				if j < size-1 {
-					separator += "┼"
+			if len(stones) == 0 {
+				row += " · "
+			} else {
+				// Show the top stone
+				topStone := stones[len(stones)-1]
+				symbol := m.getStoneSymbol(topStone)
+				
+				if len(stones) == 1 {
+					row += fmt.Sprintf(" %s ", symbol)
+				} else {
+					// Show stack count with top stone
+					row += fmt.Sprintf("%d%s", len(stones), symbol)
+					if len(stones) < 10 {
+						row += " " // pad single digit counts
+					}
 				}
 			}
-			separator += "┤"
+			
+			// Add column separator
+			if j < size-1 {
+				row += "|"
+			}
+		}
+		
+		row += fmt.Sprintf(" %d", i+1)
+		rows = append(rows, row)
+		
+		// Add row separator (except for last row)
+		if i > 0 {
+			separator := "  "
+			for j := 0; j < size; j++ {
+				separator += "---"
+				if j < size-1 {
+					separator += "+"
+				}
+			}
 			rows = append(rows, separator)
 		}
 	}
 
-	// Bottom border
-	bottomBorder := "   └"
-	for i := 0; i < size; i++ {
-		bottomBorder += "──────"
-		if i < size-1 {
-			bottomBorder += "┴"
-		}
-	}
-	bottomBorder += "┘"
-	rows = append(rows, bottomBorder)
-
+	// Add bottom separator
+	rows = append(rows, "")
+	
 	// Bottom column headers
-	footer := "     "
+	footer := "   "
 	for i := 0; i < size; i++ {
-		footer += fmt.Sprintf("   %c   ", 'a'+i)
+		footer += fmt.Sprintf("  %c ", 'a'+i)
 	}
 	rows = append(rows, footer)
 
 	boardContent := strings.Join(rows, "\n")
-	return boardStyle.Width(size*7 + 10).Render(boardContent)
+	return boardStyle.Render(boardContent)
 }
 
 // reconstructBoardState recreates the board state by replaying all moves from the game data
@@ -928,6 +923,29 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 	// Create a new board
 	board := &gotak.Board{Size: size}
 	board.Init()
+
+	// For testing, let's add some sample pieces to see if rendering works
+	if len(m.gameData.Turns) == 0 {
+		// Add test pieces if no moves exist
+		board.Squares["a1"] = []*gotak.Stone{
+			{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
+		}
+		board.Squares["b2"] = []*gotak.Stone{
+			{Type: gotak.StoneFlat, Player: gotak.PlayerBlack},
+		}
+		board.Squares["c3"] = []*gotak.Stone{
+			{Type: gotak.StoneStanding, Player: gotak.PlayerWhite},
+		}
+		board.Squares["d4"] = []*gotak.Stone{
+			{Type: gotak.StoneCap, Player: gotak.PlayerBlack},
+		}
+		board.Squares["e5"] = []*gotak.Stone{
+			{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
+			{Type: gotak.StoneFlat, Player: gotak.PlayerBlack},
+			{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
+		}
+		return board.Squares
+	}
 
 	// Replay all moves in order
 	for turnIndex, turn := range m.gameData.Turns {
@@ -952,46 +970,6 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 	return board.Squares
 }
 
-// renderSquareContent displays the contents of a square with stacked pieces
-func (m model) renderSquareContent(board map[string][]*gotak.Stone, square string) string {
-	stones := board[square]
-	if len(stones) == 0 {
-		return "  ·   " // Empty square
-	}
-
-	var content strings.Builder
-	
-	if len(stones) == 1 {
-		// Single stone - show it centered
-		stone := stones[0]
-		symbol := m.getStoneSymbol(stone)
-		content.WriteString(fmt.Sprintf("  %s   ", symbol))
-	} else if len(stones) <= 3 {
-		// Small stack - show all stones
-		for i, stone := range stones {
-			if i > 0 {
-				content.WriteString("")
-			}
-			symbol := m.getStoneSymbol(stone)
-			content.WriteString(symbol)
-		}
-		// Pad to 6 characters
-		for content.Len() < 6 {
-			content.WriteString(" ")
-		}
-	} else {
-		// Large stack - show count and top stone
-		topStone := stones[len(stones)-1]
-		symbol := m.getStoneSymbol(topStone)
-		content.WriteString(fmt.Sprintf("%d%s", len(stones), symbol))
-		// Pad to 6 characters
-		for content.Len() < 6 {
-			content.WriteString(" ")
-		}
-	}
-
-	return content.String()
-}
 
 // getStoneSymbol returns a visual symbol for a stone
 func (m model) getStoneSymbol(stone *gotak.Stone) string {
