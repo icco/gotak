@@ -101,6 +101,27 @@ definitions:
         example: "8"
         type: string
     type: object
+  main.ErrorResponse:
+    properties:
+      error:
+        example: Something went wrong
+        type: string
+    type: object
+  main.HealthResponse:
+    properties:
+      branch:
+        example: main
+        type: string
+      healthy:
+        example: "true"
+        type: string
+      revision:
+        example: abc123def
+        type: string
+      tag:
+        example: v1.0.0
+        type: string
+    type: object
   main.LoginRequest:
     properties:
       email:
@@ -108,6 +129,12 @@ definitions:
         type: string
       password:
         example: secretpassword
+        type: string
+    type: object
+  main.MessageResponse:
+    properties:
+      message:
+        example: Operation successful
         type: string
     type: object
   main.MoveRequest:
@@ -213,9 +240,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.MessageResponse'
         "400":
           description: Bad Request
           schema:
@@ -253,21 +278,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Login user
       tags:
       - auth
@@ -282,9 +301,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.MessageResponse'
       summary: Logout user
       tags:
       - auth
@@ -303,15 +320,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get user profile
@@ -338,21 +351,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update user profile
@@ -376,19 +383,15 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/main.AuthResponse'
+            $ref: '#/definitions/main.MessageResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Register a new user
       tags:
       - auth
@@ -410,9 +413,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.MessageResponse'
         "400":
           description: Bad Request
           schema:
@@ -449,9 +450,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Get game state
       tags:
       - game
@@ -481,9 +480,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Get specific turn
       tags:
       - game
@@ -504,27 +501,19 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.MessageResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Join a waiting game
       tags:
       - game
@@ -555,15 +544,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Make a move in a game
       tags:
       - game
@@ -584,21 +569,15 @@ paths:
         "307":
           description: Redirect to game URL
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            type: string
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Create a new game
       tags:
       - game
@@ -618,21 +597,15 @@ paths:
         "307":
           description: Redirect to game URL
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            type: string
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Create a new game
       tags:
       - game
@@ -647,9 +620,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/main.HealthResponse'
       summary: Health check
       tags:
       - health

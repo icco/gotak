@@ -247,20 +247,6 @@ type CreateGameRequest struct {
 	Size string `json:"size" example:"8" description:"Board size (4-9)"`
 }
 
-type HealthResponse struct {
-	Healthy  string `json:"healthy" example:"true"`
-	Revision string `json:"revision,omitempty" example:"abc123def"`
-	Tag      string `json:"tag,omitempty" example:"v1.0.0"`
-	Branch   string `json:"branch,omitempty" example:"main"`
-}
-
-type ErrorResponse struct {
-	Error string `json:"error" example:"Something went wrong"`
-}
-
-type MessageResponse struct {
-	Message string `json:"message" example:"Operation successful"`
-}
 
 // @Summary Create a new game
 // @Description Creates a new Tak game with the specified board size

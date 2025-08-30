@@ -6,6 +6,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// Standard API response types
+type ErrorResponse struct {
+	Error string `json:"error" example:"Something went wrong"`
+}
+
+type MessageResponse struct {
+	Message string `json:"message" example:"Operation successful"`
+}
+
+type HealthResponse struct {
+	Healthy  string `json:"healthy" example:"true"`
+	Revision string `json:"revision,omitempty" example:"abc123def"`
+	Tag      string `json:"tag,omitempty" example:"v1.0.0"`
+	Branch   string `json:"branch,omitempty" example:"main"`
+}
+
 // Game represents a game in the database
 type Game struct {
 	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
