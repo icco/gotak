@@ -62,6 +62,10 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 		return "", fmt.Errorf("failed to convert game state: %w", err)
 	}
 
+	// Ensure board size is within expected bounds (Tak standard: 3 - 9)
+	if g.Board.Size < 3 || g.Board.Size > 9 {
+		return "", fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
+	}
 	// Create appropriate AI based on configuration
 	var ai taktician.TakPlayer
 	switch cfg.Level {
