@@ -170,6 +170,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.error = ""
 		return m, nil
 
+	case registrationSuccess:
+		// Clear form data and show success, then switch to login mode
+		m.password = ""
+		m.name = ""
+		m.authMode = authModeLogin
+		m.authFocus = 0
+		m.error = "Registration successful! Please login with your credentials."
+		return m, nil
+
 	case gameLoaded:
 		m.gameData = msg.game
 		m.gameSlug = msg.game.Slug
@@ -882,19 +891,8 @@ func (m model) registerUser() tea.Cmd {
 			return apiError{error: fmt.Sprintf("Registration failed (status %d)", resp.StatusCode)}
 		}
 
-		var authResp struct {
-			Token string `json:"token"`
-			User  struct {
-				ID    int64  `json:"id"`
-				Email string `json:"email"`
-				Name  string `json:"name"`
-			} `json:"user"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
-			return apiError{error: "Registration response error"}
-		}
-
-		return authSuccess{token: authResp.Token}
+		// Registration successful, now show success message and return to login
+		return registrationSuccess{}
 	}
 }
 
@@ -983,6 +981,8 @@ func (m model) submitMove() tea.Cmd {
 type authSuccess struct {
 	token string
 }
+
+type registrationSuccess struct{}
 
 type gameLoaded struct {
 	game *GameData
