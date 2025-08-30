@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -22,11 +21,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/icco/gotak"
+	"github.com/icco/gotak/cmd/server/docs"
 	_ "github.com/icco/gotak/cmd/server/docs"
 )
-
-//go:embed docs/swagger.json
-var swaggerJSON []byte
 
 var (
 	// Renderer is a renderer for all occasions. These are our preferred default options.
@@ -48,18 +45,6 @@ var (
 	log       = logging.Must(logging.NewLogger(gotak.Service))
 	ugcPolicy = bluemonday.StrictPolicy()
 )
-
-// SwaggerSpec represents the structure of our swagger.json file
-type SwaggerSpec struct {
-	Paths map[string]map[string]PathInfo `json:"paths"`
-}
-
-// PathInfo represents endpoint information from swagger
-type PathInfo struct {
-	Summary     string   `json:"summary"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-}
 
 // @title GoTak API
 // @version 1.0
@@ -167,9 +152,9 @@ func main() {
 // @Success 200 {string} string "HTML page with API information"
 // @Router / [get]
 func rootHandler(w http.ResponseWriter, r *http.Request) {
-	// Use embedded swagger.json data
-	var spec SwaggerSpec
-	if err := json.Unmarshal(swaggerJSON, &spec); err != nil {
+	// Use embedded swagger.json data from docs package
+	spec, err := docs.GetSwaggerSpec()
+	if err != nil {
 		log.Errorw("failed to parse swagger.json", zap.Error(err))
 		// Fallback to static content
 		writeStaticHomePage(w)
