@@ -66,7 +66,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          cd server
+          cd cmd/server
           go build -o server-${{ matrix.goos }}-${{ matrix.goarch }}
       - name: Build PTN parser
         env:
@@ -97,5 +97,5 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/gotak_test?sslmode=disable
         run: |
-          cd server
+          cd cmd/server
           go test -v -tags=integration ./...
