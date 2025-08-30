@@ -67,7 +67,7 @@ func newAuthService() *auth2.Service {
 	issuer := "gotak-app"
 	secret := os.Getenv("AUTH_JWT_SECRET")
 	if secret == "" {
-		secret = "dev-secret-change-me" // fallback for dev
+		log.Fatalw("AUTH_JWT_SECRET environment variable is required")
 	}
 
 	service := auth2.NewService(auth2.Opts{
