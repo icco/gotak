@@ -15,11 +15,9 @@ import (
 
 func getDB() (*gorm.DB, error) {
 	dbURL := os.Getenv("DATABASE_URL")
-	log.Debugw("Attempting database connection", "database_url_length", len(dbURL))
 	if dbURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
-	log.Debugw("DATABASE_URL is set, attempting connection")
 
 	// Configure GORM to use zapgorm2 logger
 	config := &gorm.Config{
@@ -56,7 +54,7 @@ func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 
 	game := Game{
 		Slug:          slug,
-		WhitePlayerID: userID,    // Creator becomes white player
+		WhitePlayerID: &userID,   // Creator becomes white player
 		Status:        "waiting", // Waiting for second player
 	}
 
@@ -259,7 +257,7 @@ func verifyGameParticipation(db *gorm.DB, slug string, userID int64) error {
 	}
 
 	// Check if user is white player
-	if game.WhitePlayerID == userID {
+	if game.WhitePlayerID != nil && *game.WhitePlayerID == userID {
 		return nil
 	}
 
@@ -279,7 +277,7 @@ func joinGame(db *gorm.DB, slug string, userID int64) error {
 	}
 
 	// Can't join if already a participant
-	if game.WhitePlayerID == userID {
+	if game.WhitePlayerID != nil && *game.WhitePlayerID == userID {
 		return fmt.Errorf("user is already the white player in this game")
 	}
 
@@ -320,7 +318,7 @@ func getPlayerNumber(db *gorm.DB, slug string, userID int64) (int, error) {
 		return 0, err
 	}
 
-	if game.WhitePlayerID == userID {
+	if game.WhitePlayerID != nil && *game.WhitePlayerID == userID {
 		return 1, nil // PlayerWhite
 	}
 

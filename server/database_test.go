@@ -80,10 +80,10 @@ func TestCreateGame(t *testing.T) {
 	}
 
 	// Test that game is linked to user as white player
-	if game.WhitePlayerID == 0 {
+	if game.WhitePlayerID == nil {
 		t.Error("Expected game to have white player")
-	} else if game.WhitePlayerID != user2.ID {
-		t.Errorf("Expected white player to be user %d, got %d", user2.ID, game.WhitePlayerID)
+	} else if *game.WhitePlayerID != user2.ID {
+		t.Errorf("Expected white player to be user %d, got %d", user2.ID, *game.WhitePlayerID)
 	}
 
 	// Test that black player is not set initially (game waiting for second player)

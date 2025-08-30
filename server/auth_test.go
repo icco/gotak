@@ -75,12 +75,10 @@ func TestUserGameAssociation(t *testing.T) {
 		t.Fatalf("Failed to retrieve game: %v", err)
 	}
 
-	if game.WhitePlayerID == 0 {
+	if game.WhitePlayerID == nil {
 		t.Error("Game should have a white player")
-	}
-
-	if game.WhitePlayerID != user.ID {
-		t.Errorf("Game white player should be user %d, got %d", user.ID, game.WhitePlayerID)
+	} else if *game.WhitePlayerID != user.ID {
+		t.Errorf("Game white player should be user %d, got %d", user.ID, *game.WhitePlayerID)
 	}
 
 	// Test loading game with user associations

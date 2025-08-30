@@ -14,7 +14,7 @@ type Game struct {
 	Winner        int       `gorm:"default:0" json:"winner"`
 	CurrentPlayer int       `gorm:"default:1" json:"current_player"`
 	CurrentTurn   int       `gorm:"default:1" json:"current_turn"`
-	WhitePlayerID int64     `gorm:"index;not null" json:"white_player_id"`
+	WhitePlayerID *int64    `gorm:"index" json:"white_player_id,omitempty"`
 	BlackPlayerID *int64    `gorm:"index" json:"black_player_id,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
