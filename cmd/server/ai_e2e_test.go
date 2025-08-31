@@ -278,11 +278,11 @@ func TestAIGameCompletion(t *testing.T) {
 		if len(aiGame.Turns) < expectedTurns {
 			t.Fatalf("Expected at least %d turns after move %d, got %d", expectedTurns, i+1, len(aiGame.Turns))
 		}
-		
+
 		// Verify the current turn has both moves (human + AI)
 		currentTurn := aiGame.Turns[len(aiGame.Turns)-1]
 		if currentTurn.First == nil || currentTurn.Second == nil {
-			t.Fatalf("Turn %d should have both moves after AI response: First=%v, Second=%v", 
+			t.Fatalf("Turn %d should have both moves after AI response: First=%v, Second=%v",
 				currentTurn.Number, currentTurn.First, currentTurn.Second)
 		}
 	}
