@@ -20,3 +20,4 @@ go run ./cmd/server
 
 - CLI: `./gotak` (AI opponent)
 - Server: `cmd/server/` (PostgreSQL, set `DATABASE_URL`)
+- Commit and push your work often if you're not on the main branch.
