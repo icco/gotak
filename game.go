@@ -318,8 +318,8 @@ func (g *Game) DoSingleMove(moveStr string, player int) error {
 		return err
 	}
 
-	// Validate it's the correct player's turn
-	turnNumber := int64(len(g.Turns))
+	// Validate it's the correct player's turn  
+	turnNumber := int64(len(g.Turns)) + 1
 
 	// First turn special handling
 	if turnNumber == 0 {
