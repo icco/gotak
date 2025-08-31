@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -42,11 +44,6 @@ var (
 				Bold(true).
 				PaddingLeft(2)
 
-	boardStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			Padding(2).
-			Align(lipgloss.Center)
 
 
 	errorStyle = lipgloss.NewStyle().
@@ -62,6 +59,108 @@ var (
 			MarginTop(1)
 )
 
+// getTokenCachePath returns the path to the token cache file
+func getTokenCachePath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	
+	cacheDir := filepath.Join(homeDir, ".gotak")
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		return "", err
+	}
+	
+	return filepath.Join(cacheDir, "auth.json"), nil
+}
+
+// saveTokenCache saves the authentication token to cache
+func saveTokenCache(token, email, name, serverURL string) error {
+	cachePath, err := getTokenCachePath()
+	if err != nil {
+		return err
+	}
+	
+	// Set expiry to 24 hours from now (adjust based on your JWT expiry)
+	cache := TokenCache{
+		Token:     token,
+		Email:     email,
+		Name:      name,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		ServerURL: serverURL,
+	}
+	
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return err
+	}
+	
+	return os.WriteFile(cachePath, data, 0600)
+}
+
+// loadTokenCache loads the authentication token from cache
+func loadTokenCache() (*TokenCache, error) {
+	cachePath, err := getTokenCachePath()
+	if err != nil {
+		return nil, err
+	}
+	
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	var cache TokenCache
+	if err := json.Unmarshal(data, &cache); err != nil {
+		return nil, err
+	}
+	
+	// Check if token is expired
+	if time.Now().After(cache.ExpiresAt) {
+		return nil, fmt.Errorf("token expired")
+	}
+	
+	return &cache, nil
+}
+
+// validateToken checks if the cached token is still valid by making a test API call
+func validateToken(token, serverURL string) error {
+	req, err := http.NewRequest("GET", serverURL+"/auth/validate", nil)
+	if err != nil {
+		return err
+	}
+	
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
+	
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("token validation failed: %d", resp.StatusCode)
+	}
+	
+	return nil
+}
+
+// clearTokenCache removes the cached token
+func clearTokenCache() error {
+	cachePath, err := getTokenCachePath()
+	if err != nil {
+		return err
+	}
+	
+	if err := os.Remove(cachePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -72,8 +171,23 @@ func main() {
 		serverURL = "https://gotak.app"
 	}
 
+	// Try to load cached token first
+	model := initialModel(serverURL)
+	if cache, err := loadTokenCache(); err == nil && cache.ServerURL == serverURL {
+		// Validate the cached token
+		if err := validateToken(cache.Token, serverURL); err == nil {
+			// Token is valid, skip auth screens
+			model.token = cache.Token
+			model.authenticated = true
+			model.screen = screenMenu
+		} else {
+			// Token invalid, clear cache
+			clearTokenCache()
+		}
+	}
+
 	p := tea.NewProgram(
-		initialModel(serverURL),
+		model,
 		tea.WithAltScreen(),
 	)
 
@@ -150,6 +264,15 @@ type GameMove struct {
 	Text   string `json:"text"`
 }
 
+// TokenCache represents cached authentication data
+type TokenCache struct {
+	Token     string    `json:"token"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	ExpiresAt time.Time `json:"expires_at"`
+	ServerURL string    `json:"server_url"`
+}
+
 func initialModel(serverURL string) model {
 	// Initialize text inputs
 	emailInput := textinput.New()
@@ -202,6 +325,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = screenMenu
 		m.error = ""
 		m.isLoading = false
+		
+		// Save token to cache for future sessions
+		if err := saveTokenCache(msg.token, msg.email, msg.name, m.serverURL); err != nil {
+			// Don't fail login if cache save fails, just log it
+			// Could add error display here if needed
+		}
+		
 		return m, nil
 
 	case registrationSuccess:
@@ -444,7 +574,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.menuCursor--
 		}
 	case "down", "j":
-		if m.menuCursor < 2 {
+		if m.menuCursor < 3 {
 			m.menuCursor++
 		}
 	case "enter", " ":
@@ -454,7 +584,12 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.createGame()
 		case 1: // Settings
 			m.screen = screenSettings
-		case 2: // Quit
+		case 2: // Logout
+			clearTokenCache() // Clear cached token
+			m.token = ""
+			m.authenticated = false
+			m.screen = screenAuthMode
+		case 3: // Quit
 			return m, tea.Quit
 		}
 	}
@@ -770,7 +905,8 @@ func (m model) viewMenu() string {
 	choices := []string{
 		"🎮 New Game",
 		"⚙️  Settings",
-		"🚪 Quit",
+		"🚪 Logout",
+		"❌ Quit",
 	}
 
 	var menu string
@@ -1097,7 +1233,11 @@ func (m model) loginUser() tea.Cmd {
 			return apiError{error: "Login response error"}
 		}
 
-		return authSuccess{token: authResp.Token}
+		return authSuccess{
+			token: authResp.Token,
+			email: authResp.User.Email,
+			name:  authResp.User.Name,
+		}
 	}
 }
 
@@ -1261,6 +1401,8 @@ func (m model) submitMove() tea.Cmd {
 // Messages
 type authSuccess struct {
 	token string
+	email string
+	name  string
 }
 
 type registrationSuccess struct{}
