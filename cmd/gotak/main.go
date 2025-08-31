@@ -1156,7 +1156,6 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 	board := &gotak.Board{Size: size}
 	board.Init()
 
-
 	// Replay all moves in order
 	moveCount := 0
 	for _, turn := range m.gameData.Turns {
