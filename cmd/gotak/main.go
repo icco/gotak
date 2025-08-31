@@ -395,8 +395,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case aiMoveReceived:
-		// Submit the AI move to the game
-		return m, m.submitAIMove(msg.move)
+		// AI endpoint now returns updated game state directly
+		m.gameData = msg.game
+		m.error = ""
+		m.isLoading = false
+		m.waitingForAI = false
+		return m, nil
 
 	case tea.KeyMsg:
 		switch m.screen {

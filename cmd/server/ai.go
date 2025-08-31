@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/icco/gotak"
 	"github.com/icco/gotak/ai"
 	"go.uber.org/zap"
 )
@@ -135,13 +137,97 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	hint, _ := engine.ExplainMove(ctx, game, cfg)
 
-	resp := AIMoveResponse{
-		Move: move,
-		Hint: hint,
+	// Now execute the AI move in the game
+	// First, determine which player the AI is (opposite of human user)
+	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
+	if err != nil {
+		log.Errorw("could not get user player number", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "internal server error"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Errorw("failed to encode response", zap.Error(err))
+	// AI is the opposite player
+	aiPlayerNumber := gotak.PlayerBlack
+	if userPlayerNumber == gotak.PlayerBlack {
+		aiPlayerNumber = gotak.PlayerWhite
+	}
+
+	// Check if it's actually the AI's turn
+	var dbGame Game
+	if err := db.Where("slug = ?", slug).First(&dbGame).Error; err != nil {
+		log.Errorw("could not get game state for turn check", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not verify game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if dbGame.CurrentPlayer != aiPlayerNumber {
+		log.Errorw("not AI's turn", "current_player", dbGame.CurrentPlayer, "ai_player", aiPlayerNumber)
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "it's not the AI's turn"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Replay existing moves to get current board state
+	err = replayMoves(game)
+	if err != nil {
+		log.Errorw("could not replay moves for AI", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Execute the AI move
+	err = game.DoSingleMove(move, aiPlayerNumber)
+	if err != nil {
+		log.Errorw("invalid AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": fmt.Sprintf("AI generated invalid move: %v", err)}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Store the AI move in database
+	currentTurn := int64(len(game.Turns))
+	if currentTurn == 0 {
+		currentTurn = 1
+	}
+
+	if err := insertMove(db, game.ID, aiPlayerNumber, move, currentTurn); err != nil {
+		log.Errorw("could not insert AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save AI move"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Check if game is now over and update status
+	winner, gameOver := game.GameOver()
+	if gameOver {
+		err = updateGameStatus(db, game.Slug, "finished", winner)
+		if err != nil {
+			log.Errorw("could not update game status after AI move", zap.Error(err))
+		}
+	}
+
+	// Reload game to get updated state
+	updatedGame, err := getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not reload game after AI move", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Return the updated game state (same format as regular move endpoint)
+	log.Infow("AI move executed", "slug", slug, "move", move, "hint", hint)
+	if err := Renderer.JSON(w, http.StatusOK, updatedGame); err != nil {
+		log.Errorw("failed to render game response", zap.Error(err))
 	}
 }
