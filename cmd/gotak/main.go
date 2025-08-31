@@ -1081,7 +1081,6 @@ func (m model) viewGame() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-
 func (m model) getTotalMoves() int {
 	total := 0
 	for _, turn := range m.gameData.Turns {
@@ -1325,7 +1324,7 @@ func (m model) createGame() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
 			"size": fmt.Sprintf("%d", m.boardSize), // Server expects string
-			"mode": m.gameMode, // "human" or "ai"
+			"mode": m.gameMode,                     // "human" or "ai"
 		}
 
 		data, _ := json.Marshal(payload)
