@@ -256,25 +256,34 @@ func TestAIGameCompletion(t *testing.T) {
 	user := &User{ID: 1}
 	gameSlug := createGameForE2E(t, server.URL, user, 4) // Smaller board for faster completion
 
-	// Play several moves to advance game state
+	// Play several complete turns to advance game state
 	humanMoves := []string{"a1", "b1", "c1"}
 
-	for _, move := range humanMoves {
+	for i, move := range humanMoves {
+		// Human makes their move (White always goes first)
 		makeE2EMove(t, server.URL, user, gameSlug, move, gotak.PlayerWhite)
 
-		// Get AI response
+		// Get AI response (Black always goes second)
 		aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
 
 		// Check if game ended using GameOver method
 		winner, gameOver := aiGame.GameOver()
 		if gameOver {
-			t.Logf("Game completed with winner: %d", winner)
+			t.Logf("Game completed with winner: %d after %d turns", winner, i+1)
 			return
 		}
 
-		// Verify AI made a move
-		if len(aiGame.Turns) == 0 {
-			t.Fatal("AI didn't make any moves")
+		// Verify AI made a move - should have (i+1) complete turns
+		expectedTurns := i + 1
+		if len(aiGame.Turns) < expectedTurns {
+			t.Fatalf("Expected at least %d turns after move %d, got %d", expectedTurns, i+1, len(aiGame.Turns))
+		}
+		
+		// Verify the current turn has both moves (human + AI)
+		currentTurn := aiGame.Turns[len(aiGame.Turns)-1]
+		if currentTurn.First == nil || currentTurn.Second == nil {
+			t.Fatalf("Turn %d should have both moves after AI response: First=%v, Second=%v", 
+				currentTurn.Number, currentTurn.First, currentTurn.Second)
 		}
 	}
 
