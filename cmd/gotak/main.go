@@ -230,6 +230,10 @@ type model struct {
 	// Menu state
 	menuCursor int
 
+	// Settings state  
+	settingsCursor int
+	gameMode       string // "human" or "ai"
+
 	// Game state
 	gameSlug  string
 	gameData  *GameData
@@ -301,7 +305,8 @@ func initialModel(serverURL string) model {
 		passwordInput: passwordInput,
 		nameInput:     nameInput,
 		spinner:       s,
-		boardSize:     5,
+		boardSize:     8,
+		gameMode:      "human",
 		authenticated: false,
 	}
 }
@@ -362,6 +367,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.moveInput = ""
 		m.error = ""
 		m.isLoading = false
+		
+		// If this is an AI game and it's now the AI's turn, request AI move
+		if m.gameMode == "ai" && !m.isGameOver() {
+			currentPlayer := m.getCurrentPlayer()
+			if currentPlayer == 2 { // AI is player 2 (black)
+				return m, m.requestAIMove()
+			}
+		}
+		
 		return m, nil
 
 	case tea.KeyMsg:
@@ -629,8 +643,52 @@ func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
+	case "up", "k":
+		if m.settingsCursor > 0 {
+			m.settingsCursor--
+		}
+	case "down", "j":
+		if m.settingsCursor < 2 { // 3 settings total (0, 1, 2)
+			m.settingsCursor++
+		}
+	case "enter", " ":
+		switch m.settingsCursor {
+		case 0: // Board Size
+			m.cycleBoardSize()
+		case 1: // Game Mode
+			m.cycleGameMode()
+		case 2: // Server (read-only for now)
+			// Could add server selection in the future
+		}
 	}
 	return m, nil
+}
+
+// cycleBoardSize cycles through valid board sizes (4, 5, 6, 7, 8)
+func (m *model) cycleBoardSize() {
+	validSizes := []int{4, 5, 6, 7, 8}
+	currentIndex := 0
+	
+	// Find current size index
+	for i, size := range validSizes {
+		if size == m.boardSize {
+			currentIndex = i
+			break
+		}
+	}
+	
+	// Move to next size, wrap around
+	currentIndex = (currentIndex + 1) % len(validSizes)
+	m.boardSize = validSizes[currentIndex]
+}
+
+// cycleGameMode cycles between human and AI game modes
+func (m *model) cycleGameMode() {
+	if m.gameMode == "human" {
+		m.gameMode = "ai"
+	} else {
+		m.gameMode = "human"
+	}
 }
 
 func (m model) View() string {
@@ -950,8 +1008,18 @@ func (m model) viewGame() string {
 	inputArea := inputStyle.Width(60).Render(fmt.Sprintf("Move: %s%s", m.moveInput, cursor))
 
 	// Game info
-	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Moves: %d",
-		m.gameData.Status, m.getTotalMoves()))
+	currentPlayer := m.getCurrentPlayer()
+	playerText := "White"
+	if currentPlayer == 2 {
+		if m.gameMode == "ai" {
+			playerText = "Black (AI)"
+		} else {
+			playerText = "Black"
+		}
+	}
+	
+	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Turn: %s | Moves: %d | Mode: %s",
+		m.gameData.Status, playerText, m.getTotalMoves(), m.gameMode))
 
 	// Help text with proper Tak move examples
 	help := menuItemStyle.Render("Move Examples: a1 (flat) | Sa1 (standing) | Ca1 (capstone) | 3a1>21 (move 3 stones) | Q: Menu")
@@ -1171,20 +1239,124 @@ func (m model) getCurrentPlayer() int {
 	return 2
 }
 
+// isGameOver checks if the game is completed
+func (m model) isGameOver() bool {
+	if m.gameData == nil {
+		return false
+	}
+	
+	// Check if status indicates game is over
+	status := strings.ToLower(m.gameData.Status)
+	return status == "completed" || status == "finished" || status == "won"
+}
+
+// requestAIMove requests an AI move from the server
+func (m model) requestAIMove() tea.Cmd {
+	return func() tea.Msg {
+		payload := map[string]interface{}{
+			"level":     "intermediate", // Could be made configurable
+			"style":     "balanced",
+			"time_limit": "10s",
+		}
+
+		data, _ := json.Marshal(payload)
+		
+		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+m.token)
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return apiError{error: fmt.Sprintf("AI move request failed: %v", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			var errorResp struct {
+				Error string `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
+				return apiError{error: fmt.Sprintf("AI move failed: %s", errorResp.Error)}
+			}
+			return apiError{error: fmt.Sprintf("AI move failed (status %d)", resp.StatusCode)}
+		}
+
+		var aiResp struct {
+			Move string `json:"move"`
+			Hint string `json:"hint,omitempty"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&aiResp); err != nil {
+			return apiError{error: "AI move response error"}
+		}
+
+		// Now submit the AI move as if it were a regular move
+		return m.submitAIMove(aiResp.Move)()
+	}
+}
+
+// submitAIMove submits an AI move to the game
+func (m model) submitAIMove(move string) tea.Cmd {
+	return func() tea.Msg {
+		payload := map[string]interface{}{
+			"player": 2, // AI is always player 2
+			"move":   move,
+			"turn":   int64(m.getTotalMoves() + 1),
+		}
+
+		data, _ := json.Marshal(payload)
+
+		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+m.token)
+		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return apiError{error: fmt.Sprintf("AI move submission failed: %v", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			var errorResp struct {
+				Error string `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
+				return apiError{error: fmt.Sprintf("AI move submission failed: %s", errorResp.Error)}
+			}
+			return apiError{error: fmt.Sprintf("AI move submission failed (status %d)", resp.StatusCode)}
+		}
+
+		var game GameData
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
+			return apiError{error: "AI move game response error"}
+		}
+
+		return moveSubmitted{game: &game}
+	}
+}
+
 func (m model) viewSettings() string {
 	title := titleStyle.Width(m.width).Render("⚙️ Settings")
 
 	settings := []string{
 		fmt.Sprintf("Board Size: %dx%d", m.boardSize, m.boardSize),
+		fmt.Sprintf("Game Mode: %s", m.gameMode),
 		fmt.Sprintf("Server: %s", m.serverURL),
 	}
 
-	settingsContent := ""
-	for _, setting := range settings {
-		settingsContent += menuItemStyle.Render(setting) + "\n"
+	var settingsContent string
+	for i, setting := range settings {
+		if m.settingsCursor == i {
+			settingsContent += selectedMenuItemStyle.Render(fmt.Sprintf("> %s", setting)) + "\n"
+		} else {
+			settingsContent += menuItemStyle.Render(fmt.Sprintf("  %s", setting)) + "\n"
+		}
 	}
 
-	help := menuItemStyle.Render("Q: Back to menu")
+	help := menuItemStyle.Render("↑/↓: Navigate | Enter: Change | Q: Back to menu")
 
 	content := lipgloss.JoinVertical(lipgloss.Center, title, settingsContent, help)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
@@ -1281,6 +1453,7 @@ func (m model) createGame() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
 			"size": m.boardSize,
+			"mode": m.gameMode, // "human" or "ai"
 		}
 
 		data, _ := json.Marshal(payload)
