@@ -499,15 +499,37 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the move in database
-	currentTurn := int64(len(game.Turns))
-	if currentTurn == 0 {
-		currentTurn = 1
+	// Store the move in database - calculate turn number based on total moves made
+	// Count total moves across all turns to determine which turn this move belongs to
+	totalMoves := int64(0)
+	for _, turn := range game.Turns {
+		if turn.First != nil {
+			totalMoves++
+		}
+		if turn.Second != nil {
+			totalMoves++
+		}
 	}
+	
+	// Calculate turn number (moves 1-2 = turn 1, moves 3-4 = turn 2, etc.)
+	currentTurn := (totalMoves / 2) + 1
 
 	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
 		log.Errorw("could not insert move", "data", data, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save move"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Switch to the next player's turn
+	nextPlayer := gotak.PlayerWhite
+	if data.Player == gotak.PlayerWhite {
+		nextPlayer = gotak.PlayerBlack
+	}
+	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
+		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not update turn"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return

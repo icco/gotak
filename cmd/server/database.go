@@ -158,20 +158,11 @@ func getTurns(db *gorm.DB, game *gotak.Game) error {
 			return err
 		}
 
+		// White player always goes first, Black player always goes second
 		if move.Player == gotak.PlayerWhite {
-			if move.Turn > 1 {
-				currentTurn.First = mv
-			} else {
-				currentTurn.Second = mv
-			}
-		}
-
-		if move.Player == gotak.PlayerBlack {
-			if move.Turn > 1 {
-				currentTurn.Second = mv
-			} else {
-				currentTurn.First = mv
-			}
+			currentTurn.First = mv
+		} else if move.Player == gotak.PlayerBlack {
+			currentTurn.Second = mv
 		}
 
 		game.UpdateTurn(currentTurn)

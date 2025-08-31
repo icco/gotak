@@ -192,11 +192,20 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the AI move in database
-	currentTurn := int64(len(game.Turns))
-	if currentTurn == 0 {
-		currentTurn = 1
+	// Store the AI move in database - calculate turn number based on total moves made
+	// Count total moves across all turns to determine which turn this move belongs to
+	totalMoves := int64(0)
+	for _, turn := range game.Turns {
+		if turn.First != nil {
+			totalMoves++
+		}
+		if turn.Second != nil {
+			totalMoves++
+		}
 	}
+	
+	// Calculate turn number (moves 1-2 = turn 1, moves 3-4 = turn 2, etc.)
+	currentTurn := (totalMoves / 2) + 1
 
 	if err := insertMove(db, game.ID, aiPlayerNumber, move, currentTurn); err != nil {
 		log.Errorw("could not insert AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))
@@ -204,6 +213,16 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
+	}
+
+	// Switch to the next player's turn
+	nextPlayer := gotak.PlayerWhite
+	if aiPlayerNumber == gotak.PlayerWhite {
+		nextPlayer = gotak.PlayerBlack
+	}
+	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
+		log.Errorw("could not update current player after AI move", "slug", slug, "next_player", nextPlayer, zap.Error(err))
+		// Continue - this is not fatal for AI move execution
 	}
 
 	// Check if game is now over and update status
