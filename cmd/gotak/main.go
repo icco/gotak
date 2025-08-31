@@ -1133,7 +1133,7 @@ func (m model) requestAIMove() tea.Cmd {
 
 		data, _ := json.Marshal(payload)
 
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai", bytes.NewBuffer(data))
+		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai-move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
