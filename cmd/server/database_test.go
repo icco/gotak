@@ -563,11 +563,11 @@ func TestGetGameBoardState(t *testing.T) {
 	}
 
 	// Verify stone colors are correct
-	if retrievedGame.Board.Color("a1") != gotak.PlayerWhite {
-		t.Errorf("a1 should be white, got %d", retrievedGame.Board.Color("a1"))
+	if retrievedGame.Board.Color("a1") != gotak.PlayerBlack {
+		t.Errorf("a1 should be black, got %d", retrievedGame.Board.Color("a1"))
 	}
-	if retrievedGame.Board.Color("e5") != gotak.PlayerBlack {
-		t.Errorf("e5 should be black, got %d", retrievedGame.Board.Color("e5"))
+	if retrievedGame.Board.Color("e5") != gotak.PlayerWhite {
+		t.Errorf("e5 should be white, got %d", retrievedGame.Board.Color("e5"))
 	}
 	if retrievedGame.Board.Color("b2") != gotak.PlayerWhite {
 		t.Errorf("b2 should be white, got %d", retrievedGame.Board.Color("b2"))

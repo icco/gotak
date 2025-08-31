@@ -352,19 +352,14 @@ func (g *Game) DoSingleMove(moveStr string, player int) error {
 		return err
 	}
 
-	// Determine if this is first or second move of the turn
-	expectedPlayer := PlayerWhite
-	if turnNumber%2 != 0 {
-		expectedPlayer = PlayerBlack
-	}
-
-	if player == expectedPlayer {
+	// In Tak, White always goes first, Black always goes second
+	if player == PlayerWhite {
 		if currentTurn.First == nil {
 			currentTurn.First = mv
 		} else {
 			return fmt.Errorf("player %d already moved this turn", player)
 		}
-	} else {
+	} else if player == PlayerBlack {
 		if currentTurn.Second == nil {
 			currentTurn.Second = mv
 		} else {

@@ -42,11 +42,6 @@ func TestNewAIServerSideExecution(t *testing.T) {
 		t.Fatalf("Expected 1 turn after AI move, got %d", len(aiGame.Turns))
 	}
 
-	// Debug: Print the entire turn structure
-	t.Logf("Turn 1: First=%v, Second=%v", 
-		aiGame.Turns[0].First, 
-		aiGame.Turns[0].Second)
-		
 	// AI should be the second move in turn 1 (after human's first move)
 	var aiMoveText string
 	if aiGame.Turns[0].Second != nil {
@@ -64,7 +59,6 @@ func TestNewAIServerSideExecution(t *testing.T) {
 		t.Fatalf("AI move appears invalid: %s", aiMoveText)
 	}
 	// Verify AI didn't repeat the human move  
-	t.Logf("Human move: c3, AI move: %s", aiMoveText)
 	if aiMoveText == "c3" {
 		t.Fatal("AI made same move as human, not seeing board state properly")
 	}
