@@ -1171,7 +1171,7 @@ func (m model) requestAIMove() tea.Cmd {
 func (m model) submitAIMove(move string) tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
-			"player": 2, // AI is always player 2
+			"player": m.getCurrentPlayer(), // Use current turn's player
 			"move":   move,
 			"turn":   int64(m.getTotalMoves() + 1),
 		}
