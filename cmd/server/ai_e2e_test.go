@@ -316,7 +316,6 @@ func setupE2ETestServer(t *testing.T) *httptest.Server {
 		testMoveHandlerWithTurnManagement(w, r, testDB)
 	})
 
-	// Use the actual AI handler for realistic testing
 	r.Post("/game/{slug}/ai-move", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userContextKey, testUser)
 		r = r.WithContext(ctx)
@@ -638,10 +637,26 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 	}
 
 	// Update current player to switch turns
-	nextPlayer := gotak.PlayerWhite
-	if aiPlayerNumber == gotak.PlayerWhite {
-		nextPlayer = gotak.PlayerBlack
+	// After AI move, check if current turn is complete
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			// Turn is complete, next player is always White (start of next turn)
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			// Turn is incomplete, switch to the other player
+			if aiPlayerNumber == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		// Fallback to White if no turns
+		nextPlayer = gotak.PlayerWhite
 	}
+	log.Infow("AI switching current player", "ai_player", aiPlayerNumber, "next_player", nextPlayer, "turn_complete", len(game.Turns) > 0 && game.Turns[len(game.Turns)-1].First != nil && game.Turns[len(game.Turns)-1].Second != nil)
 	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
 		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
 		// Continue - this is not fatal for the test
@@ -795,9 +810,24 @@ func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, d
 	}
 
 	// Switch to the next player's turn (FIXED)
-	nextPlayer := gotak.PlayerWhite
-	if data.Player == gotak.PlayerWhite {
-		nextPlayer = gotak.PlayerBlack
+	// After human move, check if current turn is complete
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			// Turn is complete, next player is always White (start of next turn)
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			// Turn is incomplete, switch to the other player
+			if data.Player == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		// Fallback to White if no turns
+		nextPlayer = gotak.PlayerWhite
 	}
 	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
 		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
