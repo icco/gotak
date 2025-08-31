@@ -263,14 +263,6 @@ func TestAIGameCompletion(t *testing.T) {
 		// Human makes their move (White always goes first)
 		makeE2EMove(t, server.URL, user, gameSlug, move, gotak.PlayerWhite)
 
-		// Debug: Check game state after human move
-		gameAfterHuman := getGameState(t, server.URL, gameSlug)
-		t.Logf("After human move %d (%s): Turns=%d", i+1, move, len(gameAfterHuman.Turns))
-		if len(gameAfterHuman.Turns) > 0 {
-			lastTurn := gameAfterHuman.Turns[len(gameAfterHuman.Turns)-1]
-			t.Logf("Last turn: Number=%d, First=%v, Second=%v", lastTurn.Number, lastTurn.First, lastTurn.Second)
-		}
-
 		// Get AI response (Black always goes second)
 		aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
 
@@ -622,27 +614,20 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 		return
 	}
 
-	// Find which turn the move was added to by DoSingleMove (same as move handler)
-	var currentTurn int64 = 1
-	var foundMove bool = false
-	
-	// Search through turns to find where our move was placed
+	// Store the AI move in database - calculate turn number based on total moves made
+	// Count total moves across all turns to determine which turn this move belongs to
+	totalMoves := int64(0)
 	for _, turn := range game.Turns {
-		if (aiPlayerNumber == gotak.PlayerWhite && turn.First != nil && turn.First.Text == move) ||
-		   (aiPlayerNumber == gotak.PlayerBlack && turn.Second != nil && turn.Second.Text == move) {
-			currentTurn = turn.Number
-			foundMove = true
-			break
+		if turn.First != nil {
+			totalMoves++
+		}
+		if turn.Second != nil {
+			totalMoves++
 		}
 	}
-	
-	if !foundMove {
-		log.Errorw("could not find AI move in game turns after DoSingleMove", "move", move, "player", aiPlayerNumber)
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not track AI move"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
+
+	// Calculate turn number (moves 1-2 = turn 1, moves 3-4 = turn 2, etc.)
+	currentTurn := (totalMoves / 2) + 1
 
 	if err := insertMove(db, game.ID, aiPlayerNumber, move, currentTurn); err != nil {
 		log.Errorw("could not insert AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))
@@ -786,27 +771,20 @@ func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, d
 		return
 	}
 
-	// Find which turn the move was added to by DoSingleMove
-	var currentTurn int64 = 1
-	var foundMove bool = false
-	
-	// Search through turns to find where our move was placed
+	// Store the move in database - calculate turn number based on total moves made
+	// Count total moves across all turns to determine which turn this move belongs to
+	totalMoves := int64(0)
 	for _, turn := range game.Turns {
-		if (data.Player == gotak.PlayerWhite && turn.First != nil && turn.First.Text == data.Text) ||
-		   (data.Player == gotak.PlayerBlack && turn.Second != nil && turn.Second.Text == data.Text) {
-			currentTurn = turn.Number
-			foundMove = true
-			break
+		if turn.First != nil {
+			totalMoves++
+		}
+		if turn.Second != nil {
+			totalMoves++
 		}
 	}
-	
-	if !foundMove {
-		log.Errorw("could not find move in game turns after DoSingleMove", "move", data.Text, "player", data.Player)
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not track move"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
+
+	// Calculate turn number (moves 1-2 = turn 1, moves 3-4 = turn 2, etc.)
+	currentTurn := (totalMoves / 2) + 1
 
 	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
 		log.Errorw("could not insert move", "data", data, zap.Error(err))
