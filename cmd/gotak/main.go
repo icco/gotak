@@ -1007,8 +1007,8 @@ func (m model) viewGame() string {
 
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 
-	// Create a much larger board that fills most of the screen
-	board := m.renderLargeBoard()
+	// Render the Tak board
+	board := m.renderTakBoard()
 
 	// Move input area with cursor
 	cursor := ""
@@ -1048,88 +1048,77 @@ func (m model) viewGame() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-func (m model) renderLargeBoard() string {
+// renderTakBoard creates a clean board display using API game state
+func (m model) renderTakBoard() string {
 	size := m.gameData.Size
 	if size == 0 {
-		size = m.boardSize // Use the settings board size if game data doesn't have it
+		size = m.boardSize
 	}
 
-	// Reconstruct the board state from game moves
-	board := m.reconstructBoardState()
+	// Get board state from API data (reconstruct from moves)
+	board := m.getBoardFromAPI()
 
 	var s strings.Builder
 
-	// Top border - based on gambit's approach
-	s.WriteString(m.buildTopBorder(size))
+	// Top border
+	s.WriteString(m.buildBorder("top", size))
 
-	// Board rows (reverse order for proper display - row 1 at bottom)
-	for i := size - 1; i >= 0; i-- {
-		// Row number
-		s.WriteString(fmt.Sprintf(" %d │", i+1))
+	// Board rows (from top to bottom, size-1 down to 0)
+	for row := size - 1; row >= 0; row-- {
+		// Row number on left
+		s.WriteString(fmt.Sprintf(" %d │", row+1))
 
-		for j := 0; j < size; j++ {
-			square := fmt.Sprintf("%c%d", 'a'+j, i+1)
+		// Each column in this row
+		for col := 0; col < size; col++ {
+			square := fmt.Sprintf("%c%d", 'a'+col, row+1)
 			stones := board[square]
 
-			var display string
-			if len(stones) == 0 {
-				display = "·"
-			} else {
-				// Show the top stone
-				topStone := stones[len(stones)-1]
-				symbol := m.getStoneSymbol(topStone)
-
-				if len(stones) == 1 {
-					display = symbol
-				} else if len(stones) <= 9 {
-					// Show stack count with top stone for small stacks - need to keep it to 1 char
-					display = fmt.Sprintf("%d", len(stones))
-				} else {
-					// For large stacks, just show count
-					display = "+"
-				}
-			}
-
-			// Format exactly like gambit: space + content + space + vertical separator
+			// Display the square content
+			display := m.formatSquare(stones)
 			s.WriteString(fmt.Sprintf(" %s │", display))
 		}
 
-		s.WriteString(fmt.Sprintf(" %d\n", i+1))
+		// Row number on right
+		s.WriteString(fmt.Sprintf(" %d\n", row+1))
 
-		// Add row separator (except for last row)
-		if i > 0 {
-			s.WriteString(m.buildMiddleBorder(size))
+		// Middle border (except for last row)
+		if row > 0 {
+			s.WriteString(m.buildBorder("middle", size))
 		}
 	}
 
 	// Bottom border
-	s.WriteString(m.buildBottomBorder(size))
+	s.WriteString(m.buildBorder("bottom", size))
 
-	// Bottom column labels
+	// Column labels
 	s.WriteString(m.buildColumnLabels(size))
 
 	return s.String()
 }
 
-// buildTopBorder creates the top border of the board - matches gambit pattern
-func (m model) buildTopBorder(size int) string {
-	border := "   ┌─" + strings.Repeat("──┬─", size-1) + "──┐\n"
+// buildBorder creates borders for the board
+func (m model) buildBorder(borderType string, size int) string {
+	var left, middle, right string
+
+	switch borderType {
+	case "top":
+		left, middle, right = "┌", "┬", "┐"
+	case "middle":
+		left, middle, right = "├", "┼", "┤"
+	case "bottom":
+		left, middle, right = "└", "┴", "┘"
+	}
+
+	border := "   " + left + "─"
+	for i := 0; i < size-1; i++ {
+		border += "──" + middle + "─"
+	}
+	border += "──" + right + "\n"
+
 	return border
 }
 
-// buildMiddleBorder creates the middle separator of the board - matches gambit pattern
-func (m model) buildMiddleBorder(size int) string {
-	border := "   ├─" + strings.Repeat("──┼─", size-1) + "──┤\n"
-	return border
-}
-
-// buildBottomBorder creates the bottom border of the board - matches gambit pattern
-func (m model) buildBottomBorder(size int) string {
-	border := "   └─" + strings.Repeat("──┴─", size-1) + "──┘\n"
-	return border
-}
-
-// buildColumnLabels creates the column labels at the bottom
+// buildColumnLabels creates the column labels
 func (m model) buildColumnLabels(size int) string {
 	labels := "   "
 	for i := 0; i < size; i++ {
@@ -1141,79 +1130,99 @@ func (m model) buildColumnLabels(size int) string {
 	return labels + "\n"
 }
 
-// reconstructBoardState recreates the board state by replaying all moves from the game data
-func (m model) reconstructBoardState() map[string][]*gotak.Stone {
+// getBoardFromAPI reconstructs board state from API game data
+func (m model) getBoardFromAPI() map[string][]*gotak.Stone {
+	board := make(map[string][]*gotak.Stone)
+
 	if m.gameData == nil {
-		return make(map[string][]*gotak.Stone)
+		return board
 	}
 
 	size := int64(m.gameData.Size)
 	if size == 0 {
-		size = int64(m.boardSize) // Use the settings board size if game data doesn't have it
+		size = int64(m.boardSize)
 	}
 
-	// Create a new board
-	board := &gotak.Board{Size: size}
-	board.Init()
+	// Create a gotak board and replay moves
+	gotakBoard := &gotak.Board{Size: size}
+	gotakBoard.Init()
 
-	// Replay all moves in order
+	// Replay all moves from API data
 	moveCount := 0
 	for _, turn := range m.gameData.Turns {
 		for _, gameMove := range turn.Moves {
 			moveCount++
 
-			// Parse the move from PTN text
+			// Parse move from PTN notation
 			move, err := gotak.NewMove(gameMove.Text)
 			if err != nil {
-				// Debug: could add error logging here
 				continue
 			}
 
-			// Apply the move to the board
-			// For the first turn, white places black's stone (special Tak rule)
+			// Determine player (handle first move special rule)
 			player := gameMove.Player
 			if moveCount == 1 && player == gotak.PlayerWhite {
-				// First move of the game: white places opponent's stone
+				// First move: white places black's stone
 				player = gotak.PlayerBlack
 			}
 
-			err = board.DoMove(move, player)
+			// Apply move to board
+			err = gotakBoard.DoMove(move, player)
 			if err != nil {
-				// Debug: could add error logging here
 				continue
 			}
 		}
 	}
 
-	return board.Squares
+	return gotakBoard.Squares
 }
 
-// getStoneSymbol returns a visual symbol for a stone
-func (m model) getStoneSymbol(stone *gotak.Stone) string {
-	var playerSymbol string
-	if stone.Player == gotak.PlayerWhite {
-		playerSymbol = "○" // White circle
-	} else {
-		playerSymbol = "●" // Black circle
+// formatSquare formats a square for display
+func (m model) formatSquare(stones []*gotak.Stone) string {
+	if len(stones) == 0 {
+		return "·" // Empty square
 	}
 
+	// Get top stone for display
+	topStone := stones[len(stones)-1]
+
+	// Single stone - show the stone type
+	if len(stones) == 1 {
+		return m.getStoneDisplay(topStone)
+	}
+
+	// Stack - show count
+	if len(stones) <= 9 {
+		return fmt.Sprintf("%d", len(stones))
+	}
+
+	// Large stack
+	return "+"
+}
+
+// getStoneDisplay returns display character for a stone
+func (m model) getStoneDisplay(stone *gotak.Stone) string {
 	switch stone.Type {
 	case gotak.StoneFlat:
-		return playerSymbol
+		if stone.Player == gotak.PlayerWhite {
+			return "○"
+		}
+		return "●"
 	case gotak.StoneStanding:
 		if stone.Player == gotak.PlayerWhite {
-			return "□" // White square for standing
-		} else {
-			return "■" // Black square for standing
+			return "□"
 		}
+		return "■"
 	case gotak.StoneCap:
 		if stone.Player == gotak.PlayerWhite {
-			return "◇" // White diamond for capstone
-		} else {
-			return "◆" // Black diamond for capstone
+			return "◇"
 		}
+		return "◆"
 	default:
-		return playerSymbol
+		if stone.Player == gotak.PlayerWhite {
+			return "○"
+		}
+		return "●"
 	}
 }
 
