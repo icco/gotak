@@ -1169,7 +1169,6 @@ func (m model) requestAIMove() tea.Cmd {
 	}
 }
 
-
 func (m model) viewSettings() string {
 	title := titleStyle.Width(m.width).Render("⚙️ Settings")
 
