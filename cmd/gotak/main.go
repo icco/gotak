@@ -835,78 +835,105 @@ func (m model) renderLargeBoard() string {
 	// Reconstruct the board state from game moves
 	board := m.reconstructBoardState()
 
-	var rows []string
-
-	// Column headers
-	header := "   "
-	for i := 0; i < size; i++ {
-		header += fmt.Sprintf("  %c ", 'a'+i)
-	}
-	rows = append(rows, header)
-
-	// Add a separator
-	rows = append(rows, "")
+	var s strings.Builder
+	
+	// Top border - based on gambit's approach
+	s.WriteString(m.buildTopBorder(size))
 
 	// Board rows (reverse order for proper display - row 1 at bottom)
 	for i := size - 1; i >= 0; i-- {
-		row := fmt.Sprintf("%d ", i+1)
+		// Row number
+		s.WriteString(fmt.Sprintf(" %d │", i+1))
 		
 		for j := 0; j < size; j++ {
 			square := fmt.Sprintf("%c%d", 'a'+j, i+1)
 			stones := board[square]
 			
+			var display string
 			if len(stones) == 0 {
-				row += " · "
+				display = " · "
 			} else {
 				// Show the top stone
 				topStone := stones[len(stones)-1]
 				symbol := m.getStoneSymbol(topStone)
 				
 				if len(stones) == 1 {
-					row += fmt.Sprintf(" %s ", symbol)
+					display = fmt.Sprintf(" %s ", symbol)
+				} else if len(stones) <= 9 {
+					// Show stack count with top stone for small stacks
+					display = fmt.Sprintf("%d%s ", len(stones), symbol)
 				} else {
-					// Show stack count with top stone
-					row += fmt.Sprintf("%d%s", len(stones), symbol)
-					if len(stones) < 10 {
-						row += " " // pad single digit counts
-					}
+					// For large stacks, just show count
+					display = fmt.Sprintf("%d+ ", len(stones))
 				}
 			}
 			
-			// Add column separator
-			if j < size-1 {
-				row += "|"
-			}
+			s.WriteString(display + "│")
 		}
 		
-		row += fmt.Sprintf(" %d", i+1)
-		rows = append(rows, row)
+		s.WriteString(fmt.Sprintf(" %d\n", i+1))
 		
 		// Add row separator (except for last row)
 		if i > 0 {
-			separator := "  "
-			for j := 0; j < size; j++ {
-				separator += "---"
-				if j < size-1 {
-					separator += "+"
-				}
-			}
-			rows = append(rows, separator)
+			s.WriteString(m.buildMiddleBorder(size))
 		}
 	}
 
-	// Add bottom separator
-	rows = append(rows, "")
+	// Bottom border
+	s.WriteString(m.buildBottomBorder(size))
 	
-	// Bottom column headers
-	footer := "   "
-	for i := 0; i < size; i++ {
-		footer += fmt.Sprintf("  %c ", 'a'+i)
-	}
-	rows = append(rows, footer)
+	// Bottom column labels
+	s.WriteString(m.buildColumnLabels(size))
 
-	boardContent := strings.Join(rows, "\n")
-	return boardStyle.Render(boardContent)
+	return boardStyle.Render(s.String())
+}
+
+// buildTopBorder creates the top border of the board
+func (m model) buildTopBorder(size int) string {
+	border := "   ┌"
+	for i := 0; i < size; i++ {
+		border += "───"
+		if i < size-1 {
+			border += "┬"
+		}
+	}
+	border += "┐\n"
+	return border
+}
+
+// buildMiddleBorder creates the middle separator of the board
+func (m model) buildMiddleBorder(size int) string {
+	border := "   ├"
+	for i := 0; i < size; i++ {
+		border += "───"
+		if i < size-1 {
+			border += "┼"
+		}
+	}
+	border += "┤\n"
+	return border
+}
+
+// buildBottomBorder creates the bottom border of the board
+func (m model) buildBottomBorder(size int) string {
+	border := "   └"
+	for i := 0; i < size; i++ {
+		border += "───"
+		if i < size-1 {
+			border += "┴"
+		}
+	}
+	border += "┘\n"
+	return border
+}
+
+// buildColumnLabels creates the column labels at the bottom
+func (m model) buildColumnLabels(size int) string {
+	labels := "     "
+	for i := 0; i < size; i++ {
+		labels += fmt.Sprintf("%c  ", 'a'+i)
+	}
+	return labels + "\n"
 }
 
 // reconstructBoardState recreates the board state by replaying all moves from the game data
@@ -924,29 +951,6 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 	board := &gotak.Board{Size: size}
 	board.Init()
 
-	// For testing, let's add some sample pieces to see if rendering works
-	if len(m.gameData.Turns) == 0 {
-		// Add test pieces if no moves exist
-		board.Squares["a1"] = []*gotak.Stone{
-			{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
-		}
-		board.Squares["b2"] = []*gotak.Stone{
-			{Type: gotak.StoneFlat, Player: gotak.PlayerBlack},
-		}
-		board.Squares["c3"] = []*gotak.Stone{
-			{Type: gotak.StoneStanding, Player: gotak.PlayerWhite},
-		}
-		board.Squares["d4"] = []*gotak.Stone{
-			{Type: gotak.StoneCap, Player: gotak.PlayerBlack},
-		}
-		board.Squares["e5"] = []*gotak.Stone{
-			{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
-			{Type: gotak.StoneFlat, Player: gotak.PlayerBlack},
-			{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
-		}
-		return board.Squares
-	}
-
 	// Replay all moves in order
 	for turnIndex, turn := range m.gameData.Turns {
 		for _, gameMove := range turn.Moves {
@@ -957,13 +961,20 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 			}
 
 			// Apply the move to the board
-			// For the first turn, white places black's stone
+			// For the first turn, white places black's stone (special Tak rule)
 			player := gameMove.Player
-			if turnIndex == 0 && player == 1 {
-				player = 2 // First move: white places black stone
+			if turnIndex == 0 && len(m.gameData.Turns) > 0 && len(m.gameData.Turns[0].Moves) > 0 {
+				// First move of the game: white places opponent's stone
+				if player == gotak.PlayerWhite {
+					player = gotak.PlayerBlack
+				}
 			}
 
-			board.DoMove(move, player)
+			err = board.DoMove(move, player)
+			if err != nil {
+				// Skip invalid moves but could log for debugging
+				continue
+			}
 		}
 	}
 
