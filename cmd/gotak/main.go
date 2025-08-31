@@ -851,24 +851,25 @@ func (m model) renderLargeBoard() string {
 			
 			var display string
 			if len(stones) == 0 {
-				display = " · "
+				display = "·"
 			} else {
 				// Show the top stone
 				topStone := stones[len(stones)-1]
 				symbol := m.getStoneSymbol(topStone)
 				
 				if len(stones) == 1 {
-					display = fmt.Sprintf(" %s ", symbol)
+					display = symbol
 				} else if len(stones) <= 9 {
-					// Show stack count with top stone for small stacks
-					display = fmt.Sprintf("%d%s ", len(stones), symbol)
+					// Show stack count with top stone for small stacks - need to keep it to 1 char
+					display = fmt.Sprintf("%d", len(stones))
 				} else {
 					// For large stacks, just show count
-					display = fmt.Sprintf("%d+ ", len(stones))
+					display = "+"
 				}
 			}
 			
-			s.WriteString(display + "│")
+			// Format exactly like gambit: space + content + space + vertical separator
+			s.WriteString(fmt.Sprintf(" %s │", display))
 		}
 		
 		s.WriteString(fmt.Sprintf(" %d\n", i+1))
@@ -888,50 +889,32 @@ func (m model) renderLargeBoard() string {
 	return boardStyle.Render(s.String())
 }
 
-// buildTopBorder creates the top border of the board
+// buildTopBorder creates the top border of the board - matches gambit pattern
 func (m model) buildTopBorder(size int) string {
-	border := "   ┌"
-	for i := 0; i < size; i++ {
-		border += "───"
-		if i < size-1 {
-			border += "┬"
-		}
-	}
-	border += "┐\n"
+	border := "   ┌─" + strings.Repeat("──┬─", size-1) + "──┐\n"
 	return border
 }
 
-// buildMiddleBorder creates the middle separator of the board
+// buildMiddleBorder creates the middle separator of the board - matches gambit pattern  
 func (m model) buildMiddleBorder(size int) string {
-	border := "   ├"
-	for i := 0; i < size; i++ {
-		border += "───"
-		if i < size-1 {
-			border += "┼"
-		}
-	}
-	border += "┤\n"
+	border := "   ├─" + strings.Repeat("──┼─", size-1) + "──┤\n"
 	return border
 }
 
-// buildBottomBorder creates the bottom border of the board
+// buildBottomBorder creates the bottom border of the board - matches gambit pattern
 func (m model) buildBottomBorder(size int) string {
-	border := "   └"
-	for i := 0; i < size; i++ {
-		border += "───"
-		if i < size-1 {
-			border += "┴"
-		}
-	}
-	border += "┘\n"
+	border := "   └─" + strings.Repeat("──┴─", size-1) + "──┘\n"
 	return border
 }
 
 // buildColumnLabels creates the column labels at the bottom
 func (m model) buildColumnLabels(size int) string {
-	labels := "     "
+	labels := "   "
 	for i := 0; i < size; i++ {
-		labels += fmt.Sprintf("%c  ", 'a'+i)
+		labels += fmt.Sprintf(" %c ", 'a'+i)
+		if i < size-1 {
+			labels += " "
+		}
 	}
 	return labels + "\n"
 }
