@@ -44,8 +44,6 @@ var (
 				Bold(true).
 				PaddingLeft(2)
 
-
-
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("196")).
 			Bold(true).
@@ -65,12 +63,12 @@ func getTokenCachePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	cacheDir := filepath.Join(homeDir, ".gotak")
 	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		return "", err
 	}
-	
+
 	return filepath.Join(cacheDir, "auth.json"), nil
 }
 
@@ -80,7 +78,7 @@ func saveTokenCache(token, email, name, serverURL string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Set expiry to 24 hours from now (adjust based on your JWT expiry)
 	cache := TokenCache{
 		Token:     token,
@@ -89,12 +87,12 @@ func saveTokenCache(token, email, name, serverURL string) error {
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		ServerURL: serverURL,
 	}
-	
+
 	data, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(cachePath, data, 0600)
 }
 
@@ -104,22 +102,22 @@ func loadTokenCache() (*TokenCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	data, err := os.ReadFile(cachePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var cache TokenCache
 	if err := json.Unmarshal(data, &cache); err != nil {
 		return nil, err
 	}
-	
+
 	// Check if token is expired
 	if time.Now().After(cache.ExpiresAt) {
 		return nil, fmt.Errorf("token expired")
 	}
-	
+
 	return &cache, nil
 }
 
@@ -129,21 +127,21 @@ func validateToken(token, serverURL string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
-	
+
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("token validation failed: %d", resp.StatusCode)
 	}
-	
+
 	return nil
 }
 
@@ -153,11 +151,11 @@ func clearTokenCache() error {
 	if err != nil {
 		return err
 	}
-	
+
 	if err := os.Remove(cachePath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -230,7 +228,7 @@ type model struct {
 	// Menu state
 	menuCursor int
 
-	// Settings state  
+	// Settings state
 	settingsCursor int
 	gameMode       string // "human" or "ai"
 
@@ -330,13 +328,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = screenMenu
 		m.error = ""
 		m.isLoading = false
-		
+
 		// Save token to cache for future sessions
 		if err := saveTokenCache(msg.token, msg.email, msg.name, m.serverURL); err != nil {
 			// Don't fail login if cache save fails, just log it
 			// Could add error display here if needed
 		}
-		
+
 		return m, nil
 
 	case registrationSuccess:
@@ -367,7 +365,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.moveInput = ""
 		m.error = ""
 		m.isLoading = false
-		
+
 		// If this is an AI game and it's now the AI's turn, request AI move
 		if m.gameMode == "ai" && !m.isGameOver() {
 			currentPlayer := m.getCurrentPlayer()
@@ -375,7 +373,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.requestAIMove()
 			}
 		}
-		
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -668,7 +666,7 @@ func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *model) cycleBoardSize() {
 	validSizes := []int{4, 5, 6, 7, 8}
 	currentIndex := 0
-	
+
 	// Find current size index
 	for i, size := range validSizes {
 		if size == m.boardSize {
@@ -676,7 +674,7 @@ func (m *model) cycleBoardSize() {
 			break
 		}
 	}
-	
+
 	// Move to next size, wrap around
 	currentIndex = (currentIndex + 1) % len(validSizes)
 	m.boardSize = validSizes[currentIndex]
@@ -1017,7 +1015,7 @@ func (m model) viewGame() string {
 			playerText = "Black"
 		}
 	}
-	
+
 	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Turn: %s | Moves: %d | Mode: %s",
 		m.gameData.Status, playerText, m.getTotalMoves(), m.gameMode))
 
@@ -1044,7 +1042,7 @@ func (m model) renderLargeBoard() string {
 	board := m.reconstructBoardState()
 
 	var s strings.Builder
-	
+
 	// Top border - based on gambit's approach
 	s.WriteString(m.buildTopBorder(size))
 
@@ -1052,11 +1050,11 @@ func (m model) renderLargeBoard() string {
 	for i := size - 1; i >= 0; i-- {
 		// Row number
 		s.WriteString(fmt.Sprintf(" %d │", i+1))
-		
+
 		for j := 0; j < size; j++ {
 			square := fmt.Sprintf("%c%d", 'a'+j, i+1)
 			stones := board[square]
-			
+
 			var display string
 			if len(stones) == 0 {
 				display = "·"
@@ -1064,7 +1062,7 @@ func (m model) renderLargeBoard() string {
 				// Show the top stone
 				topStone := stones[len(stones)-1]
 				symbol := m.getStoneSymbol(topStone)
-				
+
 				if len(stones) == 1 {
 					display = symbol
 				} else if len(stones) <= 9 {
@@ -1075,13 +1073,13 @@ func (m model) renderLargeBoard() string {
 					display = "+"
 				}
 			}
-			
+
 			// Format exactly like gambit: space + content + space + vertical separator
 			s.WriteString(fmt.Sprintf(" %s │", display))
 		}
-		
+
 		s.WriteString(fmt.Sprintf(" %d\n", i+1))
-		
+
 		// Add row separator (except for last row)
 		if i > 0 {
 			s.WriteString(m.buildMiddleBorder(size))
@@ -1090,7 +1088,7 @@ func (m model) renderLargeBoard() string {
 
 	// Bottom border
 	s.WriteString(m.buildBottomBorder(size))
-	
+
 	// Bottom column labels
 	s.WriteString(m.buildColumnLabels(size))
 
@@ -1103,7 +1101,7 @@ func (m model) buildTopBorder(size int) string {
 	return border
 }
 
-// buildMiddleBorder creates the middle separator of the board - matches gambit pattern  
+// buildMiddleBorder creates the middle separator of the board - matches gambit pattern
 func (m model) buildMiddleBorder(size int) string {
 	border := "   ├─" + strings.Repeat("──┼─", size-1) + "──┤\n"
 	return border
@@ -1158,7 +1156,7 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 	for _, turn := range m.gameData.Turns {
 		for _, gameMove := range turn.Moves {
 			moveCount++
-			
+
 			// Parse the move from PTN text
 			move, err := gotak.NewMove(gameMove.Text)
 			if err != nil {
@@ -1184,7 +1182,6 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 
 	return board.Squares
 }
-
 
 // getStoneSymbol returns a visual symbol for a stone
 func (m model) getStoneSymbol(stone *gotak.Stone) string {
@@ -1244,7 +1241,7 @@ func (m model) isGameOver() bool {
 	if m.gameData == nil {
 		return false
 	}
-	
+
 	// Check if status indicates game is over
 	status := strings.ToLower(m.gameData.Status)
 	return status == "completed" || status == "finished" || status == "won"
@@ -1254,13 +1251,13 @@ func (m model) isGameOver() bool {
 func (m model) requestAIMove() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
-			"level":     "intermediate", // Could be made configurable
-			"style":     "balanced",
+			"level":      "intermediate", // Could be made configurable
+			"style":      "balanced",
 			"time_limit": "10s",
 		}
 
 		data, _ := json.Marshal(payload)
-		
+
 		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
