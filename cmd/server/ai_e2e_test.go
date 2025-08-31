@@ -603,6 +603,16 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 		return
 	}
 
+	// Replay existing moves to get current board state
+	err = replayMoves(game)
+	if err != nil {
+		log.Errorw("could not replay moves for AI", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
 	// Execute the AI move
 	err = game.DoSingleMove(move, aiPlayerNumber)
 	if err != nil {
@@ -656,7 +666,6 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 		// Fallback to White if no turns
 		nextPlayer = gotak.PlayerWhite
 	}
-	log.Infow("AI switching current player", "ai_player", aiPlayerNumber, "next_player", nextPlayer, "turn_complete", len(game.Turns) > 0 && game.Turns[len(game.Turns)-1].First != nil && game.Turns[len(game.Turns)-1].Second != nil)
 	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
 		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
 		// Continue - this is not fatal for the test
@@ -761,6 +770,16 @@ func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, d
 	if dbGame.CurrentPlayer != data.Player {
 		log.Errorw("not player's turn", "current_player", dbGame.CurrentPlayer, "requested_player", data.Player)
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "it's not your turn"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Replay existing moves to get current board state
+	err = replayMoves(game)
+	if err != nil {
+		log.Errorw("could not replay moves", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"}); err != nil {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
