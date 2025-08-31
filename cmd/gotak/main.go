@@ -1007,8 +1007,17 @@ func (m model) viewGame() string {
 
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 
-	// Render the Tak board
-	board := m.renderTakBoard()
+	// Simple board display - just show the board size for now
+	boardDisplay := fmt.Sprintf("Board: %dx%d\n\nMoves played:", m.gameData.Size, m.gameData.Size)
+	for i, turn := range m.gameData.Turns {
+		for j, move := range turn.Moves {
+			playerName := "White"
+			if move.Player == 2 {
+				playerName = "Black"
+			}
+			boardDisplay += fmt.Sprintf("\n%d.%d %s: %s", i+1, j+1, playerName, move.Text)
+		}
+	}
 
 	// Move input area with cursor
 	cursor := ""
@@ -1038,7 +1047,7 @@ func (m model) viewGame() string {
 	// Help text with proper Tak move examples
 	help := menuItemStyle.Render("Move Examples: a1 (flat) | Sa1 (standing) | Ca1 (capstone) | 3a1>21 (move 3 stones) | Q: Menu")
 
-	content := lipgloss.JoinVertical(lipgloss.Center, title, board, inputArea, gameInfo, help)
+	content := lipgloss.JoinVertical(lipgloss.Center, title, boardDisplay, inputArea, gameInfo, help)
 
 	if m.error != "" {
 		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
@@ -1048,183 +1057,6 @@ func (m model) viewGame() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// renderTakBoard creates a clean board display using API game state
-func (m model) renderTakBoard() string {
-	size := m.gameData.Size
-	if size == 0 {
-		size = m.boardSize
-	}
-
-	// Get board state from API data (reconstruct from moves)
-	board := m.getBoardFromAPI()
-
-	var s strings.Builder
-
-	// Top border
-	s.WriteString(m.buildBorder("top", size))
-
-	// Board rows (from top to bottom, size-1 down to 0)
-	for row := size - 1; row >= 0; row-- {
-		// Row number on left
-		s.WriteString(fmt.Sprintf(" %d │", row+1))
-
-		// Each column in this row
-		for col := 0; col < size; col++ {
-			square := fmt.Sprintf("%c%d", 'a'+col, row+1)
-			stones := board[square]
-
-			// Display the square content
-			display := m.formatSquare(stones)
-			s.WriteString(fmt.Sprintf(" %s │", display))
-		}
-
-		// Row number on right
-		s.WriteString(fmt.Sprintf(" %d\n", row+1))
-
-		// Middle border (except for last row)
-		if row > 0 {
-			s.WriteString(m.buildBorder("middle", size))
-		}
-	}
-
-	// Bottom border
-	s.WriteString(m.buildBorder("bottom", size))
-
-	// Column labels
-	s.WriteString(m.buildColumnLabels(size))
-
-	return s.String()
-}
-
-// buildBorder creates borders for the board
-func (m model) buildBorder(borderType string, size int) string {
-	var left, middle, right string
-
-	switch borderType {
-	case "top":
-		left, middle, right = "┌", "┬", "┐"
-	case "middle":
-		left, middle, right = "├", "┼", "┤"
-	case "bottom":
-		left, middle, right = "└", "┴", "┘"
-	}
-
-	border := "   " + left + "─"
-	for i := 0; i < size-1; i++ {
-		border += "──" + middle + "─"
-	}
-	border += "──" + right + "\n"
-
-	return border
-}
-
-// buildColumnLabels creates the column labels
-func (m model) buildColumnLabels(size int) string {
-	labels := "   "
-	for i := 0; i < size; i++ {
-		labels += fmt.Sprintf(" %c ", 'a'+i)
-		if i < size-1 {
-			labels += " "
-		}
-	}
-	return labels + "\n"
-}
-
-// getBoardFromAPI reconstructs board state from API game data
-func (m model) getBoardFromAPI() map[string][]*gotak.Stone {
-	board := make(map[string][]*gotak.Stone)
-
-	if m.gameData == nil {
-		return board
-	}
-
-	size := int64(m.gameData.Size)
-	if size == 0 {
-		size = int64(m.boardSize)
-	}
-
-	// Create a gotak board and replay moves
-	gotakBoard := &gotak.Board{Size: size}
-	gotakBoard.Init()
-
-	// Replay all moves from API data
-	moveCount := 0
-	for _, turn := range m.gameData.Turns {
-		for _, gameMove := range turn.Moves {
-			moveCount++
-
-			// Parse move from PTN notation
-			move, err := gotak.NewMove(gameMove.Text)
-			if err != nil {
-				continue
-			}
-
-			// Determine player (handle first move special rule)
-			player := gameMove.Player
-			if moveCount == 1 && player == gotak.PlayerWhite {
-				// First move: white places black's stone
-				player = gotak.PlayerBlack
-			}
-
-			// Apply move to board
-			err = gotakBoard.DoMove(move, player)
-			if err != nil {
-				continue
-			}
-		}
-	}
-
-	return gotakBoard.Squares
-}
-
-// formatSquare formats a square for display
-func (m model) formatSquare(stones []*gotak.Stone) string {
-	if len(stones) == 0 {
-		return "·" // Empty square
-	}
-
-	// Get top stone for display
-	topStone := stones[len(stones)-1]
-
-	// Single stone - show the stone type
-	if len(stones) == 1 {
-		return m.getStoneDisplay(topStone)
-	}
-
-	// Stack - show count
-	if len(stones) <= 9 {
-		return fmt.Sprintf("%d", len(stones))
-	}
-
-	// Large stack
-	return "+"
-}
-
-// getStoneDisplay returns display character for a stone
-func (m model) getStoneDisplay(stone *gotak.Stone) string {
-	switch stone.Type {
-	case gotak.StoneFlat:
-		if stone.Player == gotak.PlayerWhite {
-			return "○"
-		}
-		return "●"
-	case gotak.StoneStanding:
-		if stone.Player == gotak.PlayerWhite {
-			return "□"
-		}
-		return "■"
-	case gotak.StoneCap:
-		if stone.Player == gotak.PlayerWhite {
-			return "◇"
-		}
-		return "◆"
-	default:
-		if stone.Player == gotak.PlayerWhite {
-			return "○"
-		}
-		return "●"
-	}
-}
 
 func (m model) getTotalMoves() int {
 	total := 0
