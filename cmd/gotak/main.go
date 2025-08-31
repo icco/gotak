@@ -240,6 +240,9 @@ type model struct {
 	// Move input
 	moveInput string
 
+	// AI state
+	waitingForAI bool
+
 	// UI state
 	width     int
 	height    int
@@ -366,15 +369,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.error = ""
 		m.isLoading = false
 
-		// If this is an AI game and it's now the AI's turn, request AI move
-		if m.gameMode == "ai" && !m.isGameOver() {
+		// If this is an AI game, it's the AI's turn, and we're not already waiting for AI
+		if m.gameMode == "ai" && !m.isGameOver() && !m.waitingForAI {
 			currentPlayer := m.getCurrentPlayer()
 			if currentPlayer == 2 { // AI is player 2 (black)
+				m.waitingForAI = true
+				m.isLoading = true
 				return m, m.requestAIMove()
 			}
 		}
 
+		// Reset AI waiting flag if it was an AI move
+		m.waitingForAI = false
+
 		return m, nil
+
+	case aiMoveReceived:
+		// Submit the AI move to the game
+		return m, m.submitAIMove(msg.move)
 
 	case tea.KeyMsg:
 		switch m.screen {
@@ -1010,7 +1022,11 @@ func (m model) viewGame() string {
 	playerText := "White"
 	if currentPlayer == 2 {
 		if m.gameMode == "ai" {
-			playerText = "Black (AI)"
+			if m.waitingForAI {
+				playerText = "Black (AI thinking...)"
+			} else {
+				playerText = "Black (AI)"
+			}
 		} else {
 			playerText = "Black"
 		}
@@ -1035,7 +1051,7 @@ func (m model) viewGame() string {
 func (m model) renderLargeBoard() string {
 	size := m.gameData.Size
 	if size == 0 {
-		size = 5
+		size = m.boardSize // Use the settings board size if game data doesn't have it
 	}
 
 	// Reconstruct the board state from game moves
@@ -1133,23 +1149,13 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 
 	size := int64(m.gameData.Size)
 	if size == 0 {
-		size = 5
+		size = int64(m.boardSize) // Use the settings board size if game data doesn't have it
 	}
 
 	// Create a new board
 	board := &gotak.Board{Size: size}
 	board.Init()
 
-	// Debug: Always add a test piece to verify rendering works
-	board.Squares["c3"] = []*gotak.Stone{
-		{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
-	}
-	// Also add a stack to test that
-	board.Squares["d4"] = []*gotak.Stone{
-		{Type: gotak.StoneFlat, Player: gotak.PlayerBlack},
-		{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
-		{Type: gotak.StoneStanding, Player: gotak.PlayerBlack},
-	}
 
 	// Replay all moves in order
 	moveCount := 0
@@ -1288,8 +1294,8 @@ func (m model) requestAIMove() tea.Cmd {
 			return apiError{error: "AI move response error"}
 		}
 
-		// Now submit the AI move as if it were a regular move
-		return m.submitAIMove(aiResp.Move)()
+		// Return a new message to submit the AI move
+		return aiMoveReceived{move: aiResp.Move, hint: aiResp.Hint}
 	}
 }
 
@@ -1587,4 +1593,9 @@ type moveSubmitted struct {
 
 type apiError struct {
 	error string
+}
+
+type aiMoveReceived struct {
+	move string
+	hint string
 }
