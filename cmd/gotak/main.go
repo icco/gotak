@@ -1158,60 +1158,17 @@ func (m model) requestAIMove() tea.Cmd {
 			return apiError{error: fmt.Sprintf("AI move failed (status %d)", resp.StatusCode)}
 		}
 
-		var aiResp struct {
-			Move string `json:"move"`
-			Hint string `json:"hint,omitempty"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&aiResp); err != nil {
+		// AI endpoint now returns the updated game state directly
+		var game GameData
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 			return apiError{error: "AI move response error"}
 		}
 
-		// Return a new message to submit the AI move
-		return aiMoveReceived{move: aiResp.Move, hint: aiResp.Hint}
+		// Return the updated game state
+		return aiMoveReceived{game: &game}
 	}
 }
 
-// submitAIMove submits an AI move to the game
-func (m model) submitAIMove(move string) tea.Cmd {
-	return func() tea.Msg {
-		payload := map[string]interface{}{
-			"player": m.getCurrentPlayer(), // Use current turn's player
-			"move":   move,
-			"turn":   int64(m.getTotalMoves() + 1),
-		}
-
-		data, _ := json.Marshal(payload)
-
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+m.token)
-		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			return apiError{error: fmt.Sprintf("AI move submission failed: %v", err)}
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			var errorResp struct {
-				Error string `json:"error"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
-				return apiError{error: fmt.Sprintf("AI move submission failed: %s", errorResp.Error)}
-			}
-			return apiError{error: fmt.Sprintf("AI move submission failed (status %d)", resp.StatusCode)}
-		}
-
-		var game GameData
-		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
-			return apiError{error: "AI move game response error"}
-		}
-
-		return moveSubmitted{game: &game}
-	}
-}
 
 func (m model) viewSettings() string {
 	title := titleStyle.Width(m.width).Render("⚙️ Settings")
@@ -1468,6 +1425,5 @@ type apiError struct {
 }
 
 type aiMoveReceived struct {
-	move string
-	hint string
+	game *GameData
 }
