@@ -255,18 +255,28 @@ type GameData struct {
 	ID     int64             `json:"id"`
 	Slug   string            `json:"slug"`
 	Status string            `json:"status"`
-	Size   int               `json:"size"`
 	Turns  []GameTurn        `json:"turns"`
+	Board  *GameBoard        `json:"board"`
 	Tags   map[string]string `json:"tags"`
 }
 
+type GameBoard struct {
+	Size int64 `json:"size"`
+}
+
 type GameTurn struct {
-	Moves []GameMove `json:"moves"`
+	Number  int64     `json:"number"`
+	First   *GameMove `json:"first"`
+	Second  *GameMove `json:"second"`
+	Result  string    `json:"result"`
+	Comment string    `json:"comment"`
 }
 
 type GameMove struct {
 	Player int    `json:"player"`
 	Text   string `json:"text"`
+	Type   string `json:"type"`
+	Square string `json:"square"`
 }
 
 // TokenCache represents cached authentication data
@@ -1008,14 +1018,28 @@ func (m model) viewGame() string {
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 
 	// Simple board display - just show the board size for now
-	boardDisplay := fmt.Sprintf("Board: %dx%d\n\nMoves played:", m.gameData.Size, m.gameData.Size)
-	for i, turn := range m.gameData.Turns {
-		for j, move := range turn.Moves {
+	// Get board size from Board struct
+	boardSize := 0
+	if m.gameData.Board != nil {
+		boardSize = int(m.gameData.Board.Size)
+	} else {
+		boardSize = m.boardSize // fallback to settings
+	}
+	boardDisplay := fmt.Sprintf("Board: %dx%d\n\nMoves played:", boardSize, boardSize)
+	for _, turn := range m.gameData.Turns {
+		if turn.First != nil {
 			playerName := "White"
-			if move.Player == 2 {
+			if turn.First.Player == 2 {
 				playerName = "Black"
 			}
-			boardDisplay += fmt.Sprintf("\n%d.%d %s: %s", i+1, j+1, playerName, move.Text)
+			boardDisplay += fmt.Sprintf("\n%d.1 %s: %s", turn.Number, playerName, turn.First.Text)
+		}
+		if turn.Second != nil {
+			playerName := "White"
+			if turn.Second.Player == 2 {
+				playerName = "Black"
+			}
+			boardDisplay += fmt.Sprintf("\n%d.2 %s: %s", turn.Number, playerName, turn.Second.Text)
 		}
 	}
 
@@ -1061,7 +1085,12 @@ func (m model) viewGame() string {
 func (m model) getTotalMoves() int {
 	total := 0
 	for _, turn := range m.gameData.Turns {
-		total += len(turn.Moves)
+		if turn.First != nil {
+			total++
+		}
+		if turn.Second != nil {
+			total++
+		}
 	}
 	return total
 }
