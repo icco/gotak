@@ -203,7 +203,7 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 			totalMoves++
 		}
 	}
-	
+
 	// Calculate turn number (moves 1-2 = turn 1, moves 3-4 = turn 2, etc.)
 	currentTurn := (totalMoves / 2) + 1
 

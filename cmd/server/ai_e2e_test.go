@@ -58,7 +58,7 @@ func TestNewAIServerSideExecution(t *testing.T) {
 	if len(aiMoveText) < 2 {
 		t.Fatalf("AI move appears invalid: %s", aiMoveText)
 	}
-	// Verify AI didn't repeat the human move  
+	// Verify AI didn't repeat the human move
 	if aiMoveText == "c3" {
 		t.Fatal("AI made same move as human, not seeing board state properly")
 	}
@@ -137,7 +137,7 @@ func TestNewAIPlayerAssignment(t *testing.T) {
 
 	_ = getGameState(t, server.URL, gameSlug)
 	// After 1 move, it should be AI's turn (black player)
-	
+
 	// AI move should work when it's AI's turn
 	aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
 	// Verify AI made a move (should have 2 total moves now)
@@ -191,7 +191,7 @@ func TestNewAIErrorHandling(t *testing.T) {
 
 	// Test 2: Empty game (no moves made yet)
 	gameSlug := createGameForE2E(t, server.URL, user, 5)
-	
+
 	// AI should be able to make first move
 	aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
 	if len(aiGame.Turns) == 0 {
@@ -205,25 +205,25 @@ func TestAIDifficultyLevels(t *testing.T) {
 	defer server.Close()
 
 	user := &User{ID: 1}
-	
+
 	levels := []string{"beginner", "intermediate", "advanced", "expert"}
-	
+
 	for _, level := range levels {
 		t.Run(level, func(t *testing.T) {
 			gameSlug := createGameForE2E(t, server.URL, user, 5)
-			
+
 			// Make initial human move
 			makeE2EMove(t, server.URL, user, gameSlug, "c3", gotak.PlayerWhite)
-			
+
 			// Test AI at this difficulty level
 			start := time.Now()
 			aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, level)
 			elapsed := time.Since(start)
-			
+
 			if len(aiGame.Turns) != 1 {
 				t.Fatalf("Expected 1 turn after AI move, got %d", len(aiGame.Turns))
 			}
-			
+
 			// Extract AI move
 			var aiMoveText string
 			if aiGame.Turns[0].Second != nil {
@@ -231,13 +231,13 @@ func TestAIDifficultyLevels(t *testing.T) {
 			} else {
 				t.Fatal("Could not find AI move")
 			}
-			
+
 			if aiMoveText == "" {
 				t.Fatalf("AI level %s returned empty move", level)
 			}
-			
+
 			t.Logf("AI level %s: move=%s, time=%v", level, aiMoveText, elapsed)
-			
+
 			// Expert level might take longer, but should still be reasonable
 			if level == "expert" && elapsed > 30*time.Second {
 				t.Fatalf("AI level %s took too long: %v", level, elapsed)
@@ -258,26 +258,26 @@ func TestAIGameCompletion(t *testing.T) {
 
 	// Play several moves to advance game state
 	humanMoves := []string{"a1", "b1", "c1"}
-	
+
 	for _, move := range humanMoves {
 		makeE2EMove(t, server.URL, user, gameSlug, move, gotak.PlayerWhite)
-		
+
 		// Get AI response
 		aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
-		
+
 		// Check if game ended using GameOver method
 		winner, gameOver := aiGame.GameOver()
 		if gameOver {
 			t.Logf("Game completed with winner: %d", winner)
 			return
 		}
-		
+
 		// Verify AI made a move
 		if len(aiGame.Turns) == 0 {
 			t.Fatal("AI didn't make any moves")
 		}
 	}
-	
+
 	// Even if game didn't complete, verify AI kept playing
 	finalGame := getGameState(t, server.URL, gameSlug)
 	if len(finalGame.Turns) < 3 {
@@ -300,20 +300,20 @@ func setupE2ETestServer(t *testing.T) *httptest.Server {
 		r = r.WithContext(ctx)
 		testNewGameHandlerWithDB(w, r, testDB)
 	})
-	
+
 	r.Post("/game/{slug}/move", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userContextKey, testUser)
 		r = r.WithContext(ctx)
 		testMoveHandlerWithTurnManagement(w, r, testDB)
 	})
-	
+
 	// Use the actual AI handler for realistic testing
 	r.Post("/game/{slug}/ai-move", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userContextKey, testUser)
 		r = r.WithContext(ctx)
 		testAIServerSideHandlerWithDB(w, r, testDB)
 	})
-	
+
 	r.Get("/game/{slug}", func(w http.ResponseWriter, r *http.Request) {
 		testGetGameHandlerWithDB(w, r, testDB)
 	})
@@ -416,7 +416,7 @@ func makeRawAIRequest(t *testing.T, serverURL string, user *User, gameSlug, leve
 
 func getGameState(t *testing.T, serverURL, gameSlug string) *gotak.Game {
 	req, _ := http.NewRequest("GET", serverURL+"/game/"+gameSlug, nil)
-	
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -659,7 +659,7 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	// Get current user from context
 	user := getMustUserFromContext(r)
-	
+
 	// Get game slug from URL
 	slug := chi.URLParam(r, "slug")
 	if slug == "" {
@@ -668,7 +668,7 @@ func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, d
 		}
 		return
 	}
-	
+
 	// Verify user can access this game
 	err := verifyGameParticipation(db, slug, user.ID)
 	if err != nil {
