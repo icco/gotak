@@ -1128,7 +1128,7 @@ func (m model) requestAIMove() tea.Cmd {
 		payload := map[string]interface{}{
 			"level":      "intermediate", // Could be made configurable
 			"style":      "balanced",
-			"time_limit": "10s",
+			"time_limit": int64(10 * time.Second), // Duration in nanoseconds
 		}
 
 		data, _ := json.Marshal(payload)
@@ -1324,7 +1324,7 @@ func (m model) registerUser() tea.Cmd {
 func (m model) createGame() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
-			"size": m.boardSize,
+			"size": fmt.Sprintf("%d", m.boardSize), // Server expects string
 			"mode": m.gameMode, // "human" or "ai"
 		}
 
