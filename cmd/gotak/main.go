@@ -123,7 +123,7 @@ func loadTokenCache() (*TokenCache, error) {
 
 // validateToken checks if the cached token is still valid by making a test API call
 func validateToken(token, serverURL string) error {
-	req, err := http.NewRequest("GET", serverURL+"/auth/validate", nil)
+	req, err := http.NewRequest("GET", serverURL+"/auth/profile", nil)
 	if err != nil {
 		return err
 	}
