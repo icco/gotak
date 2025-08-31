@@ -806,8 +806,12 @@ func (m model) viewGame() string {
 	// Create a much larger board that fills most of the screen
 	board := m.renderLargeBoard()
 
-	// Move input area
-	inputArea := inputStyle.Width(60).Render(fmt.Sprintf("Move: %s", m.moveInput))
+	// Move input area with cursor
+	cursor := ""
+	if !m.isLoading {
+		cursor = "_"
+	}
+	inputArea := inputStyle.Width(60).Render(fmt.Sprintf("Move: %s%s", m.moveInput, cursor))
 
 	// Game info
 	gameInfo := menuItemStyle.Render(fmt.Sprintf("Status: %s | Moves: %d",
@@ -886,7 +890,7 @@ func (m model) renderLargeBoard() string {
 	// Bottom column labels
 	s.WriteString(m.buildColumnLabels(size))
 
-	return boardStyle.Render(s.String())
+	return s.String()
 }
 
 // buildTopBorder creates the top border of the board - matches gambit pattern
