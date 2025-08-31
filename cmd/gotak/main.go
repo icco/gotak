@@ -934,28 +934,41 @@ func (m model) reconstructBoardState() map[string][]*gotak.Stone {
 	board := &gotak.Board{Size: size}
 	board.Init()
 
+	// Debug: Always add a test piece to verify rendering works
+	board.Squares["c3"] = []*gotak.Stone{
+		{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
+	}
+	// Also add a stack to test that
+	board.Squares["d4"] = []*gotak.Stone{
+		{Type: gotak.StoneFlat, Player: gotak.PlayerBlack},
+		{Type: gotak.StoneFlat, Player: gotak.PlayerWhite},
+		{Type: gotak.StoneStanding, Player: gotak.PlayerBlack},
+	}
+
 	// Replay all moves in order
-	for turnIndex, turn := range m.gameData.Turns {
+	moveCount := 0
+	for _, turn := range m.gameData.Turns {
 		for _, gameMove := range turn.Moves {
+			moveCount++
+			
 			// Parse the move from PTN text
 			move, err := gotak.NewMove(gameMove.Text)
 			if err != nil {
-				continue // Skip invalid moves
+				// Debug: could add error logging here
+				continue
 			}
 
 			// Apply the move to the board
 			// For the first turn, white places black's stone (special Tak rule)
 			player := gameMove.Player
-			if turnIndex == 0 && len(m.gameData.Turns) > 0 && len(m.gameData.Turns[0].Moves) > 0 {
+			if moveCount == 1 && player == gotak.PlayerWhite {
 				// First move of the game: white places opponent's stone
-				if player == gotak.PlayerWhite {
-					player = gotak.PlayerBlack
-				}
+				player = gotak.PlayerBlack
 			}
 
 			err = board.DoMove(move, player)
 			if err != nil {
-				// Skip invalid moves but could log for debugging
+				// Debug: could add error logging here
 				continue
 			}
 		}
