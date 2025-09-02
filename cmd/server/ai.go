@@ -192,10 +192,19 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the AI move in database
-	currentTurn := int64(len(game.Turns))
-	if currentTurn == 0 {
-		currentTurn = 1
+	// Store the AI move in database - determine which turn this move belongs to
+	// Check if we need to complete an existing turn or start a new one
+	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
+	
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second == nil {
+			// Incomplete turn - AI move should complete this turn
+			currentTurn = int64(len(game.Turns))
+		} else {
+			// Complete turn - AI move should start a new turn
+			currentTurn = int64(len(game.Turns)) + 1
+		}
 	}
 
 	if err := insertMove(db, game.ID, aiPlayerNumber, move, currentTurn); err != nil {
@@ -204,6 +213,42 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 			log.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
+	}
+
+	// Reload the game state to get updated turns from database
+	game, err = getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not reload game after AI move", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Update current player to switch turns
+	// After AI move, check if current turn is complete based on updated game state
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			// Turn is complete, next player is always White (start of next turn)
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			// Turn is incomplete, switch to the other player
+			if aiPlayerNumber == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		// No turns yet, start with White
+		nextPlayer = gotak.PlayerWhite
+	}
+	
+	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
+		log.Errorw("could not update current player after AI move", "slug", slug, "next_player", nextPlayer, zap.Error(err))
+		// Continue - this is not fatal for AI move execution
 	}
 
 	// Check if game is now over and update status

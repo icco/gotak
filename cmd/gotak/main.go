@@ -123,7 +123,7 @@ func loadTokenCache() (*TokenCache, error) {
 
 // validateToken checks if the cached token is still valid by making a test API call
 func validateToken(token, serverURL string) error {
-	req, err := http.NewRequest("GET", serverURL+"/auth/validate", nil)
+	req, err := http.NewRequest("GET", serverURL+"/auth/profile", nil)
 	if err != nil {
 		return err
 	}
@@ -255,18 +255,28 @@ type GameData struct {
 	ID     int64             `json:"id"`
 	Slug   string            `json:"slug"`
 	Status string            `json:"status"`
-	Size   int               `json:"size"`
 	Turns  []GameTurn        `json:"turns"`
+	Board  *GameBoard        `json:"board"`
 	Tags   map[string]string `json:"tags"`
 }
 
+type GameBoard struct {
+	Size int64 `json:"size"`
+}
+
 type GameTurn struct {
-	Moves []GameMove `json:"moves"`
+	Number  int64     `json:"number"`
+	First   *GameMove `json:"first"`
+	Second  *GameMove `json:"second"`
+	Result  string    `json:"result"`
+	Comment string    `json:"comment"`
 }
 
 type GameMove struct {
 	Player int    `json:"player"`
 	Text   string `json:"text"`
+	Type   string `json:"type"`
+	Square string `json:"square"`
 }
 
 // TokenCache represents cached authentication data
@@ -385,8 +395,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case aiMoveReceived:
-		// Submit the AI move to the game
-		return m, m.submitAIMove(msg.move)
+		// AI endpoint now returns updated game state directly
+		m.gameData = msg.game
+		m.error = ""
+		m.isLoading = false
+		m.waitingForAI = false
+		return m, nil
 
 	case tea.KeyMsg:
 		switch m.screen {
@@ -1007,8 +1021,31 @@ func (m model) viewGame() string {
 
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 
-	// Create a much larger board that fills most of the screen
-	board := m.renderLargeBoard()
+	// Simple board display - just show the board size for now
+	// Get board size from Board struct
+	boardSize := 0
+	if m.gameData.Board != nil {
+		boardSize = int(m.gameData.Board.Size)
+	} else {
+		boardSize = m.boardSize // fallback to settings
+	}
+	boardDisplay := fmt.Sprintf("Board: %dx%d\n\nMoves played:", boardSize, boardSize)
+	for _, turn := range m.gameData.Turns {
+		if turn.First != nil {
+			playerName := "White"
+			if turn.First.Player == 2 {
+				playerName = "Black"
+			}
+			boardDisplay += fmt.Sprintf("\n%d.1 %s: %s", turn.Number, playerName, turn.First.Text)
+		}
+		if turn.Second != nil {
+			playerName := "White"
+			if turn.Second.Player == 2 {
+				playerName = "Black"
+			}
+			boardDisplay += fmt.Sprintf("\n%d.2 %s: %s", turn.Number, playerName, turn.Second.Text)
+		}
+	}
 
 	// Move input area with cursor
 	cursor := ""
@@ -1038,7 +1075,7 @@ func (m model) viewGame() string {
 	// Help text with proper Tak move examples
 	help := menuItemStyle.Render("Move Examples: a1 (flat) | Sa1 (standing) | Ca1 (capstone) | 3a1>21 (move 3 stones) | Q: Menu")
 
-	content := lipgloss.JoinVertical(lipgloss.Center, title, board, inputArea, gameInfo, help)
+	content := lipgloss.JoinVertical(lipgloss.Center, title, boardDisplay, inputArea, gameInfo, help)
 
 	if m.error != "" {
 		errorMsg := errorStyle.Width(m.width).Render("❌ " + m.error)
@@ -1048,179 +1085,15 @@ func (m model) viewGame() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-func (m model) renderLargeBoard() string {
-	size := m.gameData.Size
-	if size == 0 {
-		size = m.boardSize // Use the settings board size if game data doesn't have it
-	}
-
-	// Reconstruct the board state from game moves
-	board := m.reconstructBoardState()
-
-	var s strings.Builder
-
-	// Top border - based on gambit's approach
-	s.WriteString(m.buildTopBorder(size))
-
-	// Board rows (reverse order for proper display - row 1 at bottom)
-	for i := size - 1; i >= 0; i-- {
-		// Row number
-		s.WriteString(fmt.Sprintf(" %d │", i+1))
-
-		for j := 0; j < size; j++ {
-			square := fmt.Sprintf("%c%d", 'a'+j, i+1)
-			stones := board[square]
-
-			var display string
-			if len(stones) == 0 {
-				display = "·"
-			} else {
-				// Show the top stone
-				topStone := stones[len(stones)-1]
-				symbol := m.getStoneSymbol(topStone)
-
-				if len(stones) == 1 {
-					display = symbol
-				} else if len(stones) <= 9 {
-					// Show stack count with top stone for small stacks - need to keep it to 1 char
-					display = fmt.Sprintf("%d", len(stones))
-				} else {
-					// For large stacks, just show count
-					display = "+"
-				}
-			}
-
-			// Format exactly like gambit: space + content + space + vertical separator
-			s.WriteString(fmt.Sprintf(" %s │", display))
-		}
-
-		s.WriteString(fmt.Sprintf(" %d\n", i+1))
-
-		// Add row separator (except for last row)
-		if i > 0 {
-			s.WriteString(m.buildMiddleBorder(size))
-		}
-	}
-
-	// Bottom border
-	s.WriteString(m.buildBottomBorder(size))
-
-	// Bottom column labels
-	s.WriteString(m.buildColumnLabels(size))
-
-	return s.String()
-}
-
-// buildTopBorder creates the top border of the board - matches gambit pattern
-func (m model) buildTopBorder(size int) string {
-	border := "   ┌─" + strings.Repeat("──┬─", size-1) + "──┐\n"
-	return border
-}
-
-// buildMiddleBorder creates the middle separator of the board - matches gambit pattern
-func (m model) buildMiddleBorder(size int) string {
-	border := "   ├─" + strings.Repeat("──┼─", size-1) + "──┤\n"
-	return border
-}
-
-// buildBottomBorder creates the bottom border of the board - matches gambit pattern
-func (m model) buildBottomBorder(size int) string {
-	border := "   └─" + strings.Repeat("──┴─", size-1) + "──┘\n"
-	return border
-}
-
-// buildColumnLabels creates the column labels at the bottom
-func (m model) buildColumnLabels(size int) string {
-	labels := "   "
-	for i := 0; i < size; i++ {
-		labels += fmt.Sprintf(" %c ", 'a'+i)
-		if i < size-1 {
-			labels += " "
-		}
-	}
-	return labels + "\n"
-}
-
-// reconstructBoardState recreates the board state by replaying all moves from the game data
-func (m model) reconstructBoardState() map[string][]*gotak.Stone {
-	if m.gameData == nil {
-		return make(map[string][]*gotak.Stone)
-	}
-
-	size := int64(m.gameData.Size)
-	if size == 0 {
-		size = int64(m.boardSize) // Use the settings board size if game data doesn't have it
-	}
-
-	// Create a new board
-	board := &gotak.Board{Size: size}
-	board.Init()
-
-	// Replay all moves in order
-	moveCount := 0
-	for _, turn := range m.gameData.Turns {
-		for _, gameMove := range turn.Moves {
-			moveCount++
-
-			// Parse the move from PTN text
-			move, err := gotak.NewMove(gameMove.Text)
-			if err != nil {
-				// Debug: could add error logging here
-				continue
-			}
-
-			// Apply the move to the board
-			// For the first turn, white places black's stone (special Tak rule)
-			player := gameMove.Player
-			if moveCount == 1 && player == gotak.PlayerWhite {
-				// First move of the game: white places opponent's stone
-				player = gotak.PlayerBlack
-			}
-
-			err = board.DoMove(move, player)
-			if err != nil {
-				// Debug: could add error logging here
-				continue
-			}
-		}
-	}
-
-	return board.Squares
-}
-
-// getStoneSymbol returns a visual symbol for a stone
-func (m model) getStoneSymbol(stone *gotak.Stone) string {
-	var playerSymbol string
-	if stone.Player == gotak.PlayerWhite {
-		playerSymbol = "○" // White circle
-	} else {
-		playerSymbol = "●" // Black circle
-	}
-
-	switch stone.Type {
-	case gotak.StoneFlat:
-		return playerSymbol
-	case gotak.StoneStanding:
-		if stone.Player == gotak.PlayerWhite {
-			return "□" // White square for standing
-		} else {
-			return "■" // Black square for standing
-		}
-	case gotak.StoneCap:
-		if stone.Player == gotak.PlayerWhite {
-			return "◇" // White diamond for capstone
-		} else {
-			return "◆" // Black diamond for capstone
-		}
-	default:
-		return playerSymbol
-	}
-}
-
 func (m model) getTotalMoves() int {
 	total := 0
 	for _, turn := range m.gameData.Turns {
-		total += len(turn.Moves)
+		if turn.First != nil {
+			total++
+		}
+		if turn.Second != nil {
+			total++
+		}
 	}
 	return total
 }
@@ -1258,12 +1131,12 @@ func (m model) requestAIMove() tea.Cmd {
 		payload := map[string]interface{}{
 			"level":      "intermediate", // Could be made configurable
 			"style":      "balanced",
-			"time_limit": "10s",
+			"time_limit": int64(10 * time.Second), // Duration in nanoseconds
 		}
 
 		data, _ := json.Marshal(payload)
 
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai", bytes.NewBuffer(data))
+		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai-move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
@@ -1285,58 +1158,14 @@ func (m model) requestAIMove() tea.Cmd {
 			return apiError{error: fmt.Sprintf("AI move failed (status %d)", resp.StatusCode)}
 		}
 
-		var aiResp struct {
-			Move string `json:"move"`
-			Hint string `json:"hint,omitempty"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&aiResp); err != nil {
+		// AI endpoint now returns the updated game state directly
+		var game GameData
+		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
 			return apiError{error: "AI move response error"}
 		}
 
-		// Return a new message to submit the AI move
-		return aiMoveReceived{move: aiResp.Move, hint: aiResp.Hint}
-	}
-}
-
-// submitAIMove submits an AI move to the game
-func (m model) submitAIMove(move string) tea.Cmd {
-	return func() tea.Msg {
-		payload := map[string]interface{}{
-			"player": 2, // AI is always player 2
-			"move":   move,
-			"turn":   int64(m.getTotalMoves() + 1),
-		}
-
-		data, _ := json.Marshal(payload)
-
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+m.token)
-		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			return apiError{error: fmt.Sprintf("AI move submission failed: %v", err)}
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			var errorResp struct {
-				Error string `json:"error"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
-				return apiError{error: fmt.Sprintf("AI move submission failed: %s", errorResp.Error)}
-			}
-			return apiError{error: fmt.Sprintf("AI move submission failed (status %d)", resp.StatusCode)}
-		}
-
-		var game GameData
-		if err := json.NewDecoder(resp.Body).Decode(&game); err != nil {
-			return apiError{error: "AI move game response error"}
-		}
-
-		return moveSubmitted{game: &game}
+		// Return the updated game state
+		return aiMoveReceived{game: &game}
 	}
 }
 
@@ -1454,8 +1283,8 @@ func (m model) registerUser() tea.Cmd {
 func (m model) createGame() tea.Cmd {
 	return func() tea.Msg {
 		payload := map[string]interface{}{
-			"size": m.boardSize,
-			"mode": m.gameMode, // "human" or "ai"
+			"size": fmt.Sprintf("%d", m.boardSize), // Server expects string
+			"mode": m.gameMode,                     // "human" or "ai"
 		}
 
 		data, _ := json.Marshal(payload)
@@ -1595,6 +1424,5 @@ type apiError struct {
 }
 
 type aiMoveReceived struct {
-	move string
-	hint string
+	game *GameData
 }
