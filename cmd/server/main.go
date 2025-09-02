@@ -499,20 +499,20 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the move in database - calculate turn number based on total moves made
-	// Count total moves across all turns to determine which turn this move belongs to
-	totalMoves := int64(0)
-	for _, turn := range game.Turns {
-		if turn.First != nil {
-			totalMoves++
-		}
-		if turn.Second != nil {
-			totalMoves++
+	// Store the move in database - determine which turn this move belongs to
+	// Check if we need to complete an existing turn or start a new one
+	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
+	
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second == nil {
+			// Incomplete turn - this move should complete the current turn
+			currentTurn = int64(len(game.Turns))
+		} else {
+			// Complete turn - this move should start a new turn
+			currentTurn = int64(len(game.Turns)) + 1
 		}
 	}
-
-	// Calculate turn number (moves 1-2 = turn 1, moves 3-4 = turn 2, etc.)
-	currentTurn := (totalMoves / 2) + 1
 
 	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
 		log.Errorw("could not insert move", "data", data, zap.Error(err))
@@ -522,11 +522,37 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Switch to the next player's turn
-	nextPlayer := gotak.PlayerWhite
-	if data.Player == gotak.PlayerWhite {
-		nextPlayer = gotak.PlayerBlack
+	// Reload the game state to get updated turns from database
+	game, err = getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not reload game after move", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
 	}
+
+	// Update current player to switch turns
+	// After move, check if current turn is complete based on updated game state
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			// Turn is complete, next player is always White (start of next turn)
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			// Turn is incomplete, switch to the other player
+			if data.Player == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		// No turns yet, start with White
+		nextPlayer = gotak.PlayerWhite
+	}
+	
 	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
 		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not update turn"}); err != nil {

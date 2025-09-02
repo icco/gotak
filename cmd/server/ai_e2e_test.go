@@ -37,6 +37,20 @@ func TestNewAIServerSideExecution(t *testing.T) {
 	// Request AI move - this should execute the move server-side and return updated game state
 	aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
 
+	// Debug: Print the turns to see what's happening
+	t.Logf("Game has %d turns:", len(aiGame.Turns))
+	for i, turn := range aiGame.Turns {
+		firstMove := "nil"
+		secondMove := "nil"
+		if turn.First != nil {
+			firstMove = turn.First.Text
+		}
+		if turn.Second != nil {
+			secondMove = turn.Second.Text
+		}
+		t.Logf("Turn %d: First=%s, Second=%s", i+1, firstMove, secondMove)
+	}
+
 	// Verify the AI move was executed server-side
 	if len(aiGame.Turns) != 1 {
 		t.Fatalf("Expected 1 turn after AI move, got %d", len(aiGame.Turns))
@@ -189,14 +203,15 @@ func TestNewAIErrorHandling(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// Test 2: Empty game (no moves made yet)
+	// Test 2: AI trying to move when it's not their turn (empty game)
 	gameSlug := createGameForE2E(t, server.URL, user, 5)
 
-	// AI should be able to make first move
-	aiGame := requestAIAndGetGameState(t, server.URL, user, gameSlug, "intermediate")
-	if len(aiGame.Turns) == 0 {
-		t.Fatal("AI should be able to make first move in empty game")
+	// AI should NOT be able to make first move (White/Human goes first in Tak)
+	resp = makeRawAIRequest(t, server.URL, user, gameSlug, "intermediate")
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for AI trying to move when it's not their turn, got %d", resp.StatusCode)
 	}
+	resp.Body.Close()
 }
 
 // TestAIDifficultyLevels tests that different AI difficulty levels work with the new architecture
@@ -313,13 +328,13 @@ func setupE2ETestServer(t *testing.T) *httptest.Server {
 	r.Post("/game/{slug}/move", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userContextKey, testUser)
 		r = r.WithContext(ctx)
-		testMoveHandlerWithTurnManagement(w, r, testDB)
+		newMoveHandlerWithDB(w, r, testDB)
 	})
 
 	r.Post("/game/{slug}/ai-move", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), userContextKey, testUser)
 		r = r.WithContext(ctx)
-		testAIServerSideHandlerWithDB(w, r, testDB)
+		postAIMoveHandlerWithDB(w, r, testDB)
 	})
 
 	r.Get("/game/{slug}", func(w http.ResponseWriter, r *http.Request) {
@@ -691,7 +706,7 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 	}
 
 	// Return the updated game state (same format as regular move endpoint)
-	log.Infow("AI move executed", "slug", slug, "move", move)
+	log.Infow("AI move executed", "slug", slug, "move", move, "next_player", nextPlayer)
 	if err := Renderer.JSON(w, http.StatusOK, updatedGame); err != nil {
 		log.Errorw("failed to render game response", zap.Error(err))
 	}
@@ -866,6 +881,393 @@ func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, d
 	}
 
 	// Reload game to get updated state
+	game, err = getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not reload game", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if err := Renderer.JSON(w, http.StatusOK, game); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
+}
+
+// newMoveHandlerWithDB is a wrapper around the real newMoveHandler that injects a test database
+func newMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	// Copy the logic from the real newMoveHandler in main.go but use injected DB
+	ctx := r.Context()
+
+	// Get move data
+	var data MoveRequest
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		log.Errorw("could not parse move data", zap.Error(err))
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "could not parse move data"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Clean the input data
+	data.Text = ugcPolicy.Sanitize(data.Text)
+
+	// Get game slug from URL
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+
+	// Get current user (return 401 if unauthenticated)
+	user := getUserFromContext(r)
+	if user == nil {
+		log.Errorw("unauthenticated request to create move")
+		if err := Renderer.JSON(w, 401, map[string]string{"error": "unauthenticated"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Verify user can access this game
+	err := verifyGameParticipation(db, slug, user.ID)
+	if err != nil {
+		log.Errorw("user not authorized for game", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 403, map[string]string{"error": "unauthorized"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Load actual game from database (fresh state)
+	game, err := getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Store the move in database - determine which turn this move belongs to BEFORE executing the move
+	// Check if we need to complete an existing turn or start a new one
+	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
+	
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second == nil {
+			// Incomplete turn - this move should complete the current turn
+			currentTurn = int64(len(game.Turns))
+		} else {
+			// Complete turn - this move should start a new turn
+			currentTurn = int64(len(game.Turns)) + 1
+		}
+	}
+	
+	log.Infow("Human move", "player", data.Player, "move", data.Text, "calculated_turn", currentTurn, "game_turns_count", len(game.Turns))
+
+	// Replay existing moves to get current board state BEFORE validating the new move
+	err = replayMoves(game)
+	if err != nil {
+		log.Errorw("could not replay moves", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not replay moves"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Execute the move (this validates the move)
+	err = game.DoSingleMove(data.Text, data.Player)
+	if err != nil {
+		log.Errorw("invalid move", "data", data, zap.Error(err))
+		if err := Renderer.JSON(w, 400, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Insert the validated move into database
+	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
+		log.Errorw("could not insert move", "data", data, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save move"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Update current player to switch turns
+	// After move, check if current turn is complete based on updated game state
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			// Turn is complete, next player is always White (start of next turn)
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			// Turn is incomplete, switch to the other player
+			if data.Player == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		// No turns yet, start with White
+		nextPlayer = gotak.PlayerWhite
+	}
+
+	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
+		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not update turn"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Check if game is now over and update status
+	winner, gameOver := game.GameOver()
+	if gameOver {
+		err = updateGameStatus(db, game.Slug, "finished", winner)
+		if err != nil {
+			log.Errorw("could not update game status", zap.Error(err))
+		}
+	}
+
+	// Return success response
+	if err := Renderer.JSON(w, http.StatusOK, map[string]string{"status": "move created"}); err != nil {
+		log.Errorw("failed to render JSON", zap.Error(err))
+	}
+}
+
+// postAIMoveHandlerWithDB is a wrapper around the real PostAIMoveHandler that injects a test database
+func postAIMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	// Copy the logic from the real PostAIMoveHandler in ai.go but use injected DB
+	ctx := r.Context()
+
+	// Get game slug from URL
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+
+	// Get current user (return 401 if unauthenticated)
+	user := getUserFromContext(r)
+	if user == nil {
+		log.Errorw("unauthenticated request to AI move endpoint")
+		if err := Renderer.JSON(w, 401, map[string]string{"error": "unauthenticated"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Verify user can access this game
+	err := verifyGameParticipation(db, slug, user.ID)
+	if err != nil {
+		log.Errorw("user not authorized for game", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 403, map[string]string{"error": "unauthorized"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Load actual game from database
+	game, err := getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Parse AI request
+	var req AIRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Errorw("invalid AI request", zap.Error(err))
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Parse AI difficulty level
+	var level ai.DifficultyLevel
+	switch req.Level {
+	case "beginner":
+		level = ai.Beginner
+	case "intermediate":
+		level = ai.Intermediate
+	case "advanced":
+		level = ai.Advanced
+	case "expert":
+		level = ai.Expert
+	default:
+		level = ai.Intermediate // default
+	}
+
+	// Parse AI style
+	var style ai.Style
+	switch req.Style {
+	case "aggressive":
+		style = ai.Aggressive
+	case "defensive":
+		style = ai.Defensive
+	case "balanced":
+		style = ai.Balanced
+	default:
+		style = ai.Balanced // default
+	}
+
+	// Parse time limit (default to 10 seconds)
+	timeLimit := 10 * time.Second
+	if req.TimeLimit > 0 {
+		timeLimit = req.TimeLimit
+	}
+
+	cfg := ai.AIConfig{
+		Level:       level,
+		Style:       style,
+		TimeLimit:   timeLimit,
+		Personality: req.Personality,
+	}
+
+	// Get AI move using actual game state
+	engine := &ai.TakticianEngine{}
+	move, err := engine.GetMove(ctx, game, cfg)
+	if err != nil {
+		log.Errorw("AI move failed", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "AI move failed"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	_, _ = engine.ExplainMove(ctx, game, cfg)
+
+	// Now execute the AI move in the game
+	// First, determine which player the AI is (opposite of human user)
+	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
+	if err != nil {
+		log.Errorw("could not get user player number", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "internal server error"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// AI is the opposite player
+	aiPlayerNumber := gotak.PlayerBlack
+	if userPlayerNumber == gotak.PlayerBlack {
+		aiPlayerNumber = gotak.PlayerWhite
+	}
+
+	// Check if it's actually the AI's turn
+	var dbGame Game
+	if err := db.Where("slug = ?", slug).First(&dbGame).Error; err != nil {
+		log.Errorw("could not get game state for turn check", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not verify game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Check if it's the AI's turn (now that turn management is fixed)
+	if dbGame.CurrentPlayer != aiPlayerNumber {
+		log.Errorw("not AI's turn", "current_player", dbGame.CurrentPlayer, "ai_player", aiPlayerNumber)
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "it's not the AI's turn"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Store the AI move in database - determine which turn this move belongs to BEFORE executing the move
+	// Check if we need to complete an existing turn or start a new one
+	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
+	
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second == nil {
+			// Incomplete turn - AI move should complete this turn
+			currentTurn = int64(len(game.Turns))
+		} else {
+			// Complete turn - AI move should start a new turn
+			currentTurn = int64(len(game.Turns)) + 1
+		}
+	}
+
+	// Replay existing moves to get current board state
+	err = replayMoves(game)
+	if err != nil {
+		log.Errorw("could not replay moves for AI", zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not replay game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Execute the AI move
+	err = game.DoSingleMove(move, aiPlayerNumber)
+	if err != nil {
+		log.Errorw("invalid AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": fmt.Sprintf("AI generated invalid move: %v", err)}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if err := insertMove(db, game.ID, aiPlayerNumber, move, currentTurn); err != nil {
+		log.Errorw("could not insert AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save AI move"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Reload the game state to get updated turns from database
+	game, err = getGame(db, slug)
+	if err != nil {
+		log.Errorw("could not reload game after AI move", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game state"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Update current player to switch turns
+	// After AI move, check if current turn is complete based on updated game state
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			// Turn is complete, next player is always White (start of next turn)
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			// Turn is incomplete, switch to the other player
+			if aiPlayerNumber == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		// No turns yet, start with White
+		nextPlayer = gotak.PlayerWhite
+	}
+
+	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
+		log.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not update turn"}); err != nil {
+			log.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Check if game is now over and update status
+	winner, gameOver := game.GameOver()
+	if gameOver {
+		err = updateGameStatus(db, game.Slug, "finished", winner)
+		if err != nil {
+			log.Errorw("could not update game status", zap.Error(err))
+		}
+	}
+
+	log.Infow("AI move executed", "slug", slug, "move", move, "next_player", nextPlayer)
+
+	// Reload the game state to return it with the AI move included
 	game, err = getGame(db, slug)
 	if err != nil {
 		log.Errorw("could not reload game", "slug", slug, zap.Error(err))

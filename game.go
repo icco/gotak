@@ -319,10 +319,21 @@ func (g *Game) DoSingleMove(moveStr string, player int) error {
 	}
 
 	// Validate it's the correct player's turn
-	turnNumber := int64(len(g.Turns))
+	// Turn numbers are 1-indexed: Turn 1, Turn 2, etc.
+	// If we have 1 complete turn, the next move goes in turn 2
+	turnNumber := int64(len(g.Turns)) + 1
+	
+	// Check if the last turn is incomplete - if so, complete it instead of starting a new turn
+	if len(g.Turns) > 0 {
+		lastTurn := g.Turns[len(g.Turns)-1]
+		if (lastTurn.First == nil) || (lastTurn.Second == nil) {
+			// Last turn is incomplete, use that turn number
+			turnNumber = lastTurn.Number
+		}
+	}
 
 	// First turn special handling
-	if turnNumber == 0 {
+	if turnNumber == 1 {
 		// First turn: each player places opponent's stone
 		if !mv.isPlace() || mv.Stone != StoneFlat {
 			return fmt.Errorf("first move must be flat stone placement")
