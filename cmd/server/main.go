@@ -78,7 +78,14 @@ func main() {
 	}
 
 	r.Use(cors.New(cors.Options{
-		AllowCredentials:   true,
+		// AllowCredentials must be false when AllowedOrigins is ["*"].
+		// Combining a wildcard origin with credentials causes go-chi/cors to
+		// reflect the incoming Origin header, allowing any site to make
+		// credentialed cross-origin requests (CORS bypass, CWE-942).
+		// GoTak uses JWT tokens passed as Authorization headers rather than
+		// cookies, so AllowCredentials:false does not break authentication —
+		// Authorization headers are always forwarded regardless of this flag.
+		AllowCredentials:   false,
 		OptionsPassthrough: true,
 		AllowedOrigins:     []string{"*"},
 		AllowedMethods:     []string{"GET", "POST", "OPTIONS"},
