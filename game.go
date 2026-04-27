@@ -152,12 +152,13 @@ func (g *Game) GameOver() (int, bool) {
 			occupiedSquares++
 			topStone := stones[len(stones)-1]
 
-			if topStone.Player == PlayerWhite {
+			switch topStone.Player {
+			case PlayerWhite:
 				whiteStoneCount++
 				if topStone.Type == StoneFlat {
 					whiteFlatCount++
 				}
-			} else if topStone.Player == PlayerBlack {
+			case PlayerBlack:
 				blackStoneCount++
 				if topStone.Type == StoneFlat {
 					blackFlatCount++
@@ -284,21 +285,21 @@ func (g *Game) DoTurn(mvOneStr, mvTwoStr string) error {
 		// Player 1 (white) places black stone, Player 2 (black) places white stone
 		err = g.Board.DoMove(mvOne, PlayerBlack)
 		if err != nil {
-			return fmt.Errorf("first move error: %v", err)
+			return fmt.Errorf("first move error: %w", err)
 		}
 		err = g.Board.DoMove(mvTwo, PlayerWhite)
 		if err != nil {
-			return fmt.Errorf("first move error: %v", err)
+			return fmt.Errorf("first move error: %w", err)
 		}
 	} else {
 		// Normal turns: each player places their own stones
 		err = g.Board.DoMove(mvOne, PlayerWhite)
 		if err != nil {
-			return fmt.Errorf("white move error: %v", err)
+			return fmt.Errorf("white move error: %w", err)
 		}
 		err = g.Board.DoMove(mvTwo, PlayerBlack)
 		if err != nil {
-			return fmt.Errorf("black move error: %v", err)
+			return fmt.Errorf("black move error: %w", err)
 		}
 	}
 
@@ -336,13 +337,13 @@ func (g *Game) DoSingleMove(moveStr string, player int) error {
 
 		err = g.Board.DoMove(mv, opponentPlayer)
 		if err != nil {
-			return fmt.Errorf("first move error: %v", err)
+			return fmt.Errorf("first move error: %w", err)
 		}
 	} else {
 		// Normal move: place own color
 		err = g.Board.DoMove(mv, player)
 		if err != nil {
-			return fmt.Errorf("move error: %v", err)
+			return fmt.Errorf("move error: %w", err)
 		}
 	}
 

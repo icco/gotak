@@ -335,10 +335,10 @@ func parseSquare(square string, boardSize int) (int8, int8, error) {
 		return 0, 0, fmt.Errorf("invalid row: %s", rowStr)
 	}
 
-	y := int8(row - 1) // Convert to 0-based
-	if y < 0 || int(y) >= boardSize {
+	if row < 1 || row > boardSize {
 		return 0, 0, fmt.Errorf("row out of bounds: %d", row)
 	}
+	y := int8(row - 1) // #nosec G115 -- bounded above
 
 	return x, y, nil
 }

@@ -442,7 +442,7 @@ func generateJWT(userID int64) (string, error) {
 
 	var user User
 	if err := db.First(&user, userID).Error; err != nil {
-		return "", fmt.Errorf("user not found: %v", err)
+		return "", fmt.Errorf("user not found: %w", err)
 	}
 
 	return generateJWTForUser(&user)
