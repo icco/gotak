@@ -14,6 +14,10 @@ RUN go build -ldflags="-s -w" -o /server ./cmd/server
 
 FROM alpine:3.23
 
+LABEL org.opencontainers.image.source=https://github.com/icco/gotak
+LABEL org.opencontainers.image.description="A Tak server"
+LABEL org.opencontainers.image.licenses=MIT
+
 RUN apk add --no-cache ca-certificates tzdata
 RUN adduser -S -u 1001 app
 
