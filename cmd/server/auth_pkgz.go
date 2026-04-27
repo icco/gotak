@@ -17,6 +17,7 @@ import (
 	"github.com/go-pkgz/auth/v2/avatar"
 	"github.com/go-pkgz/auth/v2/token"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/icco/gutil/logging"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -153,61 +154,59 @@ func AuthRoutes() http.Handler {
 // @Failure 500 {object} ErrorResponse
 // @Router /auth/register [post]
 func registerHandler(w http.ResponseWriter, r *http.Request) {
+	l := logging.FromContext(r.Context())
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Warnw("invalid registration request body", "error", err.Error(), "remote_addr", r.RemoteAddr)
+		l.Warnw("invalid registration request body", "error", err.Error(), "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
-		log.Warnw("registration missing required fields", "email_empty", req.Email == "", "password_empty", req.Password == "", "remote_addr", r.RemoteAddr)
+		l.Warnw("registration missing required fields", "email_empty", req.Email == "", "password_empty", req.Password == "", "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "email and password required"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if len(req.Password) < 8 {
-		log.Warnw("registration password too short", "password_length", len(req.Password), "email", req.Email, "remote_addr", r.RemoteAddr)
+		l.Warnw("registration password too short", "password_length", len(req.Password), "email", req.Email, "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "password must be at least 8 characters"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	db, err := getDB()
 	if err != nil {
-		log.Errorw("could not get db", zap.Error(err))
+		l.Errorw("could not get db", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "database error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Check if user already exists
 	var existingUser User
 	if err := db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		log.Warnw("registration attempt for existing user", "email", req.Email, "remote_addr", r.RemoteAddr)
+		l.Warnw("registration attempt for existing user", "email", req.Email, "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "user already exists"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		log.Errorw("failed to hash password", zap.Error(err))
+		l.Errorw("failed to hash password", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "password processing error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Generate provider ID for local auth
 	providerID := generateProviderID()
 
 	user := User{
@@ -220,20 +219,19 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := db.Create(&user).Error; err != nil {
-		log.Errorw("failed to create user", "email", req.Email, "error", err.Error(), "remote_addr", r.RemoteAddr)
+		l.Errorw("failed to create user", "email", req.Email, "error", err.Error(), "remote_addr", r.RemoteAddr)
 
-		// Get user-friendly error message using typed error handling
 		errorMsg := getDBErrorMessage(err)
 
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": errorMsg}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	log.Infow("user registered successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
+	l.Infow("user registered successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
 	if err := Renderer.JSON(w, http.StatusCreated, MessageResponse{Message: "user registered successfully, please login"}); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
@@ -249,66 +247,64 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} ErrorResponse
 // @Router /auth/login [post]
 func loginHandler(w http.ResponseWriter, r *http.Request) {
+	l := logging.FromContext(r.Context())
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Warnw("invalid login request body", "error", err.Error(), "remote_addr", r.RemoteAddr)
+		l.Warnw("invalid login request body", "error", err.Error(), "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if req.Email == "" || req.Password == "" {
-		log.Warnw("login missing required fields", "email_empty", req.Email == "", "password_empty", req.Password == "", "remote_addr", r.RemoteAddr)
+		l.Warnw("login missing required fields", "email_empty", req.Email == "", "password_empty", req.Password == "", "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "email and password required"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	db, err := getDB()
 	if err != nil {
-		log.Errorw("could not get db", zap.Error(err))
+		l.Errorw("could not get db", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "database error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	var user User
 	if err := db.Where("email = ? AND provider = ?", req.Email, "local").First(&user).Error; err != nil {
-		log.Warnw("login attempt for non-existent user", "email", req.Email, "remote_addr", r.RemoteAddr)
+		l.Warnw("login attempt for non-existent user", "email", req.Email, "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Check password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		log.Warnw("login attempt with invalid password", "email", req.Email, "user_id", user.ID, "remote_addr", r.RemoteAddr)
+		l.Warnw("login attempt with invalid password", "email", req.Email, "user_id", user.ID, "remote_addr", r.RemoteAddr)
 		if err := Renderer.JSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Generate JWT token
 	token, err := generateJWT(user.ID)
 	if err != nil {
-		log.Errorw("failed to generate token", zap.Error(err))
+		l.Errorw("failed to generate token", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "token generation error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Hide password hash in response
 	user.PasswordHash = ""
 
-	log.Infow("user logged in successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
+	l.Infow("user logged in successfully", "user_id", user.ID, "email", req.Email, "remote_addr", r.RemoteAddr)
 	if err := Renderer.JSON(w, http.StatusOK, AuthResponse{Token: token, User: user}); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
@@ -323,13 +319,13 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} ErrorResponse
 // @Router /auth/profile [get]
 func profileHandler(w http.ResponseWriter, r *http.Request) {
+	l := logging.FromContext(r.Context())
 	user := getMustUserFromContext(r)
 
-	// Hide password hash
 	user.PasswordHash = ""
 
 	if err := Renderer.JSON(w, http.StatusOK, user); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
@@ -360,26 +356,26 @@ type ConfirmResetRequest struct {
 // @Failure 500 {object} ErrorResponse
 // @Router /auth/profile [put]
 func updateProfileHandler(w http.ResponseWriter, r *http.Request) {
+	l := logging.FromContext(r.Context())
 	user := getMustUserFromContext(r)
 
 	var req UpdateProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	db, err := getDB()
 	if err != nil {
-		log.Errorw("could not get db", zap.Error(err))
+		l.Errorw("could not get db", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "database error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Update fields if provided
 	updates := make(map[string]interface{})
 	if req.Name != "" {
 		updates["name"] = req.Name
@@ -390,28 +386,26 @@ func updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&user).Updates(updates).Error; err != nil {
-			log.Errorw("failed to update user", zap.Error(err))
+			l.Errorw("failed to update user", zap.Error(err))
 			if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update profile"}); err != nil {
-				log.Errorw("failed to render JSON", zap.Error(err))
+				l.Errorw("failed to render JSON", zap.Error(err))
 			}
 			return
 		}
 	}
 
-	// Reload user to get updated data
 	if err := db.First(&user, user.ID).Error; err != nil {
-		log.Errorw("failed to reload user", zap.Error(err))
+		l.Errorw("failed to reload user", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reload profile"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Hide password hash
 	user.PasswordHash = ""
 
 	if err := Renderer.JSON(w, http.StatusOK, user); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
@@ -423,10 +417,11 @@ func updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} MessageResponse
 // @Router /auth/logout [post]
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
-	// For JWT-based auth, logout is handled client-side by discarding the token
-	// We could implement a token blacklist here if needed
+	l := logging.FromContext(r.Context())
+	// For JWT-based auth, logout is handled client-side by discarding the token.
+	// We could implement a token blacklist here if needed.
 	if err := Renderer.JSON(w, http.StatusOK, MessageResponse{Message: "logged out successfully"}); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
@@ -516,25 +511,24 @@ func getCurrentUser(r *http.Request) (*User, error) {
 // Auth middleware to protect routes
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		l := logging.FromContext(r.Context())
 		user, err := getCurrentUser(r)
 		if err != nil {
-			log.Errorw("authentication failed", zap.Error(err))
+			l.Errorw("authentication failed", zap.Error(err))
 			if err := Renderer.JSON(w, http.StatusUnauthorized, ErrorResponse{Error: "authentication required"}); err != nil {
-				log.Errorw("failed to render JSON", zap.Error(err))
+				l.Errorw("failed to render JSON", zap.Error(err))
 			}
 			return
 		}
 
-		// Extra safety check - user should never be nil at this point
 		if user == nil {
-			log.Errorw("user is nil after successful authentication - this should never happen")
+			l.Errorw("user is nil after successful authentication - this should never happen")
 			if err := Renderer.JSON(w, http.StatusUnauthorized, ErrorResponse{Error: "authentication required"}); err != nil {
-				log.Errorw("failed to render JSON", zap.Error(err))
+				l.Errorw("failed to render JSON", zap.Error(err))
 			}
 			return
 		}
 
-		// Add user to request context
 		ctx := context.WithValue(r.Context(), userContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -568,52 +562,50 @@ func getMustUserFromContext(r *http.Request) *User {
 // @Failure 500 {object} map[string]string
 // @Router /auth/reset-password [post]
 func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	l := logging.FromContext(r.Context())
 	var req ResetPasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if req.Email == "" {
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "email required"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	db, err := getDB()
 	if err != nil {
-		log.Errorw("could not get db", zap.Error(err))
+		l.Errorw("could not get db", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "database error"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Check if user exists
 	var user User
 	if err := db.Where("email = ? AND provider = ?", req.Email, "local").First(&user).Error; err != nil {
-		// Return success even if user doesn't exist (security best practice)
+		// Return success even if user doesn't exist (security best practice).
 		if err := Renderer.JSON(w, http.StatusOK, map[string]string{"message": "if email exists, reset instructions sent"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Generate reset token (in production, store this in database with expiration)
 	resetToken := generateProviderID()
 
-	// TODO: In production, implement email sending and store token with expiration
-	// For now, just log the token for development
-	log.Infow("Password reset token generated", "email", req.Email, "token", resetToken)
+	// TODO: In production, implement email sending and store token with expiration.
+	l.Infow("Password reset token generated", "email", req.Email, "token", resetToken)
 
 	if err := Renderer.JSON(w, http.StatusOK, map[string]string{
 		"message":   "if email exists, reset instructions sent",
-		"dev_token": resetToken, // Remove in production
+		"dev_token": resetToken,
 	}); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
@@ -628,31 +620,31 @@ func resetPasswordHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /auth/confirm-reset [post]
 func confirmResetHandler(w http.ResponseWriter, r *http.Request) {
+	l := logging.FromContext(r.Context())
 	var req ConfirmResetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if req.Token == "" || req.NewPassword == "" {
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "token and new password required"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if len(req.NewPassword) < 8 {
 		if err := Renderer.JSON(w, http.StatusBadRequest, map[string]string{"error": "password must be at least 8 characters"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// TODO: In production, validate token from database and check expiration
-	// For now, just return error since we don't have token storage
+	// TODO: In production, validate token from database and check expiration.
 	if err := Renderer.JSON(w, 400, map[string]string{"error": "password reset not fully implemented - token storage needed"}); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
