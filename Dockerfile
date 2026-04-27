@@ -13,7 +13,7 @@ COPY . .
 RUN go build -ldflags="-s -w" -o /server ./cmd/server
 
 # ── Runtime image ─────────────────────────────────────────────────────────────
-FROM alpine:3.22
+FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata
 
