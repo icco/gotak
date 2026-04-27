@@ -12,7 +12,6 @@ RUN go mod download
 COPY . .
 RUN go build -ldflags="-s -w" -o /server ./cmd/server
 
-# Final stage
 FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates tzdata
