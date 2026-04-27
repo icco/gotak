@@ -505,7 +505,7 @@ func TestDatabaseTypesConsistency(t *testing.T) {
 	}
 
 	// Verify the ID is int64 as expected by gotak.Game
-	var _ int64 = game.ID
+	var _ = game.ID
 }
 
 func TestGetGameBoardState(t *testing.T) {
@@ -549,16 +549,16 @@ func TestGetGameBoardState(t *testing.T) {
 	}
 
 	// Verify board state is updated
-	if retrievedGame.Board.Squares["a1"] == nil || len(retrievedGame.Board.Squares["a1"]) == 0 {
+	if len(retrievedGame.Board.Squares["a1"]) == 0 {
 		t.Error("board state not updated: a1 should have a stone")
 	}
-	if retrievedGame.Board.Squares["e5"] == nil || len(retrievedGame.Board.Squares["e5"]) == 0 {
+	if len(retrievedGame.Board.Squares["e5"]) == 0 {
 		t.Error("board state not updated: e5 should have a stone")
 	}
-	if retrievedGame.Board.Squares["b2"] == nil || len(retrievedGame.Board.Squares["b2"]) == 0 {
+	if len(retrievedGame.Board.Squares["b2"]) == 0 {
 		t.Error("board state not updated: b2 should have a stone")
 	}
-	if retrievedGame.Board.Squares["d4"] == nil || len(retrievedGame.Board.Squares["d4"]) == 0 {
+	if len(retrievedGame.Board.Squares["d4"]) == 0 {
 		t.Error("board state not updated: d4 should have a stone")
 	}
 

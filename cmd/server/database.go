@@ -32,7 +32,7 @@ func getDB() (*gorm.DB, error) {
 	// Auto-migrate the schema
 	err = AutoMigrate(db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run auto-migration: %v", err)
+		return nil, fmt.Errorf("failed to run auto-migration: %w", err)
 	}
 
 	return db, nil
@@ -214,7 +214,7 @@ func replayMoves(game *gotak.Game) error {
 				err = game.Board.DoMove(turn.First, gotak.PlayerWhite)
 			}
 			if err != nil {
-				return fmt.Errorf("error replaying turn %d first move: %v", turn.Number, err)
+				return fmt.Errorf("error replaying turn %d first move: %w", turn.Number, err)
 			}
 		}
 
@@ -226,7 +226,7 @@ func replayMoves(game *gotak.Game) error {
 				err = game.Board.DoMove(turn.Second, gotak.PlayerBlack)
 			}
 			if err != nil {
-				return fmt.Errorf("error replaying turn %d second move: %v", turn.Number, err)
+				return fmt.Errorf("error replaying turn %d second move: %w", turn.Number, err)
 			}
 		}
 	}
