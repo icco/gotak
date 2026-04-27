@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -16,9 +20,16 @@ import (
 	"github.com/icco/gotak/cmd/server/docs"
 	"github.com/icco/gutil/logging"
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/swaggo/http-swagger"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.uber.org/zap"
 )
 
@@ -57,6 +68,9 @@ var (
 // @name Authorization
 // @description JWT token in format: Bearer {token}
 
+// serverName is the otelhttp span/metric scope.
+const serverName = "gotak"
+
 func main() {
 	port := "8080"
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
@@ -66,14 +80,76 @@ func main() {
 
 	isDev := os.Getenv("NAT_ENV") != "production"
 
-	r := chi.NewRouter()
-	r.Use(logging.Middleware(log.Desugar()))
-
-	_, err := getDB()
+	registry := prometheus.NewRegistry()
+	exporter, err := otelprom.New(otelprom.WithRegisterer(registry))
 	if err != nil {
+		log.Panicw("otel prometheus exporter", zap.Error(err))
+		return
+	}
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
+	otel.SetMeterProvider(mp)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := mp.Shutdown(shutdownCtx); err != nil {
+			log.Warnw("meter provider shutdown", zap.Error(err))
+		}
+	}()
+
+	if _, err := getDB(); err != nil {
 		log.Panicw("could not get db", zap.Error(err))
 		return
 	}
+
+	metricsHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
+	handler := buildRouter(routerOptions{
+		IsDev:          isDev,
+		MetricsHandler: metricsHandler,
+	})
+
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		log.Infow("http server starting", "addr", server.Addr)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorw("http server", zap.Error(err))
+			stop()
+		}
+	}()
+
+	<-ctx.Done()
+	log.Info("shutting down")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Errorw("http shutdown", zap.Error(err))
+	}
+}
+
+// routerOptions configures buildRouter.
+type routerOptions struct {
+	IsDev          bool
+	MetricsHandler http.Handler
+}
+
+// buildRouter wires the chi router with logging, CORS, security headers,
+// /metrics, and otelhttp instrumentation (excluding /metrics).
+func buildRouter(opts routerOptions) http.Handler {
+	r := chi.NewRouter()
+	r.Use(logging.Middleware(log.Desugar()))
+	r.Use(routeTag)
 
 	r.Use(cors.New(cors.Options{
 		AllowCredentials:   true,
@@ -87,36 +163,35 @@ func main() {
 
 	r.NotFound(notFoundHandler)
 
-	// Stuff that does not ssl redirect
+	if opts.MetricsHandler != nil {
+		r.Method(http.MethodGet, "/metrics", opts.MetricsHandler)
+	}
+
 	r.Group(func(r chi.Router) {
 		r.Use(secure.New(secure.Options{
 			BrowserXssFilter:     true,
 			ContentTypeNosniff:   true,
 			FrameDeny:            true,
 			HostsProxyHeaders:    []string{"X-Forwarded-Host"},
-			IsDevelopment:        isDev,
+			IsDevelopment:        opts.IsDev,
 			SSLProxyHeaders:      map[string]string{"X-Forwarded-Proto": "https"},
-			SSLRedirect:          !isDev,
+			SSLRedirect:          !opts.IsDev,
 			STSIncludeSubdomains: true,
 			STSPreload:           true,
 			STSSeconds:           315360000,
 		}).Handler)
 
-		// Public routes
 		r.Get("/", rootHandler)
 		r.Get("/healthz", healthCheckHandler)
 		r.Get("/swagger/*", httpSwagger.Handler(
 			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
 		))
 
-		// Auth endpoints (JWT + Google)
 		r.Mount("/auth", AuthRoutes())
 
-		// Public game viewing (no auth required)
 		r.Get("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
 
-		// Protected routes requiring authentication
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
 			r.Get("/game/new", newGameHandler)
@@ -127,17 +202,25 @@ func main() {
 		})
 	})
 
-	// GORM auto-migration is handled in getDB()
+	return otelhttp.NewHandler(r, serverName,
+		otelhttp.WithFilter(func(req *http.Request) bool {
+			return req.URL.Path != "/metrics"
+		}),
+	)
+}
 
-	server := &http.Server{
-		Addr:           ":" + port,
-		Handler:        r,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		IdleTimeout:    60 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1MB
-	}
-	log.Fatal(server.ListenAndServe())
+// routeTag stamps the chi route pattern onto otelhttp metric labels.
+func routeTag(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		labeler, ok := otelhttp.LabelerFromContext(r.Context())
+		if !ok {
+			return
+		}
+		if pattern := chi.RouteContext(r.Context()).RoutePattern(); pattern != "" {
+			labeler.Add(semconv.HTTPRoute(pattern))
+		}
+	})
 }
 
 // @Summary Get API information
