@@ -10,18 +10,13 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version:
-          - "1.25"
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      - name: Set up Go ${{ matrix.go-version }}
+      - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
+          go-version-file: go.mod
       - name: Download dependencies
         run: go mod download
       - name: Verify dependencies
@@ -51,11 +46,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
-          cache: true
+          go-version-file: go.mod
       - name: Build main CLI
         env:
           GOOS: ${{ matrix.goos }}
@@ -88,11 +82,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
-          cache: true
+          go-version-file: go.mod
       - name: Run server integration tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/gotak_test?sslmode=disable
