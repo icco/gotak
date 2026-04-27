@@ -1,959 +1,959 @@
 {
-    "swagger": "2.0",
-    "info": {
-        "description": "A Tak game server API with authentication",
-        "title": "GoTak API",
-        "contact": {
-            "name": "API Support",
-            "url": "http://github.com/icco/gotak"
-        },
-        "license": {
-            "name": "MIT",
-            "url": "https://github.com/icco/gotak/blob/main/LICENSE"
-        },
-        "version": "1.0"
+  "swagger": "2.0",
+  "info": {
+    "description": "A Tak game server API with authentication",
+    "title": "GoTak API",
+    "contact": {
+      "name": "API Support",
+      "url": "http://github.com/icco/gotak"
     },
-    "host": "gotak.app",
-    "basePath": "/",
-    "paths": {
-        "/": {
-            "get": {
-                "description": "Returns basic API information and available endpoints",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "text/html"
-                ],
-                "tags": [
-                    "info"
-                ],
-                "summary": "Get API information",
-                "responses": {
-                    "200": {
-                        "description": "HTML page with API information",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/confirm-reset": {
-            "post": {
-                "description": "Reset password with token",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Confirm password reset",
-                "parameters": [
-                    {
-                        "description": "Confirm reset request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.ConfirmResetRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.MessageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/login": {
-            "post": {
-                "description": "Login with email and password",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Login user",
-                "parameters": [
-                    {
-                        "description": "User login data",
-                        "name": "user",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.LoginRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.AuthResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "description": "Logout current user (client should discard token)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Logout user",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.MessageResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/profile": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get current user profile information",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Get user profile",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.User"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Update current user profile information",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Update user profile",
-                "parameters": [
-                    {
-                        "description": "Profile update data",
-                        "name": "profile",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.UpdateProfileRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.User"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/register": {
-            "post": {
-                "description": "Register with email and password",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Register a new user",
-                "parameters": [
-                    {
-                        "description": "User registration data",
-                        "name": "user",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.RegisterRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/main.MessageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/reset-password": {
-            "post": {
-                "description": "Send password reset token for email",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Request password reset",
-                "parameters": [
-                    {
-                        "description": "Reset password request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.ResetPasswordRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.MessageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/game/new": {
-            "get": {
-                "description": "Creates a new Tak game with the specified board size",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "game"
-                ],
-                "summary": "Create a new game",
-                "parameters": [
-                    {
-                        "description": "Game configuration",
-                        "name": "game",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/main.CreateGameRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "307": {
-                        "description": "Redirect to game URL",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Creates a new Tak game with the specified board size",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "game"
-                ],
-                "summary": "Create a new game",
-                "parameters": [
-                    {
-                        "description": "Game configuration",
-                        "name": "game",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/main.CreateGameRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "307": {
-                        "description": "Redirect to game URL",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/game/{slug}": {
-            "get": {
-                "description": "Returns the current state of a game",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "game"
-                ],
-                "summary": "Get game state",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Game slug identifier",
-                        "name": "slug",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/gotak.Game"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/game/{slug}/join": {
-            "post": {
-                "description": "Join a game that is waiting for a second player (as black player)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "game"
-                ],
-                "summary": "Join a waiting game",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Game slug identifier",
-                        "name": "slug",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.MessageResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/game/{slug}/move": {
-            "post": {
-                "description": "Submit a move for a specific game",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "game"
-                ],
-                "summary": "Make a move in a game",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Game slug identifier",
-                        "name": "slug",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Move details",
-                        "name": "move",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/main.MoveRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/gotak.Game"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/game/{slug}/{turn}": {
-            "get": {
-                "description": "Returns the state of a game at a specific turn",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "game"
-                ],
-                "summary": "Get specific turn",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Game slug identifier",
-                        "name": "slug",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Turn number",
-                        "name": "turn",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/gotak.Turn"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/main.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/healthz": {
-            "get": {
-                "description": "Returns service health status",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "Health check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/main.HealthResponse"
-                        }
-                    }
-                }
-            }
-        }
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/icco/gotak/blob/main/LICENSE"
     },
-    "definitions": {
-        "gotak.Board": {
-            "type": "object",
-            "properties": {
-                "size": {
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "squares": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/definitions/gotak.Stone"
-                        }
-                    }
-                }
+    "version": "1.0"
+  },
+  "host": "gotak.app",
+  "basePath": "/",
+  "paths": {
+    "/": {
+      "get": {
+        "description": "Returns basic API information and available endpoints",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "text/html"
+        ],
+        "tags": [
+          "info"
+        ],
+        "summary": "Get API information",
+        "responses": {
+          "200": {
+            "description": "HTML page with API information",
+            "schema": {
+              "type": "string"
             }
-        },
-        "gotak.Game": {
-            "type": "object",
-            "properties": {
-                "board": {
-                    "$ref": "#/definitions/gotak.Board"
-                },
-                "id": {
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "meta": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/gotak.Tag"
-                    }
-                },
-                "slug": {
-                    "type": "string"
-                },
-                "turns": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/gotak.Turn"
-                    }
-                }
-            }
-        },
-        "gotak.Move": {
-            "type": "object",
-            "properties": {
-                "moveCount": {
-                    "description": "Move only",
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "moveDirection": {
-                    "type": "string"
-                },
-                "moveDropCounts": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                },
-                "square": {
-                    "type": "string"
-                },
-                "stone": {
-                    "description": "Both Drop and Move",
-                    "type": "string"
-                },
-                "text": {
-                    "type": "string"
-                }
-            }
-        },
-        "gotak.Stone": {
-            "type": "object",
-            "properties": {
-                "player": {
-                    "type": "integer"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "gotak.Tag": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "gotak.Turn": {
-            "type": "object",
-            "properties": {
-                "comment": {
-                    "type": "string"
-                },
-                "first": {
-                    "$ref": "#/definitions/gotak.Move"
-                },
-                "number": {
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "result": {
-                    "type": "string"
-                },
-                "second": {
-                    "$ref": "#/definitions/gotak.Move"
-                }
-            }
-        },
-        "main.AuthResponse": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/main.User"
-                }
-            }
-        },
-        "main.ConfirmResetRequest": {
-            "type": "object",
-            "properties": {
-                "new_password": {
-                    "type": "string",
-                    "example": "newsecretpassword"
-                },
-                "token": {
-                    "type": "string",
-                    "example": "reset-token-here"
-                }
-            }
-        },
-        "main.CreateGameRequest": {
-            "type": "object",
-            "properties": {
-                "size": {
-                    "type": "string",
-                    "example": "8"
-                }
-            }
-        },
-        "main.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string",
-                    "example": "Something went wrong"
-                }
-            }
-        },
-        "main.HealthResponse": {
-            "type": "object",
-            "properties": {
-                "branch": {
-                    "type": "string",
-                    "example": "main"
-                },
-                "healthy": {
-                    "type": "string",
-                    "example": "true"
-                },
-                "revision": {
-                    "type": "string",
-                    "example": "abc123def"
-                },
-                "tag": {
-                    "type": "string",
-                    "example": "v1.0.0"
-                }
-            }
-        },
-        "main.LoginRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "secretpassword"
-                }
-            }
-        },
-        "main.MessageResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string",
-                    "example": "Operation successful"
-                }
-            }
-        },
-        "main.MoveRequest": {
-            "type": "object",
-            "properties": {
-                "move": {
-                    "type": "string",
-                    "example": "c3"
-                },
-                "player": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "turn": {
-                    "type": "integer",
-                    "example": 1
-                }
-            }
-        },
-        "main.RegisterRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
-                },
-                "name": {
-                    "type": "string",
-                    "example": "John Doe"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "secretpassword"
-                }
-            }
-        },
-        "main.ResetPasswordRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
-                }
-            }
-        },
-        "main.UpdateProfileRequest": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "preferences": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.User": {
-            "type": "object",
-            "properties": {
-                "avatar_url": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "preferences": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "provider_id": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
+          }
         }
+      }
     },
-    "securityDefinitions": {
-        "BearerAuth": {
-            "description": "JWT token in format: Bearer {token}",
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
+    "/auth/confirm-reset": {
+      "post": {
+        "description": "Reset password with token",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Confirm password reset",
+        "parameters": [
+          {
+            "description": "Confirm reset request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/main.ConfirmResetRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.MessageResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
         }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "description": "Login with email and password",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login user",
+        "parameters": [
+          {
+            "description": "User login data",
+            "name": "user",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/main.LoginRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.AuthResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "Logout current user (client should discard token)",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout user",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.MessageResponse"
+            }
+          }
+        }
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Get current user profile information",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get user profile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.User"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      },
+      "put": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Update current user profile information",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update user profile",
+        "parameters": [
+          {
+            "description": "Profile update data",
+            "name": "profile",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/main.UpdateProfileRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.User"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "description": "Register with email and password",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register a new user",
+        "parameters": [
+          {
+            "description": "User registration data",
+            "name": "user",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/main.RegisterRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/main.MessageResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "description": "Send password reset token for email",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request password reset",
+        "parameters": [
+          {
+            "description": "Reset password request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/main.ResetPasswordRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.MessageResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/game/new": {
+      "get": {
+        "description": "Creates a new Tak game with the specified board size",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "game"
+        ],
+        "summary": "Create a new game",
+        "parameters": [
+          {
+            "description": "Game configuration",
+            "name": "game",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/main.CreateGameRequest"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to game URL",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Creates a new Tak game with the specified board size",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "game"
+        ],
+        "summary": "Create a new game",
+        "parameters": [
+          {
+            "description": "Game configuration",
+            "name": "game",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/main.CreateGameRequest"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to game URL",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/game/{slug}": {
+      "get": {
+        "description": "Returns the current state of a game",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "game"
+        ],
+        "summary": "Get game state",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game slug identifier",
+            "name": "slug",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/gotak.Game"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/game/{slug}/join": {
+      "post": {
+        "description": "Join a game that is waiting for a second player (as black player)",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "game"
+        ],
+        "summary": "Join a waiting game",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game slug identifier",
+            "name": "slug",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.MessageResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/game/{slug}/move": {
+      "post": {
+        "description": "Submit a move for a specific game",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "game"
+        ],
+        "summary": "Make a move in a game",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game slug identifier",
+            "name": "slug",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Move details",
+            "name": "move",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/main.MoveRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/gotak.Game"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/game/{slug}/{turn}": {
+      "get": {
+        "description": "Returns the state of a game at a specific turn",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "game"
+        ],
+        "summary": "Get specific turn",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Game slug identifier",
+            "name": "slug",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "description": "Turn number",
+            "name": "turn",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/gotak.Turn"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/main.ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "description": "Returns service health status",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "health"
+        ],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/main.HealthResponse"
+            }
+          }
+        }
+      }
     }
+  },
+  "definitions": {
+    "gotak.Board": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "squares": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/gotak.Stone"
+            }
+          }
+        }
+      }
+    },
+    "gotak.Game": {
+      "type": "object",
+      "properties": {
+        "board": {
+          "$ref": "#/definitions/gotak.Board"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "meta": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/gotak.Tag"
+          }
+        },
+        "slug": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/gotak.Turn"
+          }
+        }
+      }
+    },
+    "gotak.Move": {
+      "type": "object",
+      "properties": {
+        "moveCount": {
+          "description": "Move only",
+          "type": "integer",
+          "format": "int64"
+        },
+        "moveDirection": {
+          "type": "string"
+        },
+        "moveDropCounts": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "square": {
+          "type": "string"
+        },
+        "stone": {
+          "description": "Both Drop and Move",
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "gotak.Stone": {
+      "type": "object",
+      "properties": {
+        "player": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "gotak.Tag": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "gotak.Turn": {
+      "type": "object",
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "first": {
+          "$ref": "#/definitions/gotak.Move"
+        },
+        "number": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "result": {
+          "type": "string"
+        },
+        "second": {
+          "$ref": "#/definitions/gotak.Move"
+        }
+      }
+    },
+    "main.AuthResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/definitions/main.User"
+        }
+      }
+    },
+    "main.ConfirmResetRequest": {
+      "type": "object",
+      "properties": {
+        "new_password": {
+          "type": "string",
+          "example": "newsecretpassword"
+        },
+        "token": {
+          "type": "string",
+          "example": "reset-token-here"
+        }
+      }
+    },
+    "main.CreateGameRequest": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "type": "string",
+          "example": "8"
+        }
+      }
+    },
+    "main.ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "Something went wrong"
+        }
+      }
+    },
+    "main.HealthResponse": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string",
+          "example": "main"
+        },
+        "healthy": {
+          "type": "string",
+          "example": "true"
+        },
+        "revision": {
+          "type": "string",
+          "example": "abc123def"
+        },
+        "tag": {
+          "type": "string",
+          "example": "v1.0.0"
+        }
+      }
+    },
+    "main.LoginRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "example": "user@example.com"
+        },
+        "password": {
+          "type": "string",
+          "example": "secretpassword"
+        }
+      }
+    },
+    "main.MessageResponse": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "example": "Operation successful"
+        }
+      }
+    },
+    "main.MoveRequest": {
+      "type": "object",
+      "properties": {
+        "move": {
+          "type": "string",
+          "example": "c3"
+        },
+        "player": {
+          "type": "integer",
+          "example": 1
+        },
+        "turn": {
+          "type": "integer",
+          "example": 1
+        }
+      }
+    },
+    "main.RegisterRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "example": "user@example.com"
+        },
+        "name": {
+          "type": "string",
+          "example": "John Doe"
+        },
+        "password": {
+          "type": "string",
+          "example": "secretpassword"
+        }
+      }
+    },
+    "main.ResetPasswordRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "example": "user@example.com"
+        }
+      }
+    },
+    "main.UpdateProfileRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "preferences": {
+          "type": "string"
+        }
+      }
+    },
+    "main.User": {
+      "type": "object",
+      "properties": {
+        "avatar_url": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "preferences": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "securityDefinitions": {
+    "BearerAuth": {
+      "description": "JWT token in format: Bearer {token}",
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
+    }
+  }
 }
