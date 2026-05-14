@@ -1,17 +1,33 @@
-FROM golang:1.25-alpine
+# Build stage
+FROM golang:1.26-alpine AS builder
 
 ENV GOPROXY="https://proxy.golang.org"
-ENV GO111MODULE="on"
-ENV NAT_ENV="production"
-ENV PORT="8080"
+ENV CGO_ENABLED=0
 
-EXPOSE 8080
+WORKDIR /src
 
-WORKDIR /go/src/github.com/icco/gotak
-RUN apk add --no-cache git
+COPY go.mod go.sum ./
+RUN go mod download
 
 COPY . .
+RUN go build -ldflags="-s -w" -o /server ./cmd/server
 
-RUN go build -o /go/bin/server ./cmd/server
+FROM alpine:3.23
 
-CMD ["/go/bin/server"]
+LABEL org.opencontainers.image.source=https://github.com/icco/gotak
+LABEL org.opencontainers.image.description="A Tak server"
+LABEL org.opencontainers.image.licenses=MIT
+
+RUN apk add --no-cache ca-certificates tzdata
+RUN adduser -S -u 1001 app
+
+WORKDIR /app
+COPY --from=builder --chown=app /server .
+
+USER app
+
+ENV NAT_ENV="production"
+ENV PORT="8080"
+EXPOSE 8080
+
+ENTRYPOINT ["/app/server"]

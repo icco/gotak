@@ -10,18 +10,13 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version:
-          - "1.25"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
-      - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
+          go-version-file: go.mod
       - name: Download dependencies
         run: go mod download
       - name: Verify dependencies
@@ -31,7 +26,7 @@ jobs:
       - name: Run tests with coverage
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           file: ./coverage.out
           flags: unittests
@@ -50,12 +45,11 @@ jobs:
           - arm64
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
-      - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
-          cache: true
+          go-version-file: go.mod
       - name: Build main CLI
         env:
           GOOS: ${{ matrix.goos }}
@@ -87,12 +81,11 @@ jobs:
           - 5432:5432
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
-      - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
-          cache: true
+          go-version-file: go.mod
       - name: Run server integration tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/gotak_test?sslmode=disable

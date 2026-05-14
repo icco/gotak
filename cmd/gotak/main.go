@@ -26,6 +26,15 @@ func getVersion() string {
 	return "dev"
 }
 
+// Key bindings used across screens.
+const (
+	keyCtrlC = "ctrl+c"
+	keyEsc   = "esc"
+	keyEnter = "enter"
+	keyDown  = "down"
+	keyUp    = "up"
+)
+
 var (
 	localFlag = flag.Bool("local", false, "Use local server instead of https://gotak.app")
 
@@ -103,7 +112,7 @@ func loadTokenCache() (*TokenCache, error) {
 		return nil, err
 	}
 
-	data, err := os.ReadFile(cachePath)
+	data, err := os.ReadFile(cachePath) // #nosec G304 -- cachePath is derived from $HOME
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +145,7 @@ func validateToken(token, serverURL string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("token validation failed: %d", resp.StatusCode)
@@ -179,8 +188,7 @@ func main() {
 			model.authenticated = true
 			model.screen = screenMenu
 		} else {
-			// Token invalid, clear cache
-			clearTokenCache()
+			_ = clearTokenCache()
 		}
 	}
 
@@ -342,11 +350,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.error = ""
 		m.isLoading = false
 
-		// Save token to cache for future sessions
-		if err := saveTokenCache(msg.token, msg.email, msg.name, m.serverURL); err != nil {
-			// Don't fail login if cache save fails, just log it
-			// Could add error display here if needed
-		}
+		_ = saveTokenCache(msg.token, msg.email, msg.name, m.serverURL)
 
 		return m, nil
 
@@ -424,21 +428,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c":
+	case keyCtrlC:
 		return m, tea.Quit
-	case "esc":
+	case keyEsc:
 		return m, tea.Quit
-	case "up", "k":
+	case keyUp, "k":
 		if m.authModeCursor > 0 {
 			m.authModeCursor--
 		}
 		return m, nil
-	case "down", "j":
+	case keyDown, "j":
 		if m.authModeCursor < 1 { // 0: Login, 1: Register
 			m.authModeCursor++
 		}
 		return m, nil
-	case "enter":
+	case keyEnter:
 		// Set the auth mode based on selection
 		if m.authModeCursor == 0 {
 			m.authMode = authModeLogin
@@ -463,14 +467,14 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg.String() {
-	case "ctrl+c":
+	case keyCtrlC:
 		return m, tea.Quit
-	case "esc":
+	case keyEsc:
 		// Go back to auth mode selection
 		m.screen = screenAuthMode
 		m.error = ""
 		return m, nil
-	case "tab", "down":
+	case "tab", keyDown:
 		maxFields := 2 // email, password, submit button (login)
 		if m.authMode == authModeRegister {
 			maxFields = 3 // email, password, name, submit button (register)
@@ -504,7 +508,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
-	case "up", "shift+tab":
+	case keyUp, "shift+tab":
 		// Blur current field
 		switch m.authFocus {
 		case 0:
@@ -537,7 +541,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
-	case "enter":
+	case keyEnter:
 		maxFocus := 1
 		if m.authMode == authModeRegister {
 			maxFocus = 2
@@ -605,17 +609,17 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "q", keyCtrlC:
 		return m, tea.Quit
-	case "up", "k":
+	case keyUp, "k":
 		if m.menuCursor > 0 {
 			m.menuCursor--
 		}
-	case "down", "j":
+	case keyDown, "j":
 		if m.menuCursor < 3 {
 			m.menuCursor++
 		}
-	case "enter", " ":
+	case keyEnter, " ":
 		switch m.menuCursor {
 		case 0: // New Game
 			m.isLoading = true
@@ -623,7 +627,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 1: // Settings
 			m.screen = screenSettings
 		case 2: // Logout
-			clearTokenCache() // Clear cached token
+			_ = clearTokenCache()
 			m.token = ""
 			m.authenticated = false
 			m.screen = screenAuthMode
@@ -639,9 +643,9 @@ func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q":
 		m.screen = screenMenu
 		return m, nil
-	case "ctrl+c":
+	case keyCtrlC:
 		return m, tea.Quit
-	case "enter":
+	case keyEnter:
 		if m.moveInput != "" {
 			m.isLoading = true
 			return m, m.submitMove()
@@ -662,20 +666,20 @@ func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "esc":
+	case "q", keyEsc:
 		m.screen = screenMenu
 		return m, nil
-	case "ctrl+c":
+	case keyCtrlC:
 		return m, tea.Quit
-	case "up", "k":
+	case keyUp, "k":
 		if m.settingsCursor > 0 {
 			m.settingsCursor--
 		}
-	case "down", "j":
+	case keyDown, "j":
 		if m.settingsCursor < 2 { // 3 settings total (0, 1, 2)
 			m.settingsCursor++
 		}
-	case "enter", " ":
+	case keyEnter, " ":
 		switch m.settingsCursor {
 		case 0: // Board Size
 			m.cycleBoardSize()
@@ -1146,7 +1150,7 @@ func (m model) requestAIMove() tea.Cmd {
 		if err != nil {
 			return apiError{error: fmt.Sprintf("AI move request failed: %v", err)}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			var errorResp struct {
@@ -1211,7 +1215,7 @@ func (m model) loginUser() tea.Cmd {
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server
@@ -1262,7 +1266,7 @@ func (m model) registerUser() tea.Cmd {
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusCreated { // Registration returns 201 on success
 			// Read the actual error message from server
@@ -1304,7 +1308,7 @@ func (m model) createGame() tea.Cmd {
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Connection failed: %v", err)}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Handle redirect response
 		if resp.StatusCode == http.StatusTemporaryRedirect {
@@ -1330,7 +1334,7 @@ func (m model) createGame() tea.Cmd {
 			if err != nil {
 				return apiError{error: fmt.Sprintf("Failed to fetch created game: %v", err)}
 			}
-			defer getResp.Body.Close()
+			defer func() { _ = getResp.Body.Close() }()
 
 			if getResp.StatusCode != http.StatusOK {
 				return apiError{error: fmt.Sprintf("Failed to fetch game data (status %d)", getResp.StatusCode)}
@@ -1379,7 +1383,7 @@ func (m model) submitMove() tea.Cmd {
 		if err != nil {
 			return apiError{error: fmt.Sprintf("Move failed: %v", err)}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			// Read the actual error message from server

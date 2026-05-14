@@ -104,7 +104,7 @@ func (b *Board) IsEdge(l string) bool {
 		return true
 	}
 
-	if horizontal == string(rune('a')+rune(b.Size)-1) {
+	if b.Size > 0 && b.Size <= 26 && horizontal == string(rune('a')+rune(b.Size)-1) { // #nosec G115 -- bounded above
 		return true
 	}
 
@@ -191,7 +191,7 @@ func (b *Board) isValidSquare(square string) bool {
 		return false
 	}
 
-	if col >= byte('a')+byte(b.Size) {
+	if col >= byte('a')+byte(b.Size) { // #nosec G115 -- bounded above
 		return false
 	}
 

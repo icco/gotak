@@ -32,11 +32,15 @@ func getDB() (*gorm.DB, error) {
 	// Auto-migrate the schema
 	err = AutoMigrate(db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run auto-migration: %v", err)
+		return nil, fmt.Errorf("failed to run auto-migration: %w", err)
 	}
 
 	return db, nil
 }
+
+// slugWorker is shared across createGame calls so back-to-back creations within
+// the same second use distinct sequence numbers rather than colliding.
+var slugWorker = sanic.NewWorker7()
 
 func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 	if size < 4 {
@@ -47,10 +51,8 @@ func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 		return "", fmt.Errorf("user authentication required")
 	}
 
-	// Game Slug
-	worker := sanic.NewWorker7()
-	id := worker.NextID()
-	slug := worker.IDString(id)
+	id := slugWorker.NextID()
+	slug := slugWorker.IDString(id)
 
 	game := Game{
 		Slug:          slug,
@@ -205,7 +207,7 @@ func replayMoves(game *gotak.Game) error {
 				err = game.Board.DoMove(turn.First, gotak.PlayerWhite)
 			}
 			if err != nil {
-				return fmt.Errorf("error replaying turn %d first move: %v", turn.Number, err)
+				return fmt.Errorf("error replaying turn %d first move: %w", turn.Number, err)
 			}
 		}
 
@@ -217,7 +219,7 @@ func replayMoves(game *gotak.Game) error {
 				err = game.Board.DoMove(turn.Second, gotak.PlayerBlack)
 			}
 			if err != nil {
-				return fmt.Errorf("error replaying turn %d second move: %v", turn.Number, err)
+				return fmt.Errorf("error replaying turn %d second move: %w", turn.Number, err)
 			}
 		}
 	}

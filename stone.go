@@ -10,9 +10,10 @@ type Stone struct {
 
 func (s *Stone) String() string {
 	plyrText := ""
-	if s.Player == PlayerWhite {
+	switch s.Player {
+	case PlayerWhite:
 		plyrText = "W"
-	} else if s.Player == PlayerBlack {
+	case PlayerBlack:
 		plyrText = "B"
 	}
 

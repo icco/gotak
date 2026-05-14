@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/icco/gotak/ai"
+	"github.com/icco/gutil/logging"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -384,7 +385,7 @@ func buildAIRequest(url, level string) *http.Request {
 // Test handler implementations that use injected database
 
 func testNewGameHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
-	// Get current user from context
+	l := logging.FromContext(r.Context())
 	user := getMustUserFromContext(r)
 	userID := user.ID
 
@@ -400,9 +401,9 @@ func testNewGameHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.D
 
 	slug, err := createGame(db, boardSize, userID)
 	if err != nil {
-		log.Errorw("could not create game", zap.Error(err))
+		l.Errorw("could not create game", zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not create game"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
@@ -411,23 +412,22 @@ func testNewGameHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.D
 }
 
 func testNewMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	l := logging.FromContext(r.Context())
 	slug := chi.URLParam(r, "slug")
 	if slug == "" {
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "missing game slug"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Get current user from context
 	user := getMustUserFromContext(r)
 
-	// Verify user can access this game
 	err := verifyGameParticipation(db, slug, user.ID)
 	if err != nil {
-		log.Errorw("user not authorized for game", "slug", slug, "user_id", user.ID, zap.Error(err))
+		l.Errorw("user not authorized for game", "slug", slug, "user_id", user.ID, zap.Error(err))
 		if err := Renderer.JSON(w, 403, map[string]string{"error": "unauthorized"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
@@ -435,73 +435,69 @@ func testNewMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.D
 	var data MoveRequest
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Get game to access GameID
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		l.Errorw("could not get game", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "game not found"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	err = insertMove(db, game.ID, data.Player, data.Text, data.Turn)
 	if err != nil {
-		log.Errorw("could not add move", "slug", slug, "move", data.Text, zap.Error(err))
+		l.Errorw("could not add move", "slug", slug, "move", data.Text, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not add move"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if err := Renderer.JSON(w, 200, map[string]string{"status": "move added"}); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
 func testPostAIMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	l := logging.FromContext(r.Context())
 	slug := chi.URLParam(r, "slug")
 	if slug == "" {
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "missing game slug"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Get current user (required by authMiddleware)
 	user := getMustUserFromContext(r)
 
-	// Verify user can access this game
 	err := verifyGameParticipation(db, slug, user.ID)
 	if err != nil {
-		log.Errorw("user not authorized for game", "slug", slug, "user_id", user.ID, zap.Error(err))
+		l.Errorw("user not authorized for game", "slug", slug, "user_id", user.ID, zap.Error(err))
 		if err := Renderer.JSON(w, 403, map[string]string{"error": "unauthorized"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Parse request body
 	var req AIRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Errorw("failed to decode AI move request", zap.Error(err))
+		l.Errorw("failed to decode AI move request", zap.Error(err))
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "invalid request body"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
-	// Load game from database
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		l.Errorw("could not get game", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "game not found"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
@@ -547,13 +543,12 @@ func testPostAIMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gor
 		Personality: req.Personality,
 	}
 
-	// Get AI move using actual game state
 	engine := &ai.TakticianEngine{}
 	move, err := engine.GetMove(r.Context(), game, cfg)
 	if err != nil {
-		log.Errorw("AI move failed", "slug", slug, zap.Error(err))
+		l.Errorw("AI move failed", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "AI move failed"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
@@ -566,30 +561,31 @@ func testPostAIMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gor
 	}
 
 	if err := Renderer.JSON(w, 200, response); err != nil {
-		log.Errorw("failed to render AI move response", zap.Error(err))
+		l.Errorw("failed to render AI move response", zap.Error(err))
 	}
 }
 
 func testGetGameHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	l := logging.FromContext(r.Context())
 	slug := chi.URLParam(r, "slug")
 	if slug == "" {
 		if err := Renderer.JSON(w, 400, map[string]string{"error": "missing game slug"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	game, err := getGame(db, slug)
 	if err != nil {
-		log.Errorw("could not get game", "slug", slug, zap.Error(err))
+		l.Errorw("could not get game", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 404, map[string]string{"error": "game not found"}); err != nil {
-			log.Errorw("failed to render JSON", zap.Error(err))
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	if err := Renderer.JSON(w, 200, game); err != nil {
-		log.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
 
