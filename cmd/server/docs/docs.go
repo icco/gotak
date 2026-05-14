@@ -596,7 +596,7 @@ const docTemplate = `{
         },
         "/game/{slug}/position/{turn}": {
             "get": {
-                "description": "Replays moves up to and including the requested turn number\nand returns the resulting board state. Turn 0 returns the\nstarting position.",
+                "description": "Replays the game forward until it has applied every move\nof every turn with Number \u003c= turn, then returns the\nresulting board. turn=0 yields the starting (empty)\nposition; turn beyond the final turn yields the final\nposition.",
                 "consumes": [
                     "application/json"
                 ],
@@ -606,7 +606,7 @@ const docTemplate = `{
                 "tags": [
                     "game"
                 ],
-                "summary": "Get board state at a specific turn",
+                "summary": "Get board state after N complete turns",
                 "parameters": [
                     {
                         "type": "string",
@@ -617,7 +617,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Turn number (0 = empty board)",
+                        "description": "Turn number (0 = starting position)",
                         "name": "turn",
                         "in": "path",
                         "required": true
@@ -653,7 +653,7 @@ const docTemplate = `{
         },
         "/game/{slug}/replay": {
             "get": {
-                "description": "Returns an ordered list of every move in the game along with\nthe board state after each move, so a client can step through\nwithout making per-turn API calls.",
+                "description": "Returns an ordered list of every half-turn played in the\ngame, along with the board state after each one, so a\nclient can step through without making per-turn requests.",
                 "consumes": [
                     "application/json"
                 ],

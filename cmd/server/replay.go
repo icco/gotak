@@ -11,12 +11,12 @@ import (
 )
 
 // ReplayStep is a single recorded position in a game replay. Each turn
-// produces up to two steps (one per player move). The board snapshot is
-// the state after `Move` was applied.
+// produces up to two steps (one per player half-turn). Board is the
+// state immediately after Move was applied.
 type ReplayStep struct {
-	Turn   int64                   `json:"turn"`
-	Player int                     `json:"player"`
-	Move   string                  `json:"move"`
+	Turn   int64                     `json:"turn"`
+	Player int                       `json:"player"`
+	Move   string                    `json:"move"`
 	Board  map[string][]*gotak.Stone `json:"board"`
 }
 
@@ -36,9 +36,9 @@ type PositionResponse struct {
 }
 
 // @Summary Get full game replay
-// @Description Returns an ordered list of every move in the game along with
-// @Description the board state after each move, so a client can step through
-// @Description without making per-turn API calls.
+// @Description Returns an ordered list of every half-turn played in the
+// @Description game, along with the board state after each one, so a
+// @Description client can step through without making per-turn requests.
 // @Tags game
 // @Accept json
 // @Produce json
@@ -51,36 +51,22 @@ func getReplayHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	l := logging.FromContext(ctx)
 
-	db, err := getDB()
-	if err != nil {
-		l.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
-	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
-	game, err := getGame(db, slug)
-	if err != nil {
-		l.Errorw("could not get game", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
+	game, ok := loadGameForRead(w, r, l)
+	if !ok {
 		return
 	}
 
 	steps, err := buildReplaySteps(game)
 	if err != nil {
-		l.Errorw("could not build replay", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not build replay"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("could not build replay", "slug", game.Slug, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not build replay"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
 		return
 	}
 
 	if err := Renderer.JSON(w, http.StatusOK, ReplayResponse{
-		Slug:  slug,
+		Slug:  game.Slug,
 		Size:  game.Board.Size,
 		Steps: steps,
 	}); err != nil {
@@ -88,15 +74,17 @@ func getReplayHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Get board state at a specific turn
-// @Description Replays moves up to and including the requested turn number
-// @Description and returns the resulting board state. Turn 0 returns the
-// @Description starting position.
+// @Summary Get board state after N complete turns
+// @Description Replays the game forward until it has applied every move
+// @Description of every turn with Number <= turn, then returns the
+// @Description resulting board. turn=0 yields the starting (empty)
+// @Description position; turn beyond the final turn yields the final
+// @Description position.
 // @Tags game
 // @Accept json
 // @Produce json
 // @Param slug path string true "Game slug identifier"
-// @Param turn path int true "Turn number (0 = empty board)"
+// @Param turn path int true "Turn number (0 = starting position)"
 // @Success 200 {object} PositionResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -106,46 +94,32 @@ func getPositionHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	l := logging.FromContext(ctx)
 
-	db, err := getDB()
-	if err != nil {
-		l.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
-	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 	turnStr := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "turn"))
 	turnNum, err := strconv.ParseInt(turnStr, 10, 64)
 	if err != nil || turnNum < 0 {
-		l.Errorw("invalid turn number", "slug", slug, "turn", turnStr, zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "turn must be a non-negative integer"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
+		l.Warnw("invalid turn number", "turn", turnStr, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "turn must be a non-negative integer"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
 		return
 	}
 
-	game, err := getGame(db, slug)
-	if err != nil {
-		l.Errorw("could not get game", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
+	game, ok := loadGameForRead(w, r, l)
+	if !ok {
 		return
 	}
 
 	board, err := boardAtTurn(game, turnNum)
 	if err != nil {
-		l.Errorw("could not replay to turn", "slug", slug, "turn", turnNum, zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not compute position"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
+		l.Errorw("could not replay to turn", "slug", game.Slug, "turn", turnNum, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not compute position"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
 		return
 	}
 
 	if err := Renderer.JSON(w, http.StatusOK, PositionResponse{
-		Slug:  slug,
+		Slug:  game.Slug,
 		Size:  game.Board.Size,
 		Turn:  turnNum,
 		Board: board,
@@ -154,9 +128,41 @@ func getPositionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// buildReplaySteps walks the game move-by-move, applying each to a fresh
-// board and snapshotting the resulting state.
+// loadGameForRead handles the getDB + getGame boilerplate shared by the
+// read-only game endpoints. It writes the appropriate error response
+// itself; callers should bail when it returns ok=false.
+func loadGameForRead(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogger) (*gotak.Game, bool) {
+	ctx := r.Context()
+	db, err := getDB()
+	if err != nil {
+		l.Errorw("could not get db", zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return nil, false
+	}
+
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+	game, err := getGame(db, slug)
+	if err != nil {
+		l.Errorw("could not get game", "slug", slug, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return nil, false
+	}
+	return game, true
+}
+
+// buildReplaySteps walks the game and applies each half-turn to a fresh
+// board, snapshotting the resulting state into a ReplayStep.
+//
+// We do not reuse game.Board (already populated by getGame's replayMoves
+// call) because we need every intermediate state, not just the final one.
 func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
+	if game == nil || game.Board == nil {
+		return nil, nil
+	}
 	board := &gotak.Board{Size: game.Board.Size}
 	if err := board.Init(); err != nil {
 		return nil, err
@@ -168,12 +174,7 @@ func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
 			continue
 		}
 		if turn.First != nil {
-			player := gotak.PlayerWhite
-			if turn.Number == 1 {
-				// Tak rule: the first turn places the opponent's stone.
-				player = gotak.PlayerBlack
-			}
-			if err := board.DoMove(turn.First, player); err != nil {
+			if err := applyHalfTurn(board, turn, false); err != nil {
 				return nil, err
 			}
 			steps = append(steps, ReplayStep{
@@ -184,11 +185,7 @@ func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
 			})
 		}
 		if turn.Second != nil {
-			player := gotak.PlayerBlack
-			if turn.Number == 1 {
-				player = gotak.PlayerWhite
-			}
-			if err := board.DoMove(turn.Second, player); err != nil {
+			if err := applyHalfTurn(board, turn, true); err != nil {
 				return nil, err
 			}
 			steps = append(steps, ReplayStep{
@@ -202,34 +199,33 @@ func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
 	return steps, nil
 }
 
-// boardAtTurn returns the board state after `turnNum` complete turns have
-// been played. turnNum=0 returns the starting position; turnNum >= len(Turns)
-// returns the final position.
+// boardAtTurn returns the board state after every move of every turn with
+// Number <= turnNum has been applied. turnNum=0 yields the starting
+// position; turnNum beyond the final recorded turn yields the final
+// position.
 func boardAtTurn(game *gotak.Game, turnNum int64) (map[string][]*gotak.Stone, error) {
+	if game == nil || game.Board == nil {
+		return nil, nil
+	}
 	board := &gotak.Board{Size: game.Board.Size}
 	if err := board.Init(); err != nil {
 		return nil, err
 	}
 
 	for _, turn := range game.Turns {
-		if turn == nil || turn.Number > turnNum {
-			break
+		if turn == nil {
+			continue
+		}
+		if turn.Number > turnNum {
+			continue // skip rather than break: don't assume Turns is sorted
 		}
 		if turn.First != nil {
-			player := gotak.PlayerWhite
-			if turn.Number == 1 {
-				player = gotak.PlayerBlack
-			}
-			if err := board.DoMove(turn.First, player); err != nil {
+			if err := applyHalfTurn(board, turn, false); err != nil {
 				return nil, err
 			}
 		}
 		if turn.Second != nil {
-			player := gotak.PlayerBlack
-			if turn.Number == 1 {
-				player = gotak.PlayerWhite
-			}
-			if err := board.DoMove(turn.Second, player); err != nil {
+			if err := applyHalfTurn(board, turn, true); err != nil {
 				return nil, err
 			}
 		}
@@ -237,8 +233,35 @@ func boardAtTurn(game *gotak.Game, turnNum int64) (map[string][]*gotak.Stone, er
 	return snapshotSquares(board), nil
 }
 
-// snapshotSquares deep-copies a board's square map so callers can keep
-// references that survive further mutation of the original board.
+// applyHalfTurn applies one move from a turn to the board with the
+// correct color. The "first" / "second" boolean selects which move;
+// turn 1 inverts the colors because each player places the opponent's
+// stone on the opening turn.
+func applyHalfTurn(b *gotak.Board, turn *gotak.Turn, second bool) error {
+	var mv *gotak.Move
+	var player int
+	if second {
+		mv = turn.Second
+		player = gotak.PlayerBlack
+		if turn.Number == 1 {
+			player = gotak.PlayerWhite
+		}
+	} else {
+		mv = turn.First
+		player = gotak.PlayerWhite
+		if turn.Number == 1 {
+			player = gotak.PlayerBlack
+		}
+	}
+	if mv == nil {
+		return nil
+	}
+	return b.DoMove(mv, player)
+}
+
+// snapshotSquares deep-copies a board's square map so each ReplayStep
+// holds an independent view that won't change as later moves are
+// applied to the live board.
 func snapshotSquares(b *gotak.Board) map[string][]*gotak.Stone {
 	out := make(map[string][]*gotak.Stone, len(b.Squares))
 	for sq, stones := range b.Squares {
