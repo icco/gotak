@@ -9,7 +9,13 @@ import (
 	"github.com/icco/gotak/ai"
 )
 
-// stubEngine returns a hard-coded move per call, in order, so tests can
+// scriptedMove is one entry in a hand-crafted game used by tests.
+type scriptedMove struct {
+	player int
+	move   string
+}
+
+// stubEngine returns the next hard-coded move on each call, so tests can
 // assert how the analyzer drives the engine.
 type stubEngine struct {
 	moves []string
@@ -30,10 +36,7 @@ func (s *stubEngine) ExplainMove(_ context.Context, _ *gotak.Game, _ ai.AIConfig
 	return "", nil
 }
 
-func mustGame(t *testing.T, size int64, moves []struct {
-	player int
-	move   string
-}) *gotak.Game {
+func mustGame(t *testing.T, size int64, moves []scriptedMove) *gotak.Game {
 	t.Helper()
 	g, err := gotak.NewGame(size, 1, "t")
 	if err != nil {
@@ -47,51 +50,46 @@ func mustGame(t *testing.T, size int64, moves []struct {
 	return g
 }
 
-func TestGameBeforePly_prefixesTurns(t *testing.T) {
-	g := mustGame(t, 5, []struct {
-		player int
-		move   string
-	}{
+func TestGameBeforeMove_prefixesTurns(t *testing.T) {
+	g := mustGame(t, 5, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
 		{gotak.PlayerBlack, "d4"},
 	})
 
-	// Before ply 0 (turn 1 first): no turns.
-	pre, err := gameBeforePly(g, 0, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(pre.Turns) != 0 {
-		t.Errorf("before ply 0: got %d turns, want 0", len(pre.Turns))
-	}
-
-	// Before ply 1 (turn 1 second): turn 1 with First only.
-	pre, err = gameBeforePly(g, 0, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(pre.Turns) != 1 || pre.Turns[0].First == nil || pre.Turns[0].Second != nil {
-		t.Errorf("before ply 1: got turns %+v, want 1 turn with First only", pre.Turns)
+	cases := []struct {
+		name           string
+		turnIdx        int
+		isSecond       bool
+		wantTurns      int
+		wantSecondNil  bool // wantSecondNil applies to the last turn in the prefix
+	}{
+		{"before turn-1 first move", 0, false, 0, false},
+		{"before turn-1 second move", 0, true, 1, true},
+		{"before turn-2 first move", 1, false, 1, false},
+		{"before turn-2 second move", 1, true, 2, true},
 	}
 
-	// Before ply 2 (turn 2 first): turn 1 complete.
-	pre, err = gameBeforePly(g, 1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(pre.Turns) != 1 || pre.Turns[0].Second == nil {
-		t.Errorf("before ply 2: got turns %+v, want 1 complete turn", pre.Turns)
-	}
-
-	// Before ply 3 (turn 2 second): turn 1 complete + turn 2 First only.
-	pre, err = gameBeforePly(g, 1, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(pre.Turns) != 2 || pre.Turns[1].Second != nil {
-		t.Errorf("before ply 3: got turns %+v, want 2 turns with second partial", pre.Turns)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pre, err := gameBeforeMove(g, tc.turnIdx, tc.isSecond)
+			if err != nil {
+				t.Fatalf("gameBeforeMove: %v", err)
+			}
+			if len(pre.Turns) != tc.wantTurns {
+				t.Fatalf("got %d turns, want %d (%+v)", len(pre.Turns), tc.wantTurns, pre.Turns)
+			}
+			if tc.wantTurns > 0 {
+				last := pre.Turns[tc.wantTurns-1]
+				if tc.wantSecondNil && last.Second != nil {
+					t.Errorf("last turn should have Second=nil, got %+v", last)
+				}
+				if !tc.wantSecondNil && last.Second == nil {
+					t.Errorf("last turn should have Second set, got %+v", last)
+				}
+			}
+		})
 	}
 
 	// Original game unchanged.
@@ -100,25 +98,28 @@ func TestGameBeforePly_prefixesTurns(t *testing.T) {
 	}
 }
 
+func TestGameBeforeMove_nilGame(t *testing.T) {
+	if _, err := gameBeforeMove(nil, 0, false); err == nil {
+		t.Errorf("nil game should return error")
+	}
+}
+
 func TestAnalyzeGame_recordsAgreement(t *testing.T) {
-	g := mustGame(t, 5, []struct {
-		player int
-		move   string
-	}{
+	g := mustGame(t, 5, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
 		{gotak.PlayerBlack, "d4"},
 	})
 
-	// Engine claims b2 was best for plies 0 and 2 (so ply 2 agrees, ply 0
-	// disagrees), and matches the played move on plies 1 and 3.
+	// Engine claims b2 for move 0 (disagrees with a1) and matches the
+	// player on the other three.
 	engine := &stubEngine{moves: []string{"b2", "e5", "b2", "d4"}}
 
-	plies := analyzeGame(context.Background(), engine, g, ai.AIConfig{TimeLimit: 100 * time.Millisecond})
+	moves := analyzeGame(context.Background(), engine, g, ai.AIConfig{TimeLimit: 100 * time.Millisecond})
 
-	if len(plies) != 4 {
-		t.Fatalf("got %d plies, want 4", len(plies))
+	if len(moves) != 4 {
+		t.Fatalf("got %d moves, want 4", len(moves))
 	}
 
 	want := []struct {
@@ -133,8 +134,9 @@ func TestAnalyzeGame_recordsAgreement(t *testing.T) {
 		{"d4", "d4", true, gotak.PlayerBlack},
 	}
 	for i, w := range want {
-		if plies[i].Played != w.played || plies[i].Best != w.best || plies[i].Agreed != w.agreed || plies[i].Player != w.player {
-			t.Errorf("ply %d = %+v, want %+v", i, plies[i], w)
+		got := moves[i]
+		if got.Played != w.played || got.Best != w.best || got.Agreed != w.agreed || got.Player != w.player {
+			t.Errorf("move %d = %+v, want %+v", i, got, w)
 		}
 	}
 
@@ -146,30 +148,54 @@ func TestAnalyzeGame_recordsAgreement(t *testing.T) {
 func TestAnalyzeGame_emptyGame(t *testing.T) {
 	g, _ := gotak.NewGame(5, 1, "t")
 	engine := &stubEngine{}
-	plies := analyzeGame(context.Background(), engine, g, ai.AIConfig{})
-	if len(plies) != 0 {
-		t.Errorf("empty game produced %d plies, want 0", len(plies))
+	moves := analyzeGame(context.Background(), engine, g, ai.AIConfig{})
+	if len(moves) != 0 {
+		t.Errorf("empty game produced %d moves, want 0", len(moves))
 	}
 	if engine.calls != 0 {
 		t.Errorf("engine called %d times on empty game, want 0", engine.calls)
 	}
 }
 
+func TestAnalyzeGame_canceledContext(t *testing.T) {
+	g := mustGame(t, 5, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already canceled before first call
+
+	engine := &stubEngine{moves: []string{"a1", "e5"}}
+	moves := analyzeGame(ctx, engine, g, ai.AIConfig{})
+
+	if len(moves) != 2 {
+		t.Fatalf("want 2 entries (one per move), got %d", len(moves))
+	}
+	for i, m := range moves {
+		if m.Error == "" {
+			t.Errorf("move %d should have Error set when context is canceled, got %+v", i, m)
+		}
+	}
+}
+
 func TestAnalyzeConfigFromRequest_defaults(t *testing.T) {
-	cfg := analyzeConfigFromRequest(AnalyzeRequest{})
+	cfg, name := analyzeConfigFromRequest(AnalyzeRequest{})
 	if cfg.Level != ai.Advanced {
 		t.Errorf("default level = %v, want Advanced", cfg.Level)
+	}
+	if name != "advanced" {
+		t.Errorf("default level name = %q, want advanced", name)
 	}
 	if cfg.Style != ai.Balanced {
 		t.Errorf("default style = %v, want Balanced", cfg.Style)
 	}
-	if cfg.TimeLimit != 2*time.Second {
-		t.Errorf("default time limit = %v, want 2s", cfg.TimeLimit)
+	if cfg.TimeLimit != defaultAnalyzeTimeLimit {
+		t.Errorf("default time limit = %v, want %v", cfg.TimeLimit, defaultAnalyzeTimeLimit)
 	}
 }
 
 func TestAnalyzeConfigFromRequest_overrides(t *testing.T) {
-	cfg := analyzeConfigFromRequest(AnalyzeRequest{
+	cfg, name := analyzeConfigFromRequest(AnalyzeRequest{
 		Level:     "beginner",
 		Style:     "aggressive",
 		TimeLimit: 5 * time.Second,
@@ -177,10 +203,20 @@ func TestAnalyzeConfigFromRequest_overrides(t *testing.T) {
 	if cfg.Level != ai.Beginner {
 		t.Errorf("level = %v, want Beginner", cfg.Level)
 	}
+	if name != "beginner" {
+		t.Errorf("level name = %q, want beginner", name)
+	}
 	if cfg.Style != ai.Aggressive {
 		t.Errorf("style = %v, want Aggressive", cfg.Style)
 	}
 	if cfg.TimeLimit != 5*time.Second {
 		t.Errorf("time = %v, want 5s", cfg.TimeLimit)
+	}
+}
+
+func TestAnalyzeConfigFromRequest_unknownLevelDefaults(t *testing.T) {
+	cfg, name := analyzeConfigFromRequest(AnalyzeRequest{Level: "godlike"})
+	if cfg.Level != ai.Advanced || name != "advanced" {
+		t.Errorf("unknown level should fall back to advanced, got %v/%q", cfg.Level, name)
 	}
 }

@@ -92,11 +92,11 @@ definitions:
         type: integer
       level:
         type: string
-      played:
+      move_count:
         type: integer
-      plies:
+      moves:
         items:
-          $ref: '#/definitions/main.PlyAnalysis'
+          $ref: '#/definitions/main.MoveAnalysis'
         type: array
       size:
         type: integer
@@ -161,6 +161,24 @@ definitions:
         example: Operation successful
         type: string
     type: object
+  main.MoveAnalysis:
+    properties:
+      agreed:
+        type: boolean
+      best:
+        type: string
+      error:
+        description: |-
+          Error captures why the engine couldn't evaluate this move, if any.
+          When non-empty, Best and Agreed should be ignored.
+        type: string
+      played:
+        type: string
+      player:
+        type: integer
+      turn:
+        type: integer
+    type: object
   main.MoveRequest:
     properties:
       move:
@@ -171,24 +189,6 @@ definitions:
         type: integer
       turn:
         example: 1
-        type: integer
-    type: object
-  main.PlyAnalysis:
-    properties:
-      agreed:
-        type: boolean
-      best:
-        type: string
-      error:
-        description: |-
-          Error captures why the engine couldn't evaluate this ply, if any.
-          When non-empty Best and Agreed are meaningless.
-        type: string
-      played:
-        type: string
-      player:
-        type: integer
-      turn:
         type: integer
     type: object
   main.RegisterRequest:
@@ -269,10 +269,9 @@ paths:
       consumes:
       - application/json
       description: |-
-        For each ply, asks the AI engine what it would play in that
-        position and records whether the player's move matches. A
-        rough "blunder detector"; intended as a starting point for
-        deeper analysis features.
+        Walks the game move-by-move, asking the AI engine what it
+        would play at each position, and records whether the player's
+        move matches. Useful as a rough "blunder detector".
       parameters:
       - description: Game slug identifier
         in: path

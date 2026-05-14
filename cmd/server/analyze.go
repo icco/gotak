@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -13,41 +15,46 @@ import (
 	"go.uber.org/zap"
 )
 
-// AnalyzeRequest configures the analysis engine. All fields are optional;
-// sensible defaults are used.
+// defaultAnalyzeTimeLimit is the per-move budget the engine gets when the
+// caller doesn't supply one. Two seconds at Advanced is enough to flag
+// most obvious blunders without making a 50-move analysis last forever.
+const defaultAnalyzeTimeLimit = 2 * time.Second
+
+// AnalyzeRequest configures the analysis engine. All fields are optional.
 type AnalyzeRequest struct {
 	Level     string        `json:"level"`
 	Style     string        `json:"style"`
 	TimeLimit time.Duration `json:"time_limit"`
 }
 
-// PlyAnalysis is the result for a single half-turn.
-type PlyAnalysis struct {
+// MoveAnalysis is the engine's verdict on a single move (one half-turn).
+// `Played` is what the player did; `Best` is what the engine would have
+// done in the same position; `Agreed` is `Played == Best`.
+type MoveAnalysis struct {
 	Turn   int64  `json:"turn"`
 	Player int    `json:"player"`
 	Played string `json:"played"`
 	Best   string `json:"best"`
 	Agreed bool   `json:"agreed"`
-	// Error captures why the engine couldn't evaluate this ply, if any.
-	// When non-empty Best and Agreed are meaningless.
+	// Error captures why the engine couldn't evaluate this move, if any.
+	// When non-empty, Best and Agreed should be ignored.
 	Error string `json:"error,omitempty"`
 }
 
 // AnalyzeResponse is the payload returned by POST /analyze/game/{slug}.
 type AnalyzeResponse struct {
-	Slug   string        `json:"slug"`
-	Size   int64         `json:"size"`
-	Level  string        `json:"level"`
-	Plies  []PlyAnalysis `json:"plies"`
-	Played int           `json:"played"`
-	Agreed int           `json:"agreed"`
+	Slug      string         `json:"slug"`
+	Size      int64          `json:"size"`
+	Level     string         `json:"level"`
+	Moves     []MoveAnalysis `json:"moves"`
+	MoveCount int            `json:"move_count"`
+	Agreed    int            `json:"agreed"`
 }
 
 // @Summary Analyze a game move-by-move
-// @Description For each ply, asks the AI engine what it would play in that
-// @Description position and records whether the player's move matches. A
-// @Description rough "blunder detector"; intended as a starting point for
-// @Description deeper analysis features.
+// @Description Walks the game move-by-move, asking the AI engine what it
+// @Description would play at each position, and records whether the player's
+// @Description move matches. Useful as a rough "blunder detector".
 // @Tags analysis
 // @Accept json
 // @Produce json
@@ -62,11 +69,20 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	l := logging.FromContext(ctx)
 
+	req, err := decodeAnalyzeRequest(r)
+	if err != nil {
+		l.Warnw("invalid analyze request body", zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return
+	}
+
 	db, err := getDB()
 	if err != nil {
 		l.Errorw("could not get db", zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
 		return
 	}
@@ -75,34 +91,26 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	game, err := getGame(db, slug)
 	if err != nil {
 		l.Errorw("could not get game", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
 		return
 	}
 
-	// Empty body is OK; defaults apply.
-	var req AnalyzeRequest
-	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
-	}
-	cfg := analyzeConfigFromRequest(req)
+	cfg, levelName := analyzeConfigFromRequest(req)
+	moves := analyzeGame(ctx, &ai.TakticianEngine{}, game, cfg)
 
-	plies := analyzeGame(ctx, &ai.TakticianEngine{}, game, cfg)
 	resp := AnalyzeResponse{
-		Slug:   slug,
-		Size:   game.Board.Size,
-		Level:  string(req.Level),
-		Plies:  plies,
-		Played: len(plies),
+		Slug:      slug,
+		Size:      game.Board.Size,
+		Level:     levelName,
+		Moves:     moves,
+		MoveCount: len(moves),
 	}
-	for _, p := range plies {
-		if p.Agreed {
+	for _, m := range moves {
+		if m.Agreed {
 			resp.Agreed++
 		}
-	}
-	if resp.Level == "" {
-		resp.Level = "advanced"
 	}
 
 	if err := Renderer.JSON(w, http.StatusOK, resp); err != nil {
@@ -110,20 +118,36 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// analyzeConfigFromRequest maps the wire-level request to an ai.AIConfig,
-// applying defaults aimed at making the analysis stronger than typical
-// gameplay (we'd rather flag a real blunder than miss one).
-func analyzeConfigFromRequest(req AnalyzeRequest) ai.AIConfig {
-	level := ai.Advanced
+// decodeAnalyzeRequest reads the optional JSON body. An empty body is fine
+// and yields a zero-value AnalyzeRequest; anything else that fails to
+// decode is a 400.
+func decodeAnalyzeRequest(r *http.Request) (AnalyzeRequest, error) {
+	var req AnalyzeRequest
+	if r.Body == nil {
+		return req, nil
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return req, err
+	}
+	return req, nil
+}
+
+// analyzeConfigFromRequest maps the wire request to an ai.AIConfig.
+// Returns both the config and the canonical level name (so the response
+// can echo what was actually used rather than what the request asked
+// for, which may differ when defaults kick in).
+func analyzeConfigFromRequest(req AnalyzeRequest) (ai.AIConfig, string) {
+	level, levelName := ai.Advanced, "advanced"
 	switch req.Level {
 	case "beginner":
-		level = ai.Beginner
+		level, levelName = ai.Beginner, "beginner"
 	case "intermediate":
-		level = ai.Intermediate
-	case "advanced":
-		level = ai.Advanced
+		level, levelName = ai.Intermediate, "intermediate"
+	case "advanced", "":
+		level, levelName = ai.Advanced, "advanced"
 	case "expert":
-		level = ai.Expert
+		level, levelName = ai.Expert, "expert"
 	}
 
 	style := ai.Balanced
@@ -134,19 +158,24 @@ func analyzeConfigFromRequest(req AnalyzeRequest) ai.AIConfig {
 		style = ai.Defensive
 	}
 
-	timeLimit := 2 * time.Second
+	timeLimit := defaultAnalyzeTimeLimit
 	if req.TimeLimit > 0 {
 		timeLimit = req.TimeLimit
 	}
-	return ai.AIConfig{Level: level, Style: style, TimeLimit: timeLimit}
+	return ai.AIConfig{Level: level, Style: style, TimeLimit: timeLimit}, levelName
 }
 
-// analyzeGame walks `g` ply by ply and asks `engine` for the best move at
-// each position. The original game is not mutated.
-func analyzeGame(ctx context.Context, engine ai.Engine, g *gotak.Game, cfg ai.AIConfig) []PlyAnalysis {
-	plies := []PlyAnalysis{}
-	if g == nil || len(g.Turns) == 0 {
-		return plies
+// analyzeGame walks `g` move by move and asks `engine` for the best move at
+// each position. Returns one MoveAnalysis per recorded move (one per
+// player half-turn). The original game is not mutated.
+//
+// Honours ctx cancellation: as soon as the context is done, the remaining
+// moves are skipped with Error="canceled" so callers see the budget was
+// exhausted rather than getting a silently truncated list.
+func analyzeGame(ctx context.Context, engine ai.Engine, g *gotak.Game, cfg ai.AIConfig) []MoveAnalysis {
+	out := []MoveAnalysis{}
+	if g == nil || g.Board == nil || len(g.Turns) == 0 {
+		return out
 	}
 
 	for turnIdx, turn := range g.Turns {
@@ -154,29 +183,34 @@ func analyzeGame(ctx context.Context, engine ai.Engine, g *gotak.Game, cfg ai.AI
 			continue
 		}
 		if turn.First != nil {
-			plies = append(plies, evaluatePly(ctx, engine, g, turnIdx, false, turn.Number, gotak.PlayerWhite, turn.First.Text, cfg))
+			out = append(out, evaluateMove(ctx, engine, g, turnIdx, false, turn.Number, gotak.PlayerWhite, turn.First.Text, cfg))
 		}
 		if turn.Second != nil {
-			plies = append(plies, evaluatePly(ctx, engine, g, turnIdx, true, turn.Number, gotak.PlayerBlack, turn.Second.Text, cfg))
+			out = append(out, evaluateMove(ctx, engine, g, turnIdx, true, turn.Number, gotak.PlayerBlack, turn.Second.Text, cfg))
 		}
 	}
-	return plies
+	return out
 }
 
-func evaluatePly(
+func evaluateMove(
 	ctx context.Context,
 	engine ai.Engine,
 	orig *gotak.Game,
 	turnIdx int,
-	second bool,
+	isSecond bool,
 	turnNumber int64,
 	player int,
 	played string,
 	cfg ai.AIConfig,
-) PlyAnalysis {
-	out := PlyAnalysis{Turn: turnNumber, Player: player, Played: played}
+) MoveAnalysis {
+	out := MoveAnalysis{Turn: turnNumber, Player: player, Played: played}
 
-	pre, err := gameBeforePly(orig, turnIdx, second)
+	if err := ctx.Err(); err != nil {
+		out.Error = err.Error()
+		return out
+	}
+
+	pre, err := gameBeforeMove(orig, turnIdx, isSecond)
 	if err != nil {
 		out.Error = err.Error()
 		return out
@@ -192,21 +226,25 @@ func evaluatePly(
 	return out
 }
 
-// gameBeforePly returns a fresh *gotak.Game whose Turns slice represents
-// the state of `orig` immediately before the ply identified by
-// (turnIdx, second). If `second` is true, the first move of orig.Turns[turnIdx]
-// is included; otherwise only orig.Turns[0..turnIdx-1] are included.
+// gameBeforeMove returns a fresh *gotak.Game whose Turns slice represents
+// the state of `orig` immediately before the move identified by
+// (turnIdx, isSecond). When isSecond is true the first move of
+// orig.Turns[turnIdx] is included; otherwise only orig.Turns[0..turnIdx-1]
+// are included.
 //
 // The returned game shares move pointers with the original (the engine
-// reads moves but does not mutate them).
-func gameBeforePly(orig *gotak.Game, turnIdx int, second bool) (*gotak.Game, error) {
+// reads them but does not mutate).
+func gameBeforeMove(orig *gotak.Game, turnIdx int, isSecond bool) (*gotak.Game, error) {
+	if orig == nil || orig.Board == nil {
+		return nil, errors.New("original game has no board")
+	}
 	g, err := gotak.NewGame(orig.Board.Size, orig.ID, orig.Slug)
 	if err != nil {
 		return nil, err
 	}
 	g.Meta = orig.Meta
 
-	for i := 0; i < turnIdx; i++ {
+	for i := 0; i < turnIdx && i < len(orig.Turns); i++ {
 		t := orig.Turns[i]
 		if t == nil {
 			continue
@@ -217,7 +255,7 @@ func gameBeforePly(orig *gotak.Game, turnIdx int, second bool) (*gotak.Game, err
 			Second: t.Second,
 		})
 	}
-	if second && turnIdx < len(orig.Turns) && orig.Turns[turnIdx] != nil {
+	if isSecond && turnIdx < len(orig.Turns) && orig.Turns[turnIdx] != nil {
 		t := orig.Turns[turnIdx]
 		g.Turns = append(g.Turns, &gotak.Turn{
 			Number: t.Number,

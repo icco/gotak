@@ -47,7 +47,7 @@ const docTemplate = `{
         },
         "/analyze/game/{slug}": {
             "post": {
-                "description": "For each ply, asks the AI engine what it would play in that\nposition and records whether the player's move matches. A\nrough \"blunder detector\"; intended as a starting point for\ndeeper analysis features.",
+                "description": "Walks the game move-by-move, asking the AI engine what it\nwould play at each position, and records whether the player's\nmove matches. Useful as a rough \"blunder detector\".",
                 "consumes": [
                     "application/json"
                 ],
@@ -856,13 +856,13 @@ const docTemplate = `{
                 "level": {
                     "type": "string"
                 },
-                "played": {
+                "move_count": {
                     "type": "integer"
                 },
-                "plies": {
+                "moves": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/main.PlyAnalysis"
+                        "$ref": "#/definitions/main.MoveAnalysis"
                     }
                 },
                 "size": {
@@ -958,6 +958,30 @@ const docTemplate = `{
                 }
             }
         },
+        "main.MoveAnalysis": {
+            "type": "object",
+            "properties": {
+                "agreed": {
+                    "type": "boolean"
+                },
+                "best": {
+                    "type": "string"
+                },
+                "error": {
+                    "description": "Error captures why the engine couldn't evaluate this move, if any.\nWhen non-empty, Best and Agreed should be ignored.",
+                    "type": "string"
+                },
+                "played": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "turn": {
+                    "type": "integer"
+                }
+            }
+        },
         "main.MoveRequest": {
             "type": "object",
             "properties": {
@@ -972,30 +996,6 @@ const docTemplate = `{
                 "turn": {
                     "type": "integer",
                     "example": 1
-                }
-            }
-        },
-        "main.PlyAnalysis": {
-            "type": "object",
-            "properties": {
-                "agreed": {
-                    "type": "boolean"
-                },
-                "best": {
-                    "type": "string"
-                },
-                "error": {
-                    "description": "Error captures why the engine couldn't evaluate this ply, if any.\nWhen non-empty Best and Agreed are meaningless.",
-                    "type": "string"
-                },
-                "played": {
-                    "type": "string"
-                },
-                "player": {
-                    "type": "integer"
-                },
-                "turn": {
-                    "type": "integer"
                 }
             }
         },
