@@ -1,0 +1,66 @@
+# GoReleaser configuration for gotak.
+# https://goreleaser.com
+version: 2
+project_name: gotak
+builds:
+  - id: gotak
+    main: ./cmd/gotak
+    binary: gotak
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+archives:
+  - id: default
+    files:
+      - README.md
+      - LICENSE
+checksum:
+  name_template: checksums.txt
+snapshot:
+  version_template: '{{ .Tag }}-next'
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat:'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix:'
+      order: 1
+    - title: Other Changes
+      order: 999
+homebrew_casks:
+  - name: gotak
+    directory: Casks
+    repository:
+      owner: icco
+      name: homebrew-tap
+    homepage: https://github.com/icco/gotak
+    description: A CLI client for the Tak board-game server
+    license: MIT
+    binaries:
+      - gotak
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gotak"]
+          end
+release:
+  github:
+    owner: icco
+    name: gotak
+  mode: replace
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/icco/gotak/compare/{{ .PreviousTag }}...{{ .Tag }}
