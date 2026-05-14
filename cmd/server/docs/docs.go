@@ -45,6 +45,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/analyze/game/{slug}": {
+            "post": {
+                "description": "For each ply, asks the AI engine what it would play in that\nposition and records whether the player's move matches. A\nrough \"blunder detector\"; intended as a starting point for\ndeeper analysis features.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Analyze a game move-by-move",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Engine config (optional)",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/confirm-reset": {
             "post": {
                 "description": "Reset password with token",
@@ -786,6 +844,35 @@ const docTemplate = `{
                 }
             }
         },
+        "main.AnalyzeRequest": {
+            "type": "object"
+        },
+        "main.AnalyzeResponse": {
+            "type": "object",
+            "properties": {
+                "agreed": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "played": {
+                    "type": "integer"
+                },
+                "plies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.PlyAnalysis"
+                    }
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
         "main.AuthResponse": {
             "type": "object",
             "properties": {
@@ -885,6 +972,30 @@ const docTemplate = `{
                 "turn": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "main.PlyAnalysis": {
+            "type": "object",
+            "properties": {
+                "agreed": {
+                    "type": "boolean"
+                },
+                "best": {
+                    "type": "string"
+                },
+                "error": {
+                    "description": "Error captures why the engine couldn't evaluate this ply, if any.\nWhen non-empty Best and Agreed are meaningless.",
+                    "type": "string"
+                },
+                "played": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "turn": {
+                    "type": "integer"
                 }
             }
         },

@@ -191,6 +191,7 @@ func buildRouter(opts routerOptions) http.Handler {
 
 		r.Get("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
+		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)

@@ -84,6 +84,25 @@ definitions:
       second:
         $ref: '#/definitions/gotak.Move'
     type: object
+  main.AnalyzeRequest:
+    type: object
+  main.AnalyzeResponse:
+    properties:
+      agreed:
+        type: integer
+      level:
+        type: string
+      played:
+        type: integer
+      plies:
+        items:
+          $ref: '#/definitions/main.PlyAnalysis'
+        type: array
+      size:
+        type: integer
+      slug:
+        type: string
+    type: object
   main.AuthResponse:
     properties:
       token:
@@ -152,6 +171,24 @@ definitions:
         type: integer
       turn:
         example: 1
+        type: integer
+    type: object
+  main.PlyAnalysis:
+    properties:
+      agreed:
+        type: boolean
+      best:
+        type: string
+      error:
+        description: |-
+          Error captures why the engine couldn't evaluate this ply, if any.
+          When non-empty Best and Agreed are meaningless.
+        type: string
+      played:
+        type: string
+      player:
+        type: integer
+      turn:
         type: integer
     type: object
   main.RegisterRequest:
@@ -227,6 +264,48 @@ paths:
       summary: Get API information
       tags:
       - info
+  /analyze/game/{slug}:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        For each ply, asks the AI engine what it would play in that
+        position and records whether the player's move matches. A
+        rough "blunder detector"; intended as a starting point for
+        deeper analysis features.
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Engine config (optional)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/main.AnalyzeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.AnalyzeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Analyze a game move-by-move
+      tags:
+      - analysis
   /auth/confirm-reset:
     post:
       consumes:
