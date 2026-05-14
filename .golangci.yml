@@ -1,16 +1,14 @@
 version: "2"
-
 linters:
   settings:
     goconst:
       min-occurrences: 6
-      ignore-string-values: "^(error|message|local|waiting|invalid request body|database error|bad connection to db|human)$"
+      ignore-string-values: ^(error|message|local|waiting|invalid request body|database error|bad connection to db|human)$
     staticcheck:
       checks:
         - all
-        - -QF1003  # tagged-switch suggestion is a style nit, not a bug
-        - -ST1000  # don't require a package comment in every file
-
+        - -QF1003 # tagged-switch suggestion is a style nit, not a bug
+        - -ST1000 # don't require a package comment in every file
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
