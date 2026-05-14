@@ -4,7 +4,7 @@ linters:
     goconst:
       min-occurrences: 6
       ignore-string-values:
-        - ^(error|message|local|waiting|invalid request body|database error|bad connection to db|human)$
+        - ^(error|message|local|waiting|invalid request body|database error|bad connection to db|human|beginner|intermediate|advanced|expert|aggressive|defensive|balanced)$
     staticcheck:
       checks:
         - all

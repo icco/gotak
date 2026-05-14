@@ -45,6 +45,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/analyze/game/{slug}": {
+            "post": {
+                "description": "Walks the game move-by-move, asking the AI engine what it\nwould play at each position, and records whether the player's\nmove matches. Useful as a rough \"blunder detector\".",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Analyze a game move-by-move",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Engine config (optional)",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/confirm-reset": {
             "post": {
                 "description": "Reset password with token",
@@ -887,6 +945,35 @@ const docTemplate = `{
                 }
             }
         },
+        "main.AnalyzeRequest": {
+            "type": "object"
+        },
+        "main.AnalyzeResponse": {
+            "type": "object",
+            "properties": {
+                "agreed": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "move_count": {
+                    "type": "integer"
+                },
+                "moves": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.MoveAnalysis"
+                    }
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
         "main.AuthResponse": {
             "type": "object",
             "properties": {
@@ -969,6 +1056,30 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "Operation successful"
+                }
+            }
+        },
+        "main.MoveAnalysis": {
+            "type": "object",
+            "properties": {
+                "agreed": {
+                    "type": "boolean"
+                },
+                "best": {
+                    "type": "string"
+                },
+                "error": {
+                    "description": "Error captures why the engine couldn't evaluate this move, if any.\nWhen non-empty, Best and Agreed should be ignored.",
+                    "type": "string"
+                },
+                "played": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "turn": {
+                    "type": "integer"
                 }
             }
         },
