@@ -29,21 +29,27 @@ jobs:
         uses: dcarbone/install-yq-action@v1.3.1
       - name: Format YAML files with yq
         run: |
-          # Format YAML in place. Skip vendor and node_modules in case they appear later.
+          # Format YAML in place. Skip generated swagger output (swag's
+          # formatting fights yq's, producing an infinite reformat loop
+          # between this workflow and Update Swagger Documentation) plus
+          # vendor and node_modules in case they appear later.
           find . \( -name "*.yml" -o -name "*.yaml" \) \
             -not -path "./vendor/*" \
             -not -path "./node_modules/*" \
-            -not -path "./.git/*" | while read -r file; do
+            -not -path "./.git/*" \
+            -not -path "./cmd/server/docs/*" | while read -r file; do
             echo "Formatting $file"
             yq -iP '.' "$file"
           done
       - name: Format JSON files with yq
         run: |
           # yq formats JSON with -o=json. go.sum is text, not JSON, so glob only *.json.
+          # Skip generated swagger output for the same reason as above.
           find . -name "*.json" \
             -not -path "./vendor/*" \
             -not -path "./node_modules/*" \
-            -not -path "./.git/*" | while read -r file; do
+            -not -path "./.git/*" \
+            -not -path "./cmd/server/docs/*" | while read -r file; do
             echo "Formatting $file"
             yq -iP -o=json '.' "$file"
           done
