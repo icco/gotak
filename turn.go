@@ -9,13 +9,16 @@ type Turn struct {
 	Second  *Move
 	Result  string
 	Comment string
+	// Branch is the optional PTN branch label appended to the turn
+	// number (e.g. `1a.` -> "a"). Main-line turns leave it empty.
+	Branch string
 }
 
 // Text returns a PTN formated string of the turn.
 func (t *Turn) Text() string {
 	var move string
 	if t.First != nil && t.Second != nil {
-		move = fmt.Sprintf("%d. %s %s", t.Number, t.First.Text, t.Second.Text)
+		move = fmt.Sprintf("%d%s. %s %s", t.Number, t.Branch, t.First.Text, t.Second.Text)
 	}
 
 	if t.Comment != "" {
