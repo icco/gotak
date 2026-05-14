@@ -567,14 +567,57 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentTurn := int64(len(game.Turns))
-	if currentTurn == 0 {
-		currentTurn = 1
+	// Store the move in database - determine which turn this move belongs to.
+	// Check if we need to complete an existing turn or start a new one.
+	var currentTurn int64 = 1
+
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second == nil {
+			currentTurn = int64(len(game.Turns))
+		} else {
+			currentTurn = int64(len(game.Turns)) + 1
+		}
 	}
 
 	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
 		l.Errorw("could not insert move", "data", data, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save move"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Reload the game state to get updated turns from database.
+	game, err = getGame(db, slug)
+	if err != nil {
+		l.Errorw("could not reload game after move", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game state"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	// Update current player to switch turns.
+	var nextPlayer int
+	if len(game.Turns) > 0 {
+		lastTurn := game.Turns[len(game.Turns)-1]
+		if lastTurn.First != nil && lastTurn.Second != nil {
+			nextPlayer = gotak.PlayerWhite
+		} else {
+			if data.Player == gotak.PlayerWhite {
+				nextPlayer = gotak.PlayerBlack
+			} else {
+				nextPlayer = gotak.PlayerWhite
+			}
+		}
+	} else {
+		nextPlayer = gotak.PlayerWhite
+	}
+
+	if err := db.Model(&Game{}).Where("slug = ?", slug).Update("current_player", nextPlayer).Error; err != nil {
+		l.Errorw("could not update current player", "slug", slug, "next_player", nextPlayer, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not update turn"}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return

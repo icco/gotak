@@ -38,6 +38,10 @@ func getDB() (*gorm.DB, error) {
 	return db, nil
 }
 
+// slugWorker is shared across createGame calls so back-to-back creations within
+// the same second use distinct sequence numbers rather than colliding.
+var slugWorker = sanic.NewWorker7()
+
 func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 	if size < 4 {
 		size = 6
@@ -47,10 +51,8 @@ func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 		return "", fmt.Errorf("user authentication required")
 	}
 
-	// Game Slug
-	worker := sanic.NewWorker7()
-	id := worker.NextID()
-	slug := worker.IDString(id)
+	id := slugWorker.NextID()
+	slug := slugWorker.IDString(id)
 
 	game := Game{
 		Slug:          slug,
@@ -158,20 +160,11 @@ func getTurns(db *gorm.DB, game *gotak.Game) error {
 			return err
 		}
 
+		// White player always goes first, Black player always goes second
 		if move.Player == gotak.PlayerWhite {
-			if move.Turn > 1 {
-				currentTurn.First = mv
-			} else {
-				currentTurn.Second = mv
-			}
-		}
-
-		if move.Player == gotak.PlayerBlack {
-			if move.Turn > 1 {
-				currentTurn.Second = mv
-			} else {
-				currentTurn.First = mv
-			}
+			currentTurn.First = mv
+		} else if move.Player == gotak.PlayerBlack {
+			currentTurn.Second = mv
 		}
 
 		game.UpdateTurn(currentTurn)

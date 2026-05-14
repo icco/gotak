@@ -20,3 +20,6 @@ go run ./cmd/server
 
 - CLI: `./gotak` (AI opponent)
 - Server: `cmd/server/` (PostgreSQL, set `DATABASE_URL`)
+- Commit and push your work often if you're not on the main branch.
+- Run go fmt ./... to fix lint errors in go code.
+- PR titles must use conventional-commits style with a lowercase subject (the `conventional-commits` check enforces this).
