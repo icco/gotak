@@ -594,6 +594,107 @@ const docTemplate = `{
                 }
             }
         },
+        "/game/{slug}/position/{turn}": {
+            "get": {
+                "description": "Replays the game forward until it has applied every move\nof every turn with Number \u003c= turn, then returns the\nresulting board. turn=0 yields the starting (empty)\nposition; turn beyond the final turn yields the final\nposition.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Get board state after N complete turns",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Turn number (0 = starting position)",
+                        "name": "turn",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.PositionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/game/{slug}/replay": {
+            "get": {
+                "description": "Returns an ordered list of every half-turn played in the\ngame, along with the board state after each one, so a\nclient can step through without making per-turn requests.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Get full game replay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ReplayResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/game/{slug}/{turn}": {
             "get": {
                 "description": "Returns the state of a game at a specific turn",
@@ -888,6 +989,29 @@ const docTemplate = `{
                 }
             }
         },
+        "main.PositionResponse": {
+            "type": "object",
+            "properties": {
+                "board": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/gotak.Stone"
+                        }
+                    }
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "turn": {
+                    "type": "integer"
+                }
+            }
+        },
         "main.RegisterRequest": {
             "type": "object",
             "properties": {
@@ -902,6 +1026,46 @@ const docTemplate = `{
                 "password": {
                     "type": "string",
                     "example": "secretpassword"
+                }
+            }
+        },
+        "main.ReplayResponse": {
+            "type": "object",
+            "properties": {
+                "size": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.ReplayStep"
+                    }
+                }
+            }
+        },
+        "main.ReplayStep": {
+            "type": "object",
+            "properties": {
+                "board": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/gotak.Stone"
+                        }
+                    }
+                },
+                "move": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "turn": {
+                    "type": "integer"
                 }
             }
         },

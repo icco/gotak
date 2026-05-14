@@ -190,6 +190,8 @@ func buildRouter(opts routerOptions) http.Handler {
 		r.Mount("/auth", AuthRoutes())
 
 		r.Get("/game/{slug}", getGameHandler)
+		r.Get("/game/{slug}/replay", getReplayHandler)
+		r.Get("/game/{slug}/position/{turn}", getPositionHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
 
 		r.Group(func(r chi.Router) {

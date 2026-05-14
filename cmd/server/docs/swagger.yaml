@@ -154,6 +154,21 @@ definitions:
         example: 1
         type: integer
     type: object
+  main.PositionResponse:
+    properties:
+      board:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/gotak.Stone'
+          type: array
+        type: object
+      size:
+        type: integer
+      slug:
+        type: string
+      turn:
+        type: integer
+    type: object
   main.RegisterRequest:
     properties:
       email:
@@ -165,6 +180,32 @@ definitions:
       password:
         example: secretpassword
         type: string
+    type: object
+  main.ReplayResponse:
+    properties:
+      size:
+        type: integer
+      slug:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/main.ReplayStep'
+        type: array
+    type: object
+  main.ReplayStep:
+    properties:
+      board:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/gotak.Stone'
+          type: array
+        type: object
+      move:
+        type: string
+      player:
+        type: integer
+      turn:
+        type: integer
     type: object
   main.ResetPasswordRequest:
     properties:
@@ -555,6 +596,81 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Make a move in a game
+      tags:
+      - game
+  /game/{slug}/position/{turn}:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Replays the game forward until it has applied every move
+        of every turn with Number <= turn, then returns the
+        resulting board. turn=0 yields the starting (empty)
+        position; turn beyond the final turn yields the final
+        position.
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Turn number (0 = starting position)
+        in: path
+        name: turn
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PositionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get board state after N complete turns
+      tags:
+      - game
+  /game/{slug}/replay:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Returns an ordered list of every half-turn played in the
+        game, along with the board state after each one, so a
+        client can step through without making per-turn requests.
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ReplayResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get full game replay
       tags:
       - game
   /game/new:
