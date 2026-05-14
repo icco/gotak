@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Standard API response types
+// ErrorResponse is the standard error payload returned by API handlers.
 type ErrorResponse struct {
 	Error string `json:"error" example:"Something went wrong"`
 }
