@@ -439,6 +439,57 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	return ret, nil
 }
 
+// turnLabelRegex matches a PTN turn number with an optional single-letter
+// branch suffix (e.g. "1", "1a", "12b").
+var turnLabelRegex = regexp.MustCompile(`^(\d+)([a-z])?$`)
+
+// parseTurnLabel splits a PTN turn label into its numeric and optional
+// branch components. Returns ok=false for anything that isn't a valid
+// label.
+func parseTurnLabel(label string) (int64, string, bool) {
+	m := turnLabelRegex.FindStringSubmatch(label)
+	if m == nil {
+		return 0, "", false
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0, "", false
+	}
+	return n, m[2], true
+}
+
+// TurnsInBranch returns every turn that belongs to the named branch
+// (use empty string for the main line). Turns are returned in the order
+// they appear in g.Turns; ordering within a branch follows the input
+// PTN.
+func (g *Game) TurnsInBranch(branch string) []*Turn {
+	out := make([]*Turn, 0)
+	for _, t := range g.Turns {
+		if t == nil {
+			continue
+		}
+		if t.Branch == branch {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Branches returns the set of distinct branch labels present in g.Turns
+// (excluding the main line's empty label) in first-appearance order.
+func (g *Game) Branches() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range g.Turns {
+		if t == nil || t.Branch == "" || seen[t.Branch] {
+			continue
+		}
+		seen[t.Branch] = true
+		out = append(out, t.Branch)
+	}
+	return out
+}
+
 func parseTag(line string) (*Tag, error) {
 	var tag *Tag
 
@@ -473,18 +524,14 @@ func parseTurn(line string) (*Turn, error) {
 			return turn, fmt.Errorf("line does not have correct number of parts: %+v", fields)
 		}
 
-		// TODO(#40): Support branches. Right now we discard things that are not ints.
-		numberVal := fields[0]
-		numberVal = strings.TrimRight(numberVal, ".")
-		if regexp.MustCompile(`\D+`).MatchString(numberVal) {
-			log.Warnw("not a number, ignoring line", "number", numberVal)
+		numberVal := strings.TrimRight(fields[0], ".")
+		num, branch, ok := parseTurnLabel(numberVal)
+		if !ok {
+			log.Warnw("not a turn label, ignoring line", "number", numberVal)
 			return nil, nil
 		}
-		num, err := strconv.ParseInt(numberVal, 10, 64)
-		if err != nil {
-			return nil, err
-		}
 		turn.Number = num
+		turn.Branch = branch
 
 		p1, err := NewMove(fields[1])
 		if err != nil {
