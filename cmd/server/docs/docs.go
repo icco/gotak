@@ -764,6 +764,10 @@ const docTemplate = `{
         "gotak.Turn": {
             "type": "object",
             "properties": {
+                "branch": {
+                    "description": "Branch is the optional PTN branch label appended to the turn\nnumber (e.g. ` + "`" + `1a.` + "`" + ` -\u003e \"a\"). Main-line turns leave it empty.",
+                    "type": "string"
+                },
                 "comment": {
                     "type": "string"
                 },
