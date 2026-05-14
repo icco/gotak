@@ -191,6 +191,7 @@ func buildRouter(opts routerOptions) http.Handler {
 
 		r.Get("/game/{slug}", getGameHandler)
 		r.Get("/game/{slug}/replay", getReplayHandler)
+		r.Get("/game/{slug}/ptn", getPTNHandler)
 		r.Get("/game/{slug}/position/{turn}", getPositionHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
 		r.Post("/analyze/game/{slug}", postAnalyzeHandler)

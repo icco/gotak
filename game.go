@@ -89,6 +89,46 @@ func (g *Game) PrintCurrentState() {
 	})
 }
 
+// PTN serialises the game in Portable Tak Notation. Meta tags first
+// (one per line), then a blank line, then one line per Turn. The output
+// round-trips through ParsePTN for typical games — tag values containing
+// `"` are coerced to `'` because PTN has no defined escape sequence.
+func (g *Game) PTN() string {
+	if g == nil {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, tag := range g.Meta {
+		if tag == nil {
+			continue
+		}
+		// ParsePTN matches values with regex `"(.*)"` so any " in the
+		// value would either be eaten by the greedy match or break the
+		// regex. Substitute it.
+		safe := strings.ReplaceAll(tag.Value, `"`, "'")
+		fmt.Fprintf(&b, "[%s \"%s\"]\n", tag.Key, safe)
+	}
+	if len(g.Meta) > 0 && len(g.Turns) > 0 {
+		b.WriteString("\n")
+	}
+	for _, t := range g.Turns {
+		if t == nil {
+			continue
+		}
+		line := t.Text()
+		if line == "" {
+			continue
+		}
+		if t.Result != "" {
+			line = fmt.Sprintf("%s %s", line, t.Result)
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 // GameOver determines if a game is over and who won. A game is over if a
 // player has a continuous path from one side of the board to the other.
 //
