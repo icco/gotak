@@ -19,11 +19,14 @@ import (
 	"github.com/icco/gotak"
 )
 
+// Version is overridden at build time by goreleaser via -ldflags.
+var Version = "dev"
+
 func getVersion() string {
 	if tag := os.Getenv("GIT_TAG"); tag != "" {
 		return tag
 	}
-	return "dev"
+	return Version
 }
 
 // Key bindings used across screens.
