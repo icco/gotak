@@ -269,7 +269,14 @@ type GameData struct {
 }
 
 type GameBoard struct {
-	Size int64 `json:"size"`
+	Size    int64               `json:"size"`
+	Squares map[string][]*Stone `json:"squares"`
+}
+
+// Stone mirrors gotak.Stone for client-side decoding.
+type Stone struct {
+	Type   string `json:"type"`
+	Player int    `json:"player"`
 }
 
 type GameTurn struct {
@@ -1025,31 +1032,14 @@ func (m model) viewGame() string {
 
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 
-	// Simple board display - just show the board size for now
-	// Get board size from Board struct
 	boardSize := 0
 	if m.gameData.Board != nil {
 		boardSize = int(m.gameData.Board.Size)
 	} else {
-		boardSize = m.boardSize // fallback to settings
+		boardSize = m.boardSize
 	}
-	boardDisplay := fmt.Sprintf("Board: %dx%d\n\nMoves played:", boardSize, boardSize)
-	for _, turn := range m.gameData.Turns {
-		if turn.First != nil {
-			playerName := "White"
-			if turn.First.Player == 2 {
-				playerName = "Black"
-			}
-			boardDisplay += fmt.Sprintf("\n%d.1 %s: %s", turn.Number, playerName, turn.First.Text)
-		}
-		if turn.Second != nil {
-			playerName := "White"
-			if turn.Second.Player == 2 {
-				playerName = "Black"
-			}
-			boardDisplay += fmt.Sprintf("\n%d.2 %s: %s", turn.Number, playerName, turn.Second.Text)
-		}
-	}
+
+	boardDisplay := m.renderBoard(boardSize)
 
 	// Move input area with cursor
 	cursor := ""
@@ -1100,6 +1090,127 @@ func (m model) getTotalMoves() int {
 		}
 	}
 	return total
+}
+
+// renderBoard draws an ASCII grid of the current board state, using
+// the Squares the server attaches to game responses.
+func (m model) renderBoard(size int) string {
+	if size <= 0 {
+		size = 5
+	}
+
+	var squares map[string][]*Stone
+	if m.gameData != nil && m.gameData.Board != nil {
+		squares = m.gameData.Board.Squares
+	}
+
+	const cellWidth = 5 // " XYZ "
+
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "Board: %dx%d\n\n", size, size)
+
+	// Top border
+	b.WriteString("   ┌")
+	for i := 0; i < size; i++ {
+		b.WriteString(strings.Repeat("─", cellWidth))
+		if i < size-1 {
+			b.WriteString("┬")
+		}
+	}
+	b.WriteString("┐\n")
+
+	for row := size; row >= 1; row-- {
+		fmt.Fprintf(&b, " %d │", row)
+		for col := 0; col < size; col++ {
+			sq := fmt.Sprintf("%c%d", 'a'+col, row)
+			b.WriteString(renderCell(squares[sq], cellWidth))
+			b.WriteString("│")
+		}
+		fmt.Fprintf(&b, " %d\n", row)
+
+		if row > 1 {
+			b.WriteString("   ├")
+			for i := 0; i < size; i++ {
+				b.WriteString(strings.Repeat("─", cellWidth))
+				if i < size-1 {
+					b.WriteString("┼")
+				}
+			}
+			b.WriteString("┤\n")
+		}
+	}
+
+	// Bottom border
+	b.WriteString("   └")
+	for i := 0; i < size; i++ {
+		b.WriteString(strings.Repeat("─", cellWidth))
+		if i < size-1 {
+			b.WriteString("┴")
+		}
+	}
+	b.WriteString("┘\n   ")
+
+	for col := 0; col < size; col++ {
+		fmt.Fprintf(&b, "  %c  ", 'a'+col)
+		if col < size-1 {
+			b.WriteString(" ")
+		}
+	}
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// renderCell formats a single board cell so all cells line up at `width` runes
+// regardless of stack depth or stone type.
+func renderCell(stones []*Stone, width int) string {
+	if len(stones) == 0 {
+		return centerRunes("·", width)
+	}
+
+	top := stones[len(stones)-1]
+	symbol := stoneSymbol(top)
+
+	if len(stones) == 1 {
+		return centerRunes(symbol, width)
+	}
+
+	return centerRunes(fmt.Sprintf("%s%d", symbol, len(stones)), width)
+}
+
+// centerRunes pads s with spaces to exactly `width` runes wide.
+func centerRunes(s string, width int) string {
+	n := len([]rune(s))
+	if n >= width {
+		return s
+	}
+	left := (width - n) / 2
+	right := width - n - left
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
+}
+
+func stoneSymbol(s *Stone) string {
+	if s == nil {
+		return "·"
+	}
+	switch s.Type {
+	case "S":
+		if s.Player == 1 {
+			return "□"
+		}
+		return "■"
+	case "C":
+		if s.Player == 1 {
+			return "◇"
+		}
+		return "◆"
+	default: // "F" or anything else
+		if s.Player == 1 {
+			return "○"
+		}
+		return "●"
+	}
 }
 
 // getCurrentPlayer determines which player's turn it is based on move count

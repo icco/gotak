@@ -323,7 +323,7 @@ func (g *Game) DoSingleMove(moveStr string, player int) error {
 	// Turn numbers are 1-indexed: Turn 1, Turn 2, etc.
 	// If we have 1 complete turn, the next move goes in turn 2
 	turnNumber := int64(len(g.Turns)) + 1
-	
+
 	// Check if the last turn is incomplete - if so, complete it instead of starting a new turn
 	if len(g.Turns) > 0 {
 		lastTurn := g.Turns[len(g.Turns)-1]

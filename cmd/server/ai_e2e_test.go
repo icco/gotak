@@ -949,7 +949,7 @@ func newMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	// Store the move in database - determine which turn this move belongs to BEFORE executing the move
 	// Check if we need to complete an existing turn or start a new one
 	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
-	
+
 	if len(game.Turns) > 0 {
 		lastTurn := game.Turns[len(game.Turns)-1]
 		if lastTurn.First != nil && lastTurn.Second == nil {
@@ -960,7 +960,7 @@ func newMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 			currentTurn = int64(len(game.Turns)) + 1
 		}
 	}
-	
+
 	log.Infow("Human move", "player", data.Player, "move", data.Text, "calculated_turn", currentTurn, "game_turns_count", len(game.Turns))
 
 	// Replay existing moves to get current board state BEFORE validating the new move
@@ -1177,7 +1177,7 @@ func postAIMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB
 	// Store the AI move in database - determine which turn this move belongs to BEFORE executing the move
 	// Check if we need to complete an existing turn or start a new one
 	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
-	
+
 	if len(game.Turns) > 0 {
 		lastTurn := game.Turns[len(game.Turns)-1]
 		if lastTurn.First != nil && lastTurn.Second == nil {
