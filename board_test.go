@@ -171,7 +171,107 @@ func TestIsEdge(t *testing.T) {
 }
 
 func TestFindRoad(t *testing.T) {
-	// TODO(#39): Write a test using TPS
+	cases := []struct {
+		name       string
+		tps        string
+		startEdges []string
+		endEdges   []string
+		player     int
+		expectRoad bool
+	}{
+		{
+			name:       "horizontal-white-road",
+			tps:        "x5/x5/x5/x5/1,1,1,1,1 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e1"},
+			player:     PlayerWhite,
+			expectRoad: true,
+		},
+		{
+			name:       "vertical-black-road",
+			tps:        "2,x4/2,x4/2,x4/2,x4/2,x4 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"a5"},
+			player:     PlayerBlack,
+			expectRoad: true,
+		},
+		{
+			name:       "broken-road-with-standing",
+			tps:        "x5/x5/x5/x5/1,1,1S,1,1 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e1"},
+			player:     PlayerWhite,
+			expectRoad: false,
+		},
+		{
+			name:       "capstone-completes-road",
+			tps:        "x5/x5/x5/x5/1,1,1C,1,1 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e1"},
+			player:     PlayerWhite,
+			expectRoad: true,
+		},
+		{
+			name:       "stack-with-opponent-on-top-blocks-road",
+			tps:        "x5/x5/x5/x5/1,1,12,1,1 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e1"},
+			player:     PlayerWhite,
+			expectRoad: false,
+		},
+		{
+			name:       "L-shaped-road",
+			tps:        "x5/x5/x5/1,1,1,1,1/1,x4 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e2"},
+			player:     PlayerWhite,
+			expectRoad: true,
+		},
+		{
+			name:       "no-stones-no-road",
+			tps:        "x5/x5/x5/x5/x5 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e1"},
+			player:     PlayerWhite,
+			expectRoad: false,
+		},
+		{
+			name:       "isolated-stones-do-not-connect",
+			tps:        "x5/x5/x5/x5/1,x3,1 1 1",
+			startEdges: []string{"a1"},
+			endEdges:   []string{"e1"},
+			player:     PlayerWhite,
+			expectRoad: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, _, _, err := ParseTPS(tc.tps)
+			if err != nil {
+				t.Fatalf("parse tps: %v", err)
+			}
+
+			found := false
+			for _, start := range tc.startEdges {
+				if b.Color(start) != tc.player {
+					continue
+				}
+				top := b.TopStone(start)
+				if top == nil || top.Type == StoneStanding {
+					continue
+				}
+				if b.FindRoad(start, tc.endEdges) {
+					found = true
+					break
+				}
+			}
+
+			if found != tc.expectRoad {
+				t.Errorf("FindRoad from %v to %v: got %v, want %v", tc.startEdges, tc.endEdges, found, tc.expectRoad)
+			}
+		})
+	}
 }
 
 func TestValidSquareIntegerOverflowPrevention(t *testing.T) {
