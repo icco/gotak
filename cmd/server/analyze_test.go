@@ -9,11 +9,8 @@ import (
 	"github.com/icco/gotak/ai"
 )
 
-// scriptedMove is one entry in a hand-crafted game used by tests.
-type scriptedMove struct {
-	player int
-	move   string
-}
+// scriptedMove and the playGame helper live in replay_test.go and are
+// shared across the cmd/server test binary.
 
 // stubEngine returns the next hard-coded move on each call, so tests can
 // assert how the analyzer drives the engine.
@@ -36,22 +33,8 @@ func (s *stubEngine) ExplainMove(_ context.Context, _ *gotak.Game, _ ai.AIConfig
 	return "", nil
 }
 
-func mustGame(t *testing.T, size int64, moves []scriptedMove) *gotak.Game {
-	t.Helper()
-	g, err := gotak.NewGame(size, 1, "t")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, m := range moves {
-		if err := g.DoSingleMove(m.move, m.player); err != nil {
-			t.Fatalf("DoSingleMove(%q, %d): %v", m.move, m.player, err)
-		}
-	}
-	return g
-}
-
 func TestGameBeforeMove_prefixesTurns(t *testing.T) {
-	g := mustGame(t, 5, []scriptedMove{
+	g := playGame(t, 5, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -105,7 +88,7 @@ func TestGameBeforeMove_nilGame(t *testing.T) {
 }
 
 func TestAnalyzeGame_recordsAgreement(t *testing.T) {
-	g := mustGame(t, 5, []scriptedMove{
+	g := playGame(t, 5, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -158,7 +141,7 @@ func TestAnalyzeGame_emptyGame(t *testing.T) {
 }
 
 func TestAnalyzeGame_canceledContext(t *testing.T) {
-	g := mustGame(t, 5, []scriptedMove{
+	g := playGame(t, 5, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 	})
