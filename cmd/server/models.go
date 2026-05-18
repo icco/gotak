@@ -81,7 +81,22 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+// AnalysisCache stores a previously computed analysis result.
+// GameVersion is an opaque fingerprint so its encoding can change
+// (UpdatedAt, content hash) without a schema change.
+type AnalysisCache struct {
+	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	GameID      int64     `gorm:"not null;uniqueIndex:idx_analysis_lookup,priority:1" json:"game_id"`
+	Level       string    `gorm:"type:varchar(16);not null;uniqueIndex:idx_analysis_lookup,priority:2" json:"level"`
+	Style       string    `gorm:"type:varchar(16);not null;uniqueIndex:idx_analysis_lookup,priority:3" json:"style"`
+	TimeLimitNs int64     `gorm:"not null;uniqueIndex:idx_analysis_lookup,priority:4" json:"time_limit_ns"`
+	GameVersion string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_analysis_lookup,priority:5" json:"game_version"`
+	Agreed      int       `json:"agreed"`
+	Moves       string    `gorm:"type:jsonb" json:"moves"` // JSON-encoded []MoveAnalysis
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{})
 }

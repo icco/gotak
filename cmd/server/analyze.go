@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/icco/gotak/ai"
 	"github.com/icco/gutil/logging"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // defaultAnalyzeTimeLimit is the per-move budget the engine gets when the
@@ -98,23 +101,115 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg, levelName := analyzeConfigFromRequest(req)
-	moves := analyzeGame(ctx, &ai.TakticianEngine{}, game, cfg)
-
-	resp := AnalyzeResponse{
-		Slug:      slug,
-		Size:      game.Board.Size,
-		Level:     levelName,
-		Moves:     moves,
-		MoveCount: len(moves),
+	key := analysisCacheKey{
+		gameID:      game.ID,
+		level:       levelName,
+		style:       string(cfg.Style),
+		timeLimitNs: int64(cfg.TimeLimit),
+		gameVersion: gameCacheVersion(game),
 	}
+
+	if cached, ok := loadAnalysisCache(db, l, key); ok {
+		writeAnalyzeResponse(w, l, slug, game.Board.Size, levelName, cached)
+		return
+	}
+
+	moves := analyzeGame(ctx, &ai.TakticianEngine{}, game, cfg)
+	agreed := 0
 	for _, m := range moves {
 		if m.Agreed {
-			resp.Agreed++
+			agreed++
 		}
 	}
 
+	saveAnalysisCache(db, l, key, agreed, moves)
+
+	writeAnalyzeResponse(w, l, slug, game.Board.Size, levelName, AnalyzeResponse{
+		Moves:     moves,
+		MoveCount: len(moves),
+		Agreed:    agreed,
+	})
+}
+
+func writeAnalyzeResponse(w http.ResponseWriter, l *zap.SugaredLogger, slug string, size int64, level string, resp AnalyzeResponse) {
+	resp.Slug = slug
+	resp.Size = size
+	resp.Level = level
 	if err := Renderer.JSON(w, http.StatusOK, resp); err != nil {
 		l.Errorw("failed to render analyze response", zap.Error(err))
+	}
+}
+
+// gameCacheVersion is the cache-invalidation fingerprint. The "v1:" prefix
+// reserves room to add more inputs (UpdatedAt, content hash) later.
+func gameCacheVersion(g *gotak.Game) string {
+	count := 0
+	for _, t := range g.Turns {
+		if t == nil {
+			continue
+		}
+		if t.First != nil {
+			count++
+		}
+		if t.Second != nil {
+			count++
+		}
+	}
+	return fmt.Sprintf("v1:moves=%d", count)
+}
+
+type analysisCacheKey struct {
+	gameID      int64
+	level       string
+	style       string
+	timeLimitNs int64
+	gameVersion string
+}
+
+// loadAnalysisCache logs non-NotFound errors so a flaky cache is observable,
+// but always degrades to a miss so caching never blocks analysis.
+func loadAnalysisCache(db *gorm.DB, l *zap.SugaredLogger, k analysisCacheKey) (AnalyzeResponse, bool) {
+	var row AnalysisCache
+	err := db.Where("game_id = ? AND level = ? AND style = ? AND time_limit_ns = ? AND game_version = ?",
+		k.gameID, k.level, k.style, k.timeLimitNs, k.gameVersion).First(&row).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			l.Warnw("analysis cache lookup failed", zap.Error(err))
+		}
+		return AnalyzeResponse{}, false
+	}
+	var moves []MoveAnalysis
+	if err := json.Unmarshal([]byte(row.Moves), &moves); err != nil {
+		l.Warnw("analysis cache row failed to decode", "id", row.ID, zap.Error(err))
+		return AnalyzeResponse{}, false
+	}
+	return AnalyzeResponse{
+		Moves:     moves,
+		MoveCount: len(moves),
+		Agreed:    row.Agreed,
+	}, true
+}
+
+// saveAnalysisCache is best-effort; concurrent misses can race so writes
+// use ON CONFLICT DO NOTHING.
+func saveAnalysisCache(db *gorm.DB, l *zap.SugaredLogger, k analysisCacheKey, agreed int, moves []MoveAnalysis) {
+	encoded, err := json.Marshal(moves)
+	if err != nil {
+		l.Warnw("could not encode analysis for cache", zap.Error(err))
+		return
+	}
+	row := AnalysisCache{
+		GameID:      k.gameID,
+		Level:       k.level,
+		Style:       k.style,
+		TimeLimitNs: k.timeLimitNs,
+		GameVersion: k.gameVersion,
+		Agreed:      agreed,
+		Moves:       string(encoded),
+	}
+	err = db.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error
+	if err != nil {
+		l.Warnw("could not save analysis cache row", zap.Error(err))
 	}
 }
 
