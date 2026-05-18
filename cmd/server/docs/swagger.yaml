@@ -719,6 +719,33 @@ paths:
       summary: Get board state after N complete turns
       tags:
       - game
+  /game/{slug}/ptn:
+    get:
+      description: Serialises the game as Portable Tak Notation text.
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: PTN text
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Download game as PTN
+      tags:
+      - game
   /game/{slug}/replay:
     get:
       consumes:

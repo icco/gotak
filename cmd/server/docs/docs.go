@@ -709,6 +709,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/game/{slug}/ptn": {
+            "get": {
+                "description": "Serialises the game as Portable Tak Notation text.",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Download game as PTN",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "PTN text",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/game/{slug}/replay": {
             "get": {
                 "description": "Returns an ordered list of every half-turn played in the\ngame, along with the board state after each one, so a\nclient can step through without making per-turn requests.",
