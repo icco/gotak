@@ -11,14 +11,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// OpeningContinuation is one move that has been played after a given prefix.
 type OpeningContinuation struct {
 	Move  string `json:"move"`
 	Count int    `json:"count"`
 }
 
-// OpeningsResponse is the payload returned by GET /analyze/openings.
-// Continuations are sorted by Count desc; ties broken alphabetically.
+// OpeningsResponse continuations are sorted by Count desc, then Move asc.
 type OpeningsResponse struct {
 	Prefix        []string              `json:"prefix"`
 	GameCount     int                   `json:"game_count"`
@@ -80,10 +78,8 @@ func getOpeningsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// parseOpeningPrefix splits the comma-separated query value and validates
-// each entry as a syntactically-valid PTN move. The returned strings come
-// from the parsed Move so they match how moves are stored in the DB
-// (annotations like `!`/`?` stripped).
+// parseOpeningPrefix returns moves canonicalised through gotak.NewMove
+// so PTN annotations (`!`, `?`) match how the DB stores them.
 func parseOpeningPrefix(raw string) ([]string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return nil, nil
@@ -104,8 +100,8 @@ func parseOpeningPrefix(raw string) ([]string, error) {
 	return out, nil
 }
 
-// computeOpenings is an in-memory aggregation over the Move table. Move
-// past a few thousand games to a SQL CTE.
+// computeOpenings does the aggregation in Go; move to a SQL CTE once
+// the Move table grows past a few thousand rows.
 func computeOpenings(db *gorm.DB, prefix []string) (int, []OpeningContinuation, error) {
 	var rows []Move
 	if err := db.Model(&Move{}).
