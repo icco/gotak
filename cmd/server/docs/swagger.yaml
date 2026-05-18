@@ -191,6 +191,26 @@ definitions:
         example: 1
         type: integer
     type: object
+  main.OpeningContinuation:
+    properties:
+      count:
+        type: integer
+      move:
+        type: string
+    type: object
+  main.OpeningsResponse:
+    properties:
+      continuations:
+        items:
+          $ref: '#/definitions/main.OpeningContinuation'
+        type: array
+      game_count:
+        type: integer
+      prefix:
+        items:
+          type: string
+        type: array
+    type: object
   main.PositionResponse:
     properties:
       board:
@@ -346,6 +366,40 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Analyze a game move-by-move
+      tags:
+      - analysis
+  /analyze/openings:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Given a prefix of moves (in PTN order — White on turn 1
+        first, Black second, then alternating), returns the count
+        of stored games matching the prefix and the frequency of
+        moves played in the next half-turn. Empty prefix lists
+        first-move distribution across all games.
+      parameters:
+      - description: Comma-separated PTN moves
+        example: a1,e5
+        in: query
+        name: prefix
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.OpeningsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Look up opening continuations
       tags:
       - analysis
   /auth/confirm-reset:
