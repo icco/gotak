@@ -325,14 +325,20 @@ func mustParseTime(t *testing.T, s string) time.Time {
 func TestLoadMoveTimestamps(t *testing.T) {
 	db := setupTestDB(t)
 
-	// Insert three moves: turn 1 white, turn 1 black, turn 2 white.
-	moves := []Move{
-		{GameID: 7, Turn: 1, Player: gotak.PlayerWhite, Text: "a1"},
-		{GameID: 7, Turn: 1, Player: gotak.PlayerBlack, Text: "e5"},
-		{GameID: 7, Turn: 2, Player: gotak.PlayerWhite, Text: "b2"},
+	// Insert in reverse turn order with distinct sentinel CreatedAt values
+	// so the returned sequence proves the (turn ASC, player ASC) ordering
+	// rather than coincidentally matching insertion order.
+	tWhiteTurn1 := mustParseTime(t, "2026-01-01T00:00:00Z")
+	tBlackTurn1 := mustParseTime(t, "2026-01-02T00:00:00Z")
+	tWhiteTurn2 := mustParseTime(t, "2026-01-03T00:00:00Z")
+
+	rows := []Move{
+		{GameID: 7, Turn: 2, Player: gotak.PlayerWhite, Text: "b2", CreatedAt: tWhiteTurn2},
+		{GameID: 7, Turn: 1, Player: gotak.PlayerBlack, Text: "e5", CreatedAt: tBlackTurn1},
+		{GameID: 7, Turn: 1, Player: gotak.PlayerWhite, Text: "a1", CreatedAt: tWhiteTurn1},
 	}
-	for i := range moves {
-		if err := db.Create(&moves[i]).Error; err != nil {
+	for i := range rows {
+		if err := db.Create(&rows[i]).Error; err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -341,13 +347,13 @@ func TestLoadMoveTimestamps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("got %d timestamps, want 3", len(got))
+	want := []time.Time{tWhiteTurn1, tBlackTurn1, tWhiteTurn2}
+	if len(got) != len(want) {
+		t.Fatalf("got %d timestamps, want %d", len(got), len(want))
 	}
-	// CreatedAt is set by GORM on insert; just assert ascending and non-zero.
-	for i, ts := range got {
-		if ts.IsZero() {
-			t.Errorf("timestamp %d is zero", i)
+	for i, w := range want {
+		if !got[i].Equal(w) {
+			t.Errorf("timestamp %d = %v, want %v", i, got[i], w)
 		}
 	}
 }
