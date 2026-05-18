@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/icco/gotak"
 )
@@ -33,7 +36,7 @@ func TestBuildReplaySteps_emptyGame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	steps, err := buildReplaySteps(g)
+	steps, err := buildReplaySteps(g, nil)
 	if err != nil {
 		t.Fatalf("buildReplaySteps: %v", err)
 	}
@@ -43,7 +46,7 @@ func TestBuildReplaySteps_emptyGame(t *testing.T) {
 }
 
 func TestBuildReplaySteps_nilGame(t *testing.T) {
-	steps, err := buildReplaySteps(nil)
+	steps, err := buildReplaySteps(nil, nil)
 	if err != nil {
 		t.Errorf("nil game should return (nil, nil), got err=%v", err)
 	}
@@ -60,7 +63,7 @@ func TestBuildReplaySteps_firstTurnInversion(t *testing.T) {
 		{gotak.PlayerBlack, "e5"},
 	})
 
-	steps, err := buildReplaySteps(g)
+	steps, err := buildReplaySteps(g, nil)
 	if err != nil {
 		t.Fatalf("buildReplaySteps: %v", err)
 	}
@@ -89,7 +92,7 @@ func TestBuildReplaySteps_snapshotsAreIndependent(t *testing.T) {
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
 	})
-	steps, err := buildReplaySteps(g)
+	steps, err := buildReplaySteps(g, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,5 +267,108 @@ func TestApplyHalfTurn_missingMoveIsNoop(t *testing.T) {
 	}
 	if err := applyHalfTurn(b, turn, true); err != nil {
 		t.Errorf("missing Second should be a no-op, got %v", err)
+	}
+}
+
+func TestBuildReplaySteps_zipsTimestamps(t *testing.T) {
+	g := playGame(t, 5, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+		{gotak.PlayerWhite, "b2"},
+	})
+	t0 := mustParseTime(t, "2026-01-01T00:00:00Z")
+	t1 := t0.Add(10 * time.Second)
+	t2 := t1.Add(15 * time.Second)
+	times := []time.Time{t0, t1, t2}
+
+	steps, err := buildReplaySteps(g, times)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 3 {
+		t.Fatalf("want 3 steps, got %d", len(steps))
+	}
+	for i, want := range times {
+		if steps[i].PlayedAt == nil || !steps[i].PlayedAt.Equal(want) {
+			t.Errorf("step %d PlayedAt = %v, want %v", i, steps[i].PlayedAt, want)
+		}
+	}
+}
+
+func TestBuildReplaySteps_shortTimestampSlice(t *testing.T) {
+	g := playGame(t, 5, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+	})
+	t0 := mustParseTime(t, "2026-01-01T00:00:00Z")
+	steps, err := buildReplaySteps(g, []time.Time{t0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steps[0].PlayedAt == nil || !steps[0].PlayedAt.Equal(t0) {
+		t.Errorf("step 0 PlayedAt = %v, want %v", steps[0].PlayedAt, t0)
+	}
+	if steps[1].PlayedAt != nil {
+		t.Errorf("step 1 should be nil, got %v", steps[1].PlayedAt)
+	}
+}
+
+func mustParseTime(t *testing.T, s string) time.Time {
+	t.Helper()
+	v, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func TestLoadMoveTimestamps(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Insert in reverse turn order with distinct sentinel CreatedAt values
+	// so the returned sequence proves the (turn ASC, player ASC) ordering
+	// rather than coincidentally matching insertion order.
+	tWhiteTurn1 := mustParseTime(t, "2026-01-01T00:00:00Z")
+	tBlackTurn1 := mustParseTime(t, "2026-01-02T00:00:00Z")
+	tWhiteTurn2 := mustParseTime(t, "2026-01-03T00:00:00Z")
+
+	rows := []Move{
+		{GameID: 7, Turn: 2, Player: gotak.PlayerWhite, Text: "b2", CreatedAt: tWhiteTurn2},
+		{GameID: 7, Turn: 1, Player: gotak.PlayerBlack, Text: "e5", CreatedAt: tBlackTurn1},
+		{GameID: 7, Turn: 1, Player: gotak.PlayerWhite, Text: "a1", CreatedAt: tWhiteTurn1},
+	}
+	for i := range rows {
+		if err := db.Create(&rows[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := loadMoveTimestamps(db, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []time.Time{tWhiteTurn1, tBlackTurn1, tWhiteTurn2}
+	if len(got) != len(want) {
+		t.Fatalf("got %d timestamps, want %d", len(got), len(want))
+	}
+	for i, w := range want {
+		if !got[i].Equal(w) {
+			t.Errorf("timestamp %d = %v, want %v", i, got[i], w)
+		}
+	}
+}
+
+func TestReplayStep_zeroPlayedAtIsOmitted(t *testing.T) {
+	g := playGame(t, 5, []scriptedMove{{gotak.PlayerWhite, "a1"}})
+	steps, err := buildReplaySteps(g, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(steps[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload), "played_at") {
+		t.Errorf("played_at should be omitted when nil, got: %s", payload)
 	}
 }
