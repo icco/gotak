@@ -12,13 +12,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// ReplayStep is a single recorded position in a game replay. Each turn
-// produces up to two steps (one per player half-turn). Board is the
-// state immediately after Move was applied. PlayedAt is the server-side
-// timestamp from when the move was originally recorded; nil if unknown
-// (PTN-imported games, in-memory tests). A pointer is required for
-// omitempty to drop the field — `time.Time`'s zero value still
-// marshals as "0001-01-01T00:00:00Z".
+// ReplayStep is one half-turn's record. PlayedAt is a pointer so
+// omitempty drops it; encoding/json doesn't treat a zero time.Time as
+// empty.
 type ReplayStep struct {
 	Turn     int64                     `json:"turn"`
 	Player   int                       `json:"player"`
@@ -150,8 +146,8 @@ func loadGameForRead(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogge
 	return game, ok
 }
 
-// loadGameForReadWithDB is the variant that also returns the open DB
-// handle, for callers that need extra queries (e.g. move timestamps).
+// loadGameForReadWithDB also returns the DB handle for callers that
+// need extra queries.
 func loadGameForReadWithDB(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogger) (*gorm.DB, *gotak.Game, bool) {
 	ctx := r.Context()
 	db, err := getDB()
@@ -175,10 +171,8 @@ func loadGameForReadWithDB(w http.ResponseWriter, r *http.Request, l *zap.Sugare
 	return db, game, true
 }
 
-// loadMoveTimestamps returns CreatedAt for every Move of the game in the
-// same order the moves are replayed (turn ascending, then White before
-// Black). The returned slice length matches the number of recorded
-// half-turns; callers zip it against the replay step list.
+// loadMoveTimestamps returns CreatedAt for every Move in replay order
+// (turn ASC, then White before Black), ready to zip against ReplayStep.
 func loadMoveTimestamps(db *gorm.DB, gameID int64) ([]time.Time, error) {
 	var rows []struct {
 		Turn      int64
@@ -199,13 +193,9 @@ func loadMoveTimestamps(db *gorm.DB, gameID int64) ([]time.Time, error) {
 	return out, nil
 }
 
-// buildReplaySteps walks the game and applies each half-turn to a fresh
-// board, snapshotting the resulting state into a ReplayStep. moveTimes,
-// when non-nil, is zipped into the steps in order; a shorter slice
-// leaves trailing steps with a zero PlayedAt.
-//
-// We do not reuse game.Board (already populated by getGame's replayMoves
-// call) because we need every intermediate state, not just the final one.
+// buildReplaySteps replays the game on a fresh board, snapshotting after
+// each half-turn. moveTimes is zipped in if non-nil; a short slice
+// leaves trailing steps with nil PlayedAt.
 func buildReplaySteps(game *gotak.Game, moveTimes []time.Time) ([]ReplayStep, error) {
 	if game == nil || game.Board == nil {
 		return nil, nil
