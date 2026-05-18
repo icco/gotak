@@ -42,11 +42,11 @@ func TestGameBeforeMove_prefixesTurns(t *testing.T) {
 	})
 
 	cases := []struct {
-		name           string
-		turnIdx        int
-		isSecond       bool
-		wantTurns      int
-		wantSecondNil  bool // wantSecondNil applies to the last turn in the prefix
+		name          string
+		turnIdx       int
+		isSecond      bool
+		wantTurns     int
+		wantSecondNil bool // wantSecondNil applies to the last turn in the prefix
 	}{
 		{"before turn-1 first move", 0, false, 0, false},
 		{"before turn-1 second move", 0, true, 1, true},
