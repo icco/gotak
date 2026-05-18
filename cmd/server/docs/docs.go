@@ -119,7 +119,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "\"a1,e5\"",
+                        "example": "a1,e5",
                         "description": "Comma-separated PTN moves",
                         "name": "prefix",
                         "in": "query"

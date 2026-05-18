@@ -32,7 +32,7 @@ type OpeningsResponse struct {
 // @Tags analysis
 // @Accept json
 // @Produce json
-// @Param prefix query string false "Comma-separated PTN moves" example("a1,e5")
+// @Param prefix query string false "Comma-separated PTN moves" example(a1,e5)
 // @Success 200 {object} OpeningsResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse

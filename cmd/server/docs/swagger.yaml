@@ -378,7 +378,7 @@ paths:
         first-move distribution across all games.
       parameters:
       - description: Comma-separated PTN moves
-        example: '"a1,e5"'
+        example: a1,e5
         in: query
         name: prefix
         type: string
