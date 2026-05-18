@@ -14,22 +14,31 @@ type Turn struct {
 	Branch string
 }
 
-// Text returns a PTN formated string of the turn.
+// Text returns a PTN-formatted string of the turn. An incomplete final
+// turn (no Second move yet) renders without the second field, which the
+// PTN parser accepts.
+//
+// A Second-only turn cannot be rendered because the parser has no
+// placeholder syntax for a missing First move; such a turn would silently
+// disappear from round-tripped output.
 func (t *Turn) Text() string {
-	var move string
-	if t.First != nil && t.Second != nil {
-		move = fmt.Sprintf("%d%s. %s %s", t.Number, t.Branch, t.First.Text, t.Second.Text)
+	var line string
+	switch {
+	case t.First != nil && t.Second != nil:
+		line = fmt.Sprintf("%d%s. %s %s", t.Number, t.Branch, t.First.Text, t.Second.Text)
+	case t.First != nil:
+		line = fmt.Sprintf("%d%s. %s", t.Number, t.Branch, t.First.Text)
 	}
 
 	if t.Comment != "" {
-		if move != "" {
-			move = fmt.Sprintf("%s { %s }", move, t.Comment)
+		if line != "" {
+			line = fmt.Sprintf("%s { %s }", line, t.Comment)
 		} else {
-			move = fmt.Sprintf("{ %s }", t.Comment)
+			line = fmt.Sprintf("{ %s }", t.Comment)
 		}
 	}
 
-	return move
+	return line
 }
 
 // Debug is a verbose dumping of the object and its sub objects.
