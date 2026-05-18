@@ -1213,6 +1213,9 @@ const docTemplate = `{
                 "move": {
                     "type": "string"
                 },
+                "played_at": {
+                    "type": "string"
+                },
                 "player": {
                     "type": "integer"
                 },

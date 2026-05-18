@@ -3,21 +3,28 @@ package main
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/icco/gotak"
 	"github.com/icco/gutil/logging"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // ReplayStep is a single recorded position in a game replay. Each turn
 // produces up to two steps (one per player half-turn). Board is the
-// state immediately after Move was applied.
+// state immediately after Move was applied. PlayedAt is the server-side
+// timestamp from when the move was originally recorded; nil if unknown
+// (PTN-imported games, in-memory tests). A pointer is required for
+// omitempty to drop the field — `time.Time`'s zero value still
+// marshals as "0001-01-01T00:00:00Z".
 type ReplayStep struct {
-	Turn   int64                     `json:"turn"`
-	Player int                       `json:"player"`
-	Move   string                    `json:"move"`
-	Board  map[string][]*gotak.Stone `json:"board"`
+	Turn     int64                     `json:"turn"`
+	Player   int                       `json:"player"`
+	Move     string                    `json:"move"`
+	Board    map[string][]*gotak.Stone `json:"board"`
+	PlayedAt *time.Time                `json:"played_at,omitempty"`
 }
 
 // ReplayResponse is the payload returned by GET /game/{slug}/replay.
@@ -51,12 +58,19 @@ func getReplayHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	l := logging.FromContext(ctx)
 
-	game, ok := loadGameForRead(w, r, l)
+	db, game, ok := loadGameForReadWithDB(w, r, l)
 	if !ok {
 		return
 	}
 
-	steps, err := buildReplaySteps(game)
+	times, err := loadMoveTimestamps(db, game.ID)
+	if err != nil {
+		// Timestamps are nice-to-have; degrade rather than fail.
+		l.Warnw("could not load move timestamps", "slug", game.Slug, zap.Error(err))
+		times = nil
+	}
+
+	steps, err := buildReplaySteps(game, times)
 	if err != nil {
 		l.Errorw("could not build replay", "slug", game.Slug, zap.Error(err))
 		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not build replay"}); jerr != nil {
@@ -132,6 +146,13 @@ func getPositionHandler(w http.ResponseWriter, r *http.Request) {
 // read-only game endpoints. It writes the appropriate error response
 // itself; callers should bail when it returns ok=false.
 func loadGameForRead(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogger) (*gotak.Game, bool) {
+	_, game, ok := loadGameForReadWithDB(w, r, l)
+	return game, ok
+}
+
+// loadGameForReadWithDB is the variant that also returns the open DB
+// handle, for callers that need extra queries (e.g. move timestamps).
+func loadGameForReadWithDB(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogger) (*gorm.DB, *gotak.Game, bool) {
 	ctx := r.Context()
 	db, err := getDB()
 	if err != nil {
@@ -139,7 +160,7 @@ func loadGameForRead(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogge
 		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); jerr != nil {
 			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
-		return nil, false
+		return nil, nil, false
 	}
 
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
@@ -149,23 +170,57 @@ func loadGameForRead(w http.ResponseWriter, r *http.Request, l *zap.SugaredLogge
 		if jerr := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); jerr != nil {
 			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
-		return nil, false
+		return nil, nil, false
 	}
-	return game, true
+	return db, game, true
+}
+
+// loadMoveTimestamps returns CreatedAt for every Move of the game in the
+// same order the moves are replayed (turn ascending, then White before
+// Black). The returned slice length matches the number of recorded
+// half-turns; callers zip it against the replay step list.
+func loadMoveTimestamps(db *gorm.DB, gameID int64) ([]time.Time, error) {
+	var rows []struct {
+		Turn      int64
+		Player    int
+		CreatedAt time.Time
+	}
+	if err := db.Model(&Move{}).
+		Select("turn, player, created_at").
+		Where("game_id = ?", gameID).
+		Order("turn ASC, player ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]time.Time, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.CreatedAt)
+	}
+	return out, nil
 }
 
 // buildReplaySteps walks the game and applies each half-turn to a fresh
-// board, snapshotting the resulting state into a ReplayStep.
+// board, snapshotting the resulting state into a ReplayStep. moveTimes,
+// when non-nil, is zipped into the steps in order; a shorter slice
+// leaves trailing steps with a zero PlayedAt.
 //
 // We do not reuse game.Board (already populated by getGame's replayMoves
 // call) because we need every intermediate state, not just the final one.
-func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
+func buildReplaySteps(game *gotak.Game, moveTimes []time.Time) ([]ReplayStep, error) {
 	if game == nil || game.Board == nil {
 		return nil, nil
 	}
 	board := &gotak.Board{Size: game.Board.Size}
 	if err := board.Init(); err != nil {
 		return nil, err
+	}
+
+	timeAt := func(i int) *time.Time {
+		if i >= len(moveTimes) || moveTimes[i].IsZero() {
+			return nil
+		}
+		t := moveTimes[i]
+		return &t
 	}
 
 	steps := make([]ReplayStep, 0, len(game.Turns)*2)
@@ -178,10 +233,11 @@ func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
 				return nil, err
 			}
 			steps = append(steps, ReplayStep{
-				Turn:   turn.Number,
-				Player: gotak.PlayerWhite,
-				Move:   turn.First.Text,
-				Board:  snapshotSquares(board),
+				Turn:     turn.Number,
+				Player:   gotak.PlayerWhite,
+				Move:     turn.First.Text,
+				Board:    snapshotSquares(board),
+				PlayedAt: timeAt(len(steps)),
 			})
 		}
 		if turn.Second != nil {
@@ -189,10 +245,11 @@ func buildReplaySteps(game *gotak.Game) ([]ReplayStep, error) {
 				return nil, err
 			}
 			steps = append(steps, ReplayStep{
-				Turn:   turn.Number,
-				Player: gotak.PlayerBlack,
-				Move:   turn.Second.Text,
-				Board:  snapshotSquares(board),
+				Turn:     turn.Number,
+				Player:   gotak.PlayerBlack,
+				Move:     turn.Second.Text,
+				Board:    snapshotSquares(board),
+				PlayedAt: timeAt(len(steps)),
 			})
 		}
 	}
