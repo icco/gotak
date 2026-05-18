@@ -97,6 +97,50 @@
                 }
             }
         },
+        "/analyze/openings": {
+            "get": {
+                "description": "Given a prefix of moves (in PTN order — White on turn 1\nfirst, Black second, then alternating), returns the count\nof stored games matching the prefix and the frequency of\nmoves played in the next half-turn. Empty prefix lists\nfirst-move distribution across all games.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Look up opening continuations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "a1,e5",
+                        "description": "Comma-separated PTN moves",
+                        "name": "prefix",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.OpeningsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/confirm-reset": {
             "post": {
                 "description": "Reset password with token",
@@ -1132,6 +1176,37 @@
                 "turn": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "main.OpeningContinuation": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "move": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.OpeningsResponse": {
+            "type": "object",
+            "properties": {
+                "continuations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.OpeningContinuation"
+                    }
+                },
+                "game_count": {
+                    "type": "integer"
+                },
+                "prefix": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
