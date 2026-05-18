@@ -131,7 +131,6 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeAnalyzeResponse fills the shared envelope fields and renders.
 func writeAnalyzeResponse(w http.ResponseWriter, l *zap.SugaredLogger, slug string, size int64, level string, resp AnalyzeResponse) {
 	resp.Slug = slug
 	resp.Size = size
@@ -141,11 +140,8 @@ func writeAnalyzeResponse(w http.ResponseWriter, l *zap.SugaredLogger, slug stri
 	}
 }
 
-// gameCacheVersion is a fingerprint of the game state used as part of
-// the analysis cache key. Today it's just the half-turn count, which
-// invalidates the cache when a game grows. The string layout leaves
-// room to mix in g.UpdatedAt or a content hash later if edit-in-place
-// becomes possible.
+// gameCacheVersion is the cache-invalidation fingerprint. The "v1:" prefix
+// reserves room to add more inputs (UpdatedAt, content hash) later.
 func gameCacheVersion(g *gotak.Game) string {
 	count := 0
 	for _, t := range g.Turns {
@@ -162,7 +158,6 @@ func gameCacheVersion(g *gotak.Game) string {
 	return fmt.Sprintf("v1:moves=%d", count)
 }
 
-// analysisCacheKey is the composite key used to look up a stored result.
 type analysisCacheKey struct {
 	gameID      int64
 	level       string
@@ -171,9 +166,8 @@ type analysisCacheKey struct {
 	gameVersion string
 }
 
-// loadAnalysisCache returns a cached analysis result for the given key.
-// ok=false means cache miss. Real DB errors (other than "not found") are
-// logged so a flaky cache is at least observable.
+// loadAnalysisCache logs non-NotFound errors so a flaky cache is observable,
+// but always degrades to a miss so caching never blocks analysis.
 func loadAnalysisCache(db *gorm.DB, l *zap.SugaredLogger, k analysisCacheKey) (AnalyzeResponse, bool) {
 	var row AnalysisCache
 	err := db.Where("game_id = ? AND level = ? AND style = ? AND time_limit_ns = ? AND game_version = ?",
@@ -196,9 +190,8 @@ func loadAnalysisCache(db *gorm.DB, l *zap.SugaredLogger, k analysisCacheKey) (A
 	}, true
 }
 
-// saveAnalysisCache writes a result into the cache. Failures are logged
-// but not propagated — caching is best-effort. Uses ON CONFLICT DO
-// NOTHING so concurrent misses don't error on the unique index.
+// saveAnalysisCache is best-effort; concurrent misses can race so writes
+// use ON CONFLICT DO NOTHING.
 func saveAnalysisCache(db *gorm.DB, l *zap.SugaredLogger, k analysisCacheKey, agreed int, moves []MoveAnalysis) {
 	encoded, err := json.Marshal(moves)
 	if err != nil {

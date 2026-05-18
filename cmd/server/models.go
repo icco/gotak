@@ -81,14 +81,9 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// AnalysisCache stores the JSON-encoded result of a previous
-// postAnalyzeHandler call keyed by (game, engine config, game version)
-// so repeat requests against a stable game return immediately.
-// GameVersion is an opaque string fingerprint; today it encodes the
-// half-turn count, but the analyzer is free to add more (UpdatedAt, a
-// move-text hash) without a schema change.
-// `type:jsonb` is Postgres-native; SQLite (used in unit tests) silently
-// degrades it to TEXT, which is fine.
+// AnalysisCache stores a previously computed analysis result.
+// GameVersion is an opaque fingerprint so its encoding can change
+// (UpdatedAt, content hash) without a schema change.
 type AnalysisCache struct {
 	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	GameID      int64     `gorm:"not null;uniqueIndex:idx_analysis_lookup,priority:1" json:"game_id"`

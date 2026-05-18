@@ -74,8 +74,8 @@ func TestAnalysisCache_concurrentWritesNoError(t *testing.T) {
 	l := zap.NewNop().Sugar()
 	key := cacheKey(99, "advanced", "balanced", 2e9, "v1:moves=0")
 
-	// Second insert with the same key would violate the unique index;
-	// the OnConflict clause should turn it into a silent no-op.
+	// Two writes on the same key would violate the unique index without the
+	// ON CONFLICT clause.
 	saveAnalysisCache(db, l, key, 0, nil)
 	saveAnalysisCache(db, l, key, 0, nil)
 
