@@ -88,8 +88,8 @@ github.com/go-openapi/testify/enable/yaml/v2 v2.4.2 h1:5zRca5jw7lzVREKCZVNBpysDN
 github.com/go-openapi/testify/enable/yaml/v2 v2.4.2/go.mod h1:XVevPw5hUXuV+5AkI1u1PeAm27EQVrhXTTCPAF85LmE=
 github.com/go-openapi/testify/v2 v2.4.2 h1:tiByHpvE9uHrrKjOszax7ZvKB7QOgizBWGBLuq0ePx4=
 github.com/go-openapi/testify/v2 v2.4.2/go.mod h1:SgsVHtfooshd0tublTtJ50FPKhujf47YRqauXXOUxfw=
-github.com/go-pkgz/auth/v2 v2.1.3 h1:cYEiJwCgYlBiigXoYLIKbOz0slzaqBQmebWVtMai+l4=
-github.com/go-pkgz/auth/v2 v2.1.3/go.mod h1:IvxxhJIrwd1hKqFwQgBF9i+sMTmGfzAw66wmhw1zfJc=
+github.com/go-pkgz/auth/v2 v2.1.4 h1:bCF0vMscOrShF2gelcvKPgskpwQNGCk6AQcoXOf2kbE=
+github.com/go-pkgz/auth/v2 v2.1.4/go.mod h1:IvxxhJIrwd1hKqFwQgBF9i+sMTmGfzAw66wmhw1zfJc=
 github.com/go-pkgz/repeater/v2 v2.2.0 h1:8nZR/NaknmLfx2YMHbr78u9OL4Xj+8+romm9dz4FpMg=
 github.com/go-pkgz/repeater/v2 v2.2.0/go.mod h1:RgX5vUbLKq7PV82QUDP5pFbQS1os4Z+U9XzKymK23A8=
 github.com/go-pkgz/rest v1.21.0 h1:Y/C4d/TpclJJDxqnH1RAcS6Hmox0RIReAlkwMcUWXK4=
