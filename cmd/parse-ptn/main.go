@@ -1,3 +1,5 @@
+// Package main implements the parse-ptn command-line tool, which parses a PTN
+// (Portable Tak Notation) file and prints the resulting game state.
 package main
 
 import (

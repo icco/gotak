@@ -110,7 +110,7 @@ func parseTPSStack(cell string) ([]*Stone, error) {
 	}
 
 	stack := make([]*Stone, 0, len(body))
-	for i := 0; i < len(body); i++ {
+	for i := range len(body) {
 		var p int
 		switch body[i] {
 		case '1':

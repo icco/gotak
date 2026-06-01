@@ -257,7 +257,7 @@ func TestUpdateGameStatus(t *testing.T) {
 	}
 
 	// Test updating game status
-	err = updateGameStatus(db, slug, "finished", gotak.PlayerWhite)
+	err = updateGameStatus(db, slug, gotak.PlayerWhite)
 	if err != nil {
 		t.Fatalf("Failed to update game status: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestUpdateGameStatus(t *testing.T) {
 	}
 
 	// Test updating non-existent game
-	err = updateGameStatus(db, "nonexistent", "finished", 1)
+	err = updateGameStatus(db, "nonexistent", 1)
 	if err == nil {
 		t.Error("Expected error when updating status for non-existent game")
 	}
@@ -382,7 +382,7 @@ func TestGameWorkflow(t *testing.T) {
 	}
 
 	// 6. Update game status
-	err = updateGameStatus(db, slug, "finished", gotak.PlayerWhite)
+	err = updateGameStatus(db, slug, gotak.PlayerWhite)
 	if err != nil {
 		t.Fatalf("Failed to update game status: %v", err)
 	}

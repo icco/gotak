@@ -313,7 +313,7 @@ func TestCarryLimit(t *testing.T) {
 	}
 
 	// Create a stack of 6 stones (more than board size 5)
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		stone := &Stone{Player: PlayerWhite, Type: StoneFlat}
 		game.Board.Squares["c3"] = append(game.Board.Squares["c3"], stone)
 	}
@@ -409,7 +409,7 @@ func TestStackMovement(t *testing.T) {
 	}
 
 	// Create a stack of 3 stones
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		stone := &Stone{Player: PlayerWhite, Type: StoneFlat}
 		game.Board.Squares["c3"] = append(game.Board.Squares["c3"], stone)
 	}
@@ -449,7 +449,7 @@ func TestStackBreaking(t *testing.T) {
 	}
 
 	// Create a stack of 4 stones
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		stone := &Stone{Player: PlayerWhite, Type: StoneFlat}
 		game.Board.Squares["c3"] = append(game.Board.Squares["c3"], stone)
 	}
@@ -703,7 +703,7 @@ func TestOutOfStonesWin(t *testing.T) {
 
 	// Place exactly the maximum number of stones for white
 	maxStones := game.GetMaxStonesForBoardSize()
-	for i := int64(0); i < maxStones; i++ {
+	for i := range maxStones {
 		row := i / 4
 		col := i % 4
 		square := fmt.Sprintf("%c%d", 'a'+col, row+1)

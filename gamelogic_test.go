@@ -164,7 +164,7 @@ func TestCarryLimitEnforcement(t *testing.T) {
 
 	// Create a stack higher than carry limit
 	stones := []*Stone{}
-	for i := 0; i < 7; i++ { // More than board size (5)
+	for range 7 { // More than board size (5)
 		stones = append(stones, &Stone{Player: PlayerWhite, Type: StoneFlat})
 	}
 	game.Board.Squares["c3"] = stones

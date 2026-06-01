@@ -17,9 +17,9 @@ type scriptedMove struct {
 
 // playGame builds a game by applying the given (player, move) pairs in
 // order. It fails the test if any move is rejected.
-func playGame(t *testing.T, size int64, moves []scriptedMove) *gotak.Game {
+func playGame(t *testing.T, moves []scriptedMove) *gotak.Game {
 	t.Helper()
-	g, err := gotak.NewGame(size, 1, "test")
+	g, err := gotak.NewGame(5, 1, "test")
 	if err != nil {
 		t.Fatalf("NewGame: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestBuildReplaySteps_nilGame(t *testing.T) {
 func TestBuildReplaySteps_firstTurnInversion(t *testing.T) {
 	// On turn 1 each player places the opponent's stone: White's a1
 	// lands as a black stone, Black's e5 lands as a white stone.
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 	})
@@ -87,7 +87,7 @@ func TestBuildReplaySteps_firstTurnInversion(t *testing.T) {
 }
 
 func TestBuildReplaySteps_snapshotsAreIndependent(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -112,7 +112,7 @@ func TestBuildReplaySteps_snapshotsAreIndependent(t *testing.T) {
 }
 
 func TestBoardAtTurn(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -198,7 +198,7 @@ func TestBoardAtTurn_nilGame(t *testing.T) {
 }
 
 func TestSnapshotSquares_isDeepCopy(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 	})
 	snap := snapshotSquares(g.Board)
@@ -271,7 +271,7 @@ func TestApplyHalfTurn_missingMoveIsNoop(t *testing.T) {
 }
 
 func TestBuildReplaySteps_zipsTimestamps(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -296,7 +296,7 @@ func TestBuildReplaySteps_zipsTimestamps(t *testing.T) {
 }
 
 func TestBuildReplaySteps_shortTimestampSlice(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 	})
@@ -359,7 +359,7 @@ func TestLoadMoveTimestamps(t *testing.T) {
 }
 
 func TestReplayStep_zeroPlayedAtIsOmitted(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{{gotak.PlayerWhite, "a1"}})
+	g := playGame(t, []scriptedMove{{gotak.PlayerWhite, "a1"}})
 	steps, err := buildReplaySteps(g, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -689,7 +689,7 @@ func testAIServerSideHandlerWithDB(w http.ResponseWriter, r *http.Request, db *g
 	// Check if game is now over and update status
 	winner, gameOver := game.GameOver()
 	if gameOver {
-		err = updateGameStatus(db, game.Slug, "finished", winner)
+		err = updateGameStatus(db, game.Slug, winner)
 		if err != nil {
 			log.Errorw("could not update game status after AI move", zap.Error(err))
 		}
@@ -874,7 +874,7 @@ func testMoveHandlerWithTurnManagement(w http.ResponseWriter, r *http.Request, d
 	// Check if game is now over and update status
 	winner, gameOver := game.GameOver()
 	if gameOver {
-		err = updateGameStatus(db, game.Slug, "finished", winner)
+		err = updateGameStatus(db, game.Slug, winner)
 		if err != nil {
 			log.Errorw("could not update game status", zap.Error(err))
 		}
@@ -1024,7 +1024,7 @@ func newMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 	// Check if game is now over and update status
 	winner, gameOver := game.GameOver()
 	if gameOver {
-		err = updateGameStatus(db, game.Slug, "finished", winner)
+		err = updateGameStatus(db, game.Slug, winner)
 		if err != nil {
 			log.Errorw("could not update game status", zap.Error(err))
 		}
@@ -1259,7 +1259,7 @@ func postAIMoveHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB
 	// Check if game is now over and update status
 	winner, gameOver := game.GameOver()
 	if gameOver {
-		err = updateGameStatus(db, game.Slug, "finished", winner)
+		err = updateGameStatus(db, game.Slug, winner)
 		if err != nil {
 			log.Errorw("could not update game status", zap.Error(err))
 		}

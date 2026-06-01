@@ -34,7 +34,7 @@ func (s *stubEngine) ExplainMove(_ context.Context, _ *gotak.Game, _ ai.AIConfig
 }
 
 func TestGameBeforeMove_prefixesTurns(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -88,7 +88,7 @@ func TestGameBeforeMove_nilGame(t *testing.T) {
 }
 
 func TestAnalyzeGame_recordsAgreement(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 		{gotak.PlayerWhite, "b2"},
@@ -141,7 +141,7 @@ func TestAnalyzeGame_emptyGame(t *testing.T) {
 }
 
 func TestAnalyzeGame_canceledContext(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
 	})

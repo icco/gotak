@@ -1,3 +1,5 @@
+// Package main implements the gotak HTTP server, providing the REST API,
+// authentication, persistence, and AI endpoints for the Tak game.
 package main
 
 import (
@@ -630,7 +632,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	winner, gameOver = game.GameOver()
 	if gameOver {
-		err = updateGameStatus(db, game.Slug, "finished", winner)
+		err = updateGameStatus(db, game.Slug, winner)
 		if err != nil {
 			l.Errorw("could not update game status", zap.Error(err))
 		}

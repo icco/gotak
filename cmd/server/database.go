@@ -227,10 +227,10 @@ func replayMoves(game *gotak.Game) error {
 	return nil
 }
 
-// updateGameStatus updates the game status in the database
-func updateGameStatus(db *gorm.DB, slug, status string, winner int) error {
+// updateGameStatus marks the game as finished and records the winner.
+func updateGameStatus(db *gorm.DB, slug string, winner int) error {
 	result := db.Model(&Game{}).Where("slug = ?", slug).Updates(Game{
-		Status: status,
+		Status: "finished",
 		Winner: winner,
 	})
 	if result.Error != nil {

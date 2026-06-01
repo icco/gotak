@@ -1,7 +1,9 @@
+// Package main is the gotak CLI: a terminal client for the Tak game server.
 package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -135,7 +137,9 @@ func loadTokenCache() (*TokenCache, error) {
 
 // validateToken checks if the cached token is still valid by making a test API call
 func validateToken(token, serverURL string) error {
-	req, err := http.NewRequest("GET", serverURL+"/auth/profile", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/auth/profile", nil)
 	if err != nil {
 		return err
 	}
@@ -595,9 +599,8 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 			if m.authMode == authModeLogin {
 				return m, m.loginUser()
-			} else {
-				return m, m.registerUser()
 			}
+			return m, m.registerUser()
 		}
 		return m, nil
 	}
@@ -1035,7 +1038,7 @@ func (m model) viewGame() string {
 
 	title := titleStyle.Width(m.width).Render(fmt.Sprintf("🎯 Game: %s", m.gameData.Slug))
 
-	boardSize := 0
+	var boardSize int
 	if m.gameData.Board != nil {
 		boardSize = int(m.gameData.Board.Size)
 	} else {
@@ -1115,7 +1118,7 @@ func (m model) renderBoard(size int) string {
 
 	// Top border
 	b.WriteString("   ┌")
-	for i := 0; i < size; i++ {
+	for i := range size {
 		b.WriteString(strings.Repeat("─", cellWidth))
 		if i < size-1 {
 			b.WriteString("┬")
@@ -1125,7 +1128,7 @@ func (m model) renderBoard(size int) string {
 
 	for row := size; row >= 1; row-- {
 		fmt.Fprintf(&b, " %d │", row)
-		for col := 0; col < size; col++ {
+		for col := range size {
 			sq := fmt.Sprintf("%c%d", 'a'+col, row)
 			b.WriteString(renderCell(squares[sq], cellWidth))
 			b.WriteString("│")
@@ -1134,7 +1137,7 @@ func (m model) renderBoard(size int) string {
 
 		if row > 1 {
 			b.WriteString("   ├")
-			for i := 0; i < size; i++ {
+			for i := range size {
 				b.WriteString(strings.Repeat("─", cellWidth))
 				if i < size-1 {
 					b.WriteString("┼")
@@ -1146,7 +1149,7 @@ func (m model) renderBoard(size int) string {
 
 	// Bottom border
 	b.WriteString("   └")
-	for i := 0; i < size; i++ {
+	for i := range size {
 		b.WriteString(strings.Repeat("─", cellWidth))
 		if i < size-1 {
 			b.WriteString("┴")
@@ -1154,7 +1157,7 @@ func (m model) renderBoard(size int) string {
 	}
 	b.WriteString("┘\n   ")
 
-	for col := 0; col < size; col++ {
+	for col := range size {
 		fmt.Fprintf(&b, "  %c  ", 'a'+col)
 		if col < size-1 {
 			b.WriteString(" ")
@@ -1254,7 +1257,7 @@ func (m model) requestAIMove() tea.Cmd {
 
 		data, _ := json.Marshal(payload)
 
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/ai-move", bytes.NewBuffer(data))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, m.serverURL+"/game/"+m.gameSlug+"/ai-move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
@@ -1320,7 +1323,7 @@ func (m model) loginUser() tea.Cmd {
 		}
 
 		data, _ := json.Marshal(payload)
-		req, _ := http.NewRequest("POST", m.serverURL+"/auth/login", bytes.NewBuffer(data))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, m.serverURL+"/auth/login", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
@@ -1371,7 +1374,7 @@ func (m model) registerUser() tea.Cmd {
 		}
 
 		data, _ := json.Marshal(payload)
-		req, _ := http.NewRequest("POST", m.serverURL+"/auth/register", bytes.NewBuffer(data))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, m.serverURL+"/auth/register", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
@@ -1407,14 +1410,14 @@ func (m model) createGame() tea.Cmd {
 
 		data, _ := json.Marshal(payload)
 
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/new", bytes.NewBuffer(data))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, m.serverURL+"/game/new", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
 		// Don't follow redirects automatically
 		client := &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
 		}
@@ -1440,7 +1443,7 @@ func (m model) createGame() tea.Cmd {
 			gameSlug := parts[2]
 
 			// Now fetch the game data with a GET request
-			getReq, _ := http.NewRequest("GET", m.serverURL+"/game/"+gameSlug, nil)
+			getReq, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, m.serverURL+"/game/"+gameSlug, nil)
 			getReq.Header.Set("Authorization", "Bearer "+m.token)
 			getReq.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))
 
@@ -1487,7 +1490,7 @@ func (m model) submitMove() tea.Cmd {
 
 		data, _ := json.Marshal(payload)
 
-		req, _ := http.NewRequest("POST", m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, m.serverURL+"/game/"+m.gameSlug+"/move", bytes.NewBuffer(data))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+m.token)
 		req.Header.Set("User-Agent", fmt.Sprintf("gotak-cli %s", getVersion()))

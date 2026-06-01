@@ -85,7 +85,7 @@ func TestAnalysisCache_concurrentWritesNoError(t *testing.T) {
 }
 
 func TestGameCacheVersion_changesWithMoveCount(t *testing.T) {
-	g := playGame(t, 5, []scriptedMove{
+	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 	})
 	v1 := gameCacheVersion(g)

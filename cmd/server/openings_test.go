@@ -50,10 +50,10 @@ func TestComputeOpenings(t *testing.T) {
 	//   2: a1, e5, c3, d4
 	//   3: a1, a5, b2 (diverges immediately on move 2)
 	seed := []struct {
-		gameID  int64
-		turn    int64
-		player  int
-		text    string
+		gameID int64
+		turn   int64
+		player int
+		text   string
 	}{
 		{1, 1, gotak.PlayerWhite, "a1"},
 		{1, 1, gotak.PlayerBlack, "e5"},
