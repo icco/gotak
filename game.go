@@ -83,7 +83,7 @@ func (g *Game) GetCapstoneCount() int64 {
 
 // PrintCurrentState is an attempt to render a tak game as text.
 func (g *Game) PrintCurrentState() {
-	_ = g.Board.IterateOverSquares(func(l string, s []*Stone) error {
+	_ = g.Board.IterateOverSquares(func(_ string, s []*Stone) error {
 		fmt.Printf("%v", s)
 		return nil
 	})
@@ -161,7 +161,7 @@ func (g *Game) GameOver() (int, bool) {
 		// Check vertical roads (bottom to top)
 		bottomEdge := []string{}
 		topEdge := []string{}
-		for x := int64(0); x < g.Board.Size; x++ {
+		for x := range g.Board.Size {
 			bottomEdge = append(bottomEdge, letters[x]+"1")
 			topEdge = append(topEdge, letters[x]+strconv.FormatInt(g.Board.Size, 10))
 		}
@@ -187,7 +187,7 @@ func (g *Game) GameOver() (int, bool) {
 	whiteStoneCount := int64(0)
 	blackStoneCount := int64(0)
 
-	err := g.Board.IterateOverSquares(func(location string, stones []*Stone) error {
+	err := g.Board.IterateOverSquares(func(_ string, stones []*Stone) error {
 		if len(stones) > 0 {
 			occupiedSquares++
 			topStone := stones[len(stones)-1]
@@ -431,11 +431,7 @@ func ParsePTN(ptn []byte) (*Game, error) {
 	s := bufio.NewScanner(bytes.NewReader(ptn))
 	for s.Scan() {
 		l := s.Text()
-		ta, err := parseTag(l)
-		if err != nil {
-			return nil, err
-		}
-
+		ta := parseTag(l)
 		if ta != nil {
 			ret.Meta = append(ret.Meta, ta)
 			continue
@@ -530,21 +526,19 @@ func (g *Game) Branches() []string {
 	return out
 }
 
-func parseTag(line string) (*Tag, error) {
-	var tag *Tag
-
+func parseTag(line string) *Tag {
 	// Example: [Tag_Name "Tag Data"]
 	tagRegex := regexp.MustCompile(`\[([0-9A-Za-z_]+) "(.*)"\]`)
 	parts := tagRegex.FindStringSubmatch(line)
 
 	if len(parts) >= 3 {
-		tag = &Tag{
+		return &Tag{
 			Key:   parts[1],
 			Value: parts[2],
 		}
 	}
 
-	return tag, nil
+	return nil
 }
 
 func parseTurn(line string) (*Turn, error) {

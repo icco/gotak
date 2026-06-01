@@ -72,7 +72,7 @@ func newAuthService() *auth2.Service {
 	}
 
 	service := auth2.NewService(auth2.Opts{
-		SecretReader:  token.SecretFunc(func(aud string) (string, error) { return secret, nil }),
+		SecretReader:  token.SecretFunc(func(_ string) (string, error) { return secret, nil }),
 		TokenDuration: 24 * time.Hour, // 1 day
 		Issuer:        issuer,
 		URL:           "https://gotak.app", // change for local/dev

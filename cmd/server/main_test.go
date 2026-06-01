@@ -23,13 +23,13 @@ func TestHealthCheckHandler(t *testing.T) {
 
 	for route, handler := range twoHundreds {
 		t.Run(route, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, route, http.NoBody)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, route, http.NoBody)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			rr := httptest.NewRecorder()
-			http.HandlerFunc(handler).ServeHTTP(rr, req)
+			handler.ServeHTTP(rr, req)
 
 			if status := rr.Code; status != http.StatusOK {
 				t.Errorf("handler returned wrong status code: got %v want %v",

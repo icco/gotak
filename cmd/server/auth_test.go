@@ -1,10 +1,12 @@
 package main
 
 import (
-	"golang.org/x/crypto/bcrypt"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestUserModel(t *testing.T) {
@@ -145,7 +147,7 @@ func TestAuthMiddlewareWithoutUser(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -210,7 +212,7 @@ func TestGameParticipationVerification(t *testing.T) {
 
 func TestMustUserFromContext(t *testing.T) {
 	// Test getMustUserFromContext with nil user (should panic)
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 
 	defer func() {
 		if r := recover(); r == nil {

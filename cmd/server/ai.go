@@ -241,7 +241,7 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	winner, gameOver := game.GameOver()
 	if gameOver {
-		err = updateGameStatus(db, game.Slug, "finished", winner)
+		err = updateGameStatus(db, game.Slug, winner)
 		if err != nil {
 			l.Errorw("could not update game status after AI move", zap.Error(err))
 		}

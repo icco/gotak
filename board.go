@@ -1,3 +1,5 @@
+// Package gotak implements the Tak board game: board, stones, moves, games,
+// PTN parsing, and TPS serialization.
 package gotak
 
 import (
@@ -21,7 +23,7 @@ type SquareFunc func(string, []*Stone) error
 // function returns.
 func (b *Board) IterateOverSquares(f SquareFunc) error {
 	letters := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
-	for x := int64(0); x < b.Size; x++ {
+	for x := range b.Size {
 		for y := int64(1); y <= b.Size; y++ {
 			location := letters[x] + strconv.FormatInt(y, 10)
 			err := f(location, b.Squares[location])
@@ -41,7 +43,7 @@ func (b *Board) Init() error {
 	}
 
 	b.Squares = map[string][]*Stone{}
-	_ = b.IterateOverSquares(func(l string, s []*Stone) error {
+	_ = b.IterateOverSquares(func(l string, _ []*Stone) error {
 		b.Squares[l] = []*Stone{}
 		return nil
 	})
@@ -278,7 +280,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		squares := []string{}
 		currentSpace := mv.Square
 
-		for i := 0; i < len(mv.MoveDropCounts); i++ {
+		for range len(mv.MoveDropCounts) {
 			nextSpace := Translate(currentSpace, mv.MoveDirection)
 
 			// Validate next space is on board
@@ -295,7 +297,7 @@ func (b *Board) DoMove(mv *Move, player int) error {
 		for i, targetSquare := range squares {
 			dropCount := mv.MoveDropCounts[i]
 
-			for j := int64(0); j < dropCount; j++ {
+			for range dropCount {
 				if stoneIndex >= int64(len(stones)) {
 					return fmt.Errorf("not enough stones to drop")
 				}

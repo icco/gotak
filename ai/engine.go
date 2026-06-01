@@ -1,3 +1,4 @@
+// Package ai provides AI engines for playing the Tak board game.
 package ai
 
 import (
@@ -23,6 +24,7 @@ var (
 // DifficultyLevel represents AI strength.
 type DifficultyLevel int
 
+// Difficulty levels for the AI, from weakest to strongest.
 const (
 	Beginner DifficultyLevel = iota
 	Intermediate
@@ -33,6 +35,7 @@ const (
 // Style represents AI playing style.
 type Style string
 
+// Known AI playing styles.
 const (
 	Aggressive Style = "aggressive"
 	Defensive  Style = "defensive"
@@ -40,6 +43,8 @@ const (
 )
 
 // AIConfig holds configuration for an AI player.
+//
+//revive:disable-next-line:exported // AIConfig is referenced widely across packages; renaming would be a breaking change.
 type AIConfig struct {
 	Level       DifficultyLevel
 	Style       Style
@@ -56,6 +61,7 @@ type Engine interface {
 // TakticianEngine wraps the Taktician AI library
 type TakticianEngine struct{}
 
+// GetMove returns the engine's chosen move for the given game state, formatted as a PTN string.
 func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
 	// Ensure board size is within expected bounds (Tak standard: 3 - 9)
 	if g.Board.Size < 3 || g.Board.Size > 9 {
@@ -106,7 +112,8 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 	return ptnMove, nil
 }
 
-func (e *TakticianEngine) ExplainMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
+// ExplainMove returns a human-readable description of how the engine arrived at its move.
+func (e *TakticianEngine) ExplainMove(_ context.Context, _ *gotak.Game, cfg AIConfig) (string, error) {
 	return fmt.Sprintf("AI move generated using %v level with %v style", cfg.Level, cfg.Style), nil
 }
 
@@ -300,7 +307,7 @@ func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
 		} else {
 			// Default: drop all stones one by one
 			drops := make([]int, count)
-			for i := 0; i < count; i++ {
+			for i := range count {
 				drops[i] = 1
 			}
 			slides = tak.MkSlides(drops...)

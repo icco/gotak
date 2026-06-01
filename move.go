@@ -45,7 +45,7 @@ func IsValidMoveCharacter(char string) bool {
 	}
 
 	// Check for PTN-specific characters: direction markers, stone types
-	return strings.Contains("<>+-SsCcFf", char)
+	return strings.ContainsAny(char, "<>+-SsCcFf")
 }
 
 // Directions
