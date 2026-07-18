@@ -247,17 +247,17 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updatedGame, err := getGame(db, slug)
+	state, err := buildGameStateResponse(db, slug)
 	if err != nil {
-		l.Errorw("could not reload game after AI move", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"}); err != nil {
+		l.Errorw("could not build game state after AI move", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not build game state"}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
 	}
 
 	l.Infow("AI move executed", "slug", slug, "move", move, "hint", hint)
-	if err := Renderer.JSON(w, http.StatusOK, updatedGame); err != nil {
+	if err := Renderer.JSON(w, http.StatusOK, state); err != nil {
 		l.Errorw("failed to render game response", zap.Error(err))
 	}
 }

@@ -24,12 +24,12 @@ with PostgreSQL persistence.
 | `GET`  | `/`                   | HTML index generated from the Swagger spec.                                                                                |
 | `GET`  | `/healthz`            | Liveness probe.                                                                                                            |
 | `GET`  | `/swagger/*`          | Swagger UI for the OpenAPI spec.                                                                                           |
-| `GET`  | `/game/{slug}`        | Game state. Public.                                                                                                        |
-| `GET`  | `/game/{slug}/{turn}` | Game state at a specific turn. Public.                                                                                     |
-| `POST` | `/game/new`           | Create a game (auth required). Body: `{"size": "8"}`.                                                                      |
-| `POST` | `/game/{slug}/join`   | Join a waiting game as black (auth required).                                                                              |
-| `POST` | `/game/{slug}/move`   | Submit a move (auth required). Body: `{"player": 1, "move": "c3", "turn": 1}`.                                             |
-| `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required).                                                                                        |
+| `GET`  | `/game/{slug}`        | Enriched game state (board, turns, `current_player`, `status`, `mode`, player ids). Public. |
+| `GET`  | `/game/{slug}/{turn}` | Game state at a specific turn. Public.                                                     |
+| `POST` | `/game/new`           | Create a game (auth). Body: `{"size":"8","mode":"human\|ai"}`. `Accept: application/json` → **201** JSON; else **307** redirect. |
+| `POST` | `/game/{slug}/join`   | Join a waiting game as black (auth required).                                              |
+| `POST` | `/game/{slug}/move`   | Submit a move (auth required). Body: `{"player": 1, "move": "c3", "turn": 1}`.             |
+| `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required).                                                        |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
 | `GET`  | `/metrics`            | OTel HTTP semconv metrics (e.g. `http_server_request_duration_seconds`) in Prometheus exposition format.                   |
 

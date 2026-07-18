@@ -332,6 +332,7 @@ func writeStaticHomePage(l *zap.SugaredLogger, w http.ResponseWriter) {
 // CreateGameRequest represents the request body for creating a new game
 type CreateGameRequest struct {
 	Size string `json:"size" example:"8" description:"Board size (4-9)"`
+	Mode string `json:"mode" example:"human" description:"Opponent mode: human or ai"`
 }
 
 // @Summary Create a new game
@@ -340,6 +341,7 @@ type CreateGameRequest struct {
 // @Accept json
 // @Produce json
 // @Param game body CreateGameRequest false "Game configuration"
+// @Success 201 {object} GameStateResponse
 // @Success 307 {string} string "Redirect to game URL"
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
@@ -360,19 +362,44 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	userID := user.ID
 
 	boardSize := 8
+	mode := "human"
 
 	var data CreateGameRequest
-	if err := json.NewDecoder(r.Body).Decode(&data); err == nil && data.Size != "" {
-		i, err := strconv.Atoi(data.Size)
-		if err == nil && i > 0 {
-			boardSize = i
+	if err := json.NewDecoder(r.Body).Decode(&data); err == nil {
+		if data.Size != "" {
+			i, err := strconv.Atoi(data.Size)
+			if err == nil && i > 0 {
+				boardSize = i
+			}
+		}
+		if data.Mode != "" {
+			mode = data.Mode
 		}
 	}
 
-	slug, err := createGame(db, boardSize, userID)
+	slug, err := createGame(db, boardSize, userID, mode)
 	if err != nil {
 		l.Errorw("could not create game", zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, errInvalidGameMode) {
+			status = http.StatusBadRequest
+		}
+		if err := Renderer.JSON(w, status, map[string]string{"error": err.Error()}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if wantsJSON(r) {
+		state, err := buildGameStateResponse(db, slug)
+		if err != nil {
+			l.Errorw("could not build game state after create", "slug", slug, zap.Error(err))
+			if err := Renderer.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+		if err := Renderer.JSON(w, http.StatusCreated, state); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -450,7 +477,7 @@ type MoveRequest struct {
 // @Produce json
 // @Param slug path string true "Game slug identifier"
 // @Param move body MoveRequest true "Move details"
-// @Success 200 {object} gotak.Game
+// @Success 200 {object} GameStateResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /game/{slug}/move [post]
@@ -647,7 +674,16 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := Renderer.JSON(w, http.StatusOK, game); err != nil {
+	state, err := buildGameStateResponse(db, slug)
+	if err != nil {
+		l.Errorw("could not build game state", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not build game state"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if err := Renderer.JSON(w, http.StatusOK, state); err != nil {
 		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }
@@ -658,7 +694,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param slug path string true "Game slug identifier"
-// @Success 200 {object} gotak.Game
+// @Success 200 {object} GameStateResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /game/{slug} [get]
 func getGameHandler(w http.ResponseWriter, r *http.Request) {
@@ -674,7 +710,7 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
-	game, err := getGame(db, slug)
+	state, err := buildGameStateResponse(db, slug)
 	if err != nil {
 		l.Errorw("could not get game", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": err.Error()}); err != nil {
@@ -683,7 +719,7 @@ func getGameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := Renderer.JSON(w, http.StatusOK, game); err != nil {
+	if err := Renderer.JSON(w, http.StatusOK, state); err != nil {
 		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }

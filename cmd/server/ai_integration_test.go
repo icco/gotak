@@ -399,7 +399,7 @@ func testNewGameHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.D
 		}
 	}
 
-	slug, err := createGame(db, boardSize, userID)
+	slug, err := createGame(db, boardSize, userID, "human")
 	if err != nil {
 		l.Errorw("could not create game", zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not create game"}); err != nil {
