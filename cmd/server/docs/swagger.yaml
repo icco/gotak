@@ -12,24 +12,6 @@ definitions:
           type: array
         type: object
     type: object
-  gotak.Game:
-    properties:
-      board:
-        $ref: '#/definitions/gotak.Board'
-      id:
-        format: int64
-        type: integer
-      meta:
-        items:
-          $ref: '#/definitions/gotak.Tag'
-        type: array
-      slug:
-        type: string
-      turns:
-        items:
-          $ref: '#/definitions/gotak.Turn'
-        type: array
-    type: object
   gotak.Move:
     properties:
       moveCount:
@@ -121,6 +103,9 @@ definitions:
     type: object
   main.CreateGameRequest:
     properties:
+      mode:
+        example: human
+        type: string
       size:
         example: "8"
         type: string
@@ -130,6 +115,36 @@ definitions:
       error:
         example: Something went wrong
         type: string
+    type: object
+  main.GameStateResponse:
+    properties:
+      black_player_id:
+        type: integer
+      board:
+        $ref: '#/definitions/gotak.Board'
+      current_player:
+        type: integer
+      id:
+        format: int64
+        type: integer
+      meta:
+        items:
+          $ref: '#/definitions/gotak.Tag'
+        type: array
+      mode:
+        type: string
+      slug:
+        type: string
+      status:
+        type: string
+      turns:
+        items:
+          $ref: '#/definitions/gotak.Turn'
+        type: array
+      white_player_id:
+        type: integer
+      winner:
+        type: integer
     type: object
   main.HealthResponse:
     properties:
@@ -626,7 +641,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/gotak.Game'
+            $ref: '#/definitions/main.GameStateResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -720,7 +735,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/gotak.Game'
+            $ref: '#/definitions/main.GameStateResponse'
         "400":
           description: Bad Request
           schema:
@@ -848,6 +863,10 @@ paths:
       produces:
       - application/json
       responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/main.GameStateResponse'
         "307":
           description: Redirect to game URL
           schema:
@@ -876,6 +895,10 @@ paths:
       produces:
       - application/json
       responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/main.GameStateResponse'
         "307":
           description: Redirect to game URL
           schema:

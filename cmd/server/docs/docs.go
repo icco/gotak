@@ -491,6 +491,12 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/main.GameStateResponse"
+                        }
+                    },
                     "307": {
                         "description": "Redirect to game URL",
                         "schema": {
@@ -534,6 +540,12 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/main.GameStateResponse"
+                        }
+                    },
                     "307": {
                         "description": "Redirect to game URL",
                         "schema": {
@@ -581,7 +593,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/gotak.Game"
+                            "$ref": "#/definitions/main.GameStateResponse"
                         }
                     },
                     "500": {
@@ -678,7 +690,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/gotak.Game"
+                            "$ref": "#/definitions/main.GameStateResponse"
                         }
                     },
                     "400": {
@@ -926,33 +938,6 @@ const docTemplate = `{
                 }
             }
         },
-        "gotak.Game": {
-            "type": "object",
-            "properties": {
-                "board": {
-                    "$ref": "#/definitions/gotak.Board"
-                },
-                "id": {
-                    "type": "integer",
-                    "format": "int64"
-                },
-                "meta": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/gotak.Tag"
-                    }
-                },
-                "slug": {
-                    "type": "string"
-                },
-                "turns": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/gotak.Turn"
-                    }
-                }
-            }
-        },
         "gotak.Move": {
             "type": "object",
             "properties": {
@@ -1086,6 +1071,10 @@ const docTemplate = `{
         "main.CreateGameRequest": {
             "type": "object",
             "properties": {
+                "mode": {
+                    "type": "string",
+                    "example": "human"
+                },
                 "size": {
                     "type": "string",
                     "example": "8"
@@ -1098,6 +1087,51 @@ const docTemplate = `{
                 "error": {
                     "type": "string",
                     "example": "Something went wrong"
+                }
+            }
+        },
+        "main.GameStateResponse": {
+            "type": "object",
+            "properties": {
+                "black_player_id": {
+                    "type": "integer"
+                },
+                "board": {
+                    "$ref": "#/definitions/gotak.Board"
+                },
+                "current_player": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "meta": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/gotak.Tag"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "turns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/gotak.Turn"
+                    }
+                },
+                "white_player_id": {
+                    "type": "integer"
+                },
+                "winner": {
+                    "type": "integer"
                 }
             }
         },
