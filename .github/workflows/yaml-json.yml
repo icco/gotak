@@ -9,13 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v7
-      - uses: reviewdog/action-yamllint@v1.23.0
-        with:
-          github_token: ${{ secrets.github_token }}
-          reporter: github-pr-check
+      # reviewdog/action-yamllint's ghcr image currently returns unauthorized;
+      # run yamllint directly instead.
+      - name: Install yamllint
+        run: pip install --user yamllint
+      - name: Lint YAML
+        run: yamllint .
   format:
     runs-on: ubuntu-latest
     permissions:
