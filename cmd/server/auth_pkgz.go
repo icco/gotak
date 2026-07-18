@@ -120,7 +120,6 @@ func AuthRoutes() http.Handler {
 
 	// Add rate limiting specifically for registration and login
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.RealIP)
 		// Allow 10 requests per minute for auth operations
 		r.Use(middleware.ThrottleBacklog(10, 60, 50))
 

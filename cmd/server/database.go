@@ -42,7 +42,7 @@ func getDB() (*gorm.DB, error) {
 // the same second use distinct sequence numbers rather than colliding.
 var slugWorker = sanic.NewWorker7()
 
-func createGame(db *gorm.DB, size int, userID int64) (string, error) {
+func createGame(db *gorm.DB, size int, userID int64, mode string) (string, error) {
 	if size < 4 {
 		size = 6
 	}
@@ -51,20 +51,34 @@ func createGame(db *gorm.DB, size int, userID int64) (string, error) {
 		return "", fmt.Errorf("user authentication required")
 	}
 
+	normalizedMode, err := normalizeGameMode(mode)
+	if err != nil {
+		return "", err
+	}
+
 	id := slugWorker.NextID()
 	slug := slugWorker.IDString(id)
 
+	status := "waiting" // Waiting for second human player
+	if normalizedMode == "ai" {
+		status = "active" // AI games are ready to play immediately
+	}
+
 	game := Game{
 		Slug:          slug,
-		WhitePlayerID: &userID,   // Creator becomes white player
-		Status:        "waiting", // Waiting for second player
+		WhitePlayerID: &userID, // Creator becomes white player
+		Status:        status,
 	}
 
 	if err := db.Create(&game).Error; err != nil {
 		return "", err
 	}
 
-	return slug, updateTag(db, slug, "Size", strconv.Itoa(size))
+	if err := updateTag(db, slug, "Size", strconv.Itoa(size)); err != nil {
+		return "", err
+	}
+
+	return slug, updateTag(db, slug, "Mode", normalizedMode)
 }
 
 func updateTag(db *gorm.DB, slug, key, value string) error {
