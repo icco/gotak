@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -39,17 +40,18 @@ func TestNormalizeGameMode(t *testing.T) {
 }
 
 func TestWantsJSON(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/game/new", nil)
+	ctx := context.Background()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/game/new", nil)
 	if wantsJSON(req) {
 		t.Error("default request should not want JSON")
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/game/new?format=json", nil)
+	req = httptest.NewRequestWithContext(ctx, http.MethodPost, "/game/new?format=json", nil)
 	if !wantsJSON(req) {
 		t.Error("format=json should want JSON")
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/game/new", nil)
+	req = httptest.NewRequestWithContext(ctx, http.MethodPost, "/game/new", nil)
 	req.Header.Set("Accept", "application/json")
 	if !wantsJSON(req) {
 		t.Error("Accept: application/json should want JSON")

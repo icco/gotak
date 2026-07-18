@@ -665,15 +665,6 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	game, err = getGame(db, slug)
-	if err != nil {
-		l.Errorw("could not reload game", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not reload game"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
 	state, err := buildGameStateResponse(db, slug)
 	if err != nil {
 		l.Errorw("could not build game state", "slug", slug, zap.Error(err))
