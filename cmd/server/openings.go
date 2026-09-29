@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/icco/gutil/logging"
 	"go.icco.me/gotak"
+	"go.icco.me/gutil/logging"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
