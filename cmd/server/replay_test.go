@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icco/gotak"
+	"go.icco.me/gotak"
 )
 
 // scriptedMove is one entry in a hand-crafted game used by tests.

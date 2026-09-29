@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/icco/gotak"
 	"github.com/icco/gutil/logging"
+	"go.icco.me/gotak"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

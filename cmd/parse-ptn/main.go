@@ -8,7 +8,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/icco/gotak"
+	"go.icco.me/gotak"
 )
 
 var opts struct {

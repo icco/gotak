@@ -1,4 +1,4 @@
-module github.com/icco/gotak
+module go.icco.me/gotak
 
 go 1.26.2
 

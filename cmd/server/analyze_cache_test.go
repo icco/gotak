@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/icco/gotak"
+	"go.icco.me/gotak"
 	"go.uber.org/zap"
 )
 

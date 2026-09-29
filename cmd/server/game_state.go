@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/icco/gotak"
+	"go.icco.me/gotak"
 	"gorm.io/gorm"
 )
 

@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	"moul.io/zapgorm2"
 
-	"github.com/icco/gotak"
+	"go.icco.me/gotak"
 )
 
 func getDB() (*gorm.DB, error) {
