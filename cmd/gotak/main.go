@@ -18,7 +18,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/icco/gotak"
+	"go.icco.me/gotak"
 )
 
 // Version is overridden at build time by goreleaser via -ldflags.

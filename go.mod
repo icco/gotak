@@ -1,4 +1,4 @@
-module github.com/icco/gotak
+module go.icco.me/gotak
 
 go 1.26.2
 
@@ -10,7 +10,6 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/go-pkgz/auth/v2 v2.3.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/icco/gutil v1.0.23
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -20,6 +19,7 @@ require (
 	github.com/swaggo/swag v1.16.6
 	github.com/unrolled/render v1.8.1
 	github.com/unrolled/secure v1.17.0
+	go.icco.me/gutil v1.0.27-0.20260929105600-f3e11752b837
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.68.0
@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/compute/metadata v0.9.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -107,7 +107,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

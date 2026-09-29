@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icco/gotak"
-	"github.com/icco/gotak/ai"
+	"go.icco.me/gotak"
+	"go.icco.me/gotak/ai"
 )
 
 // scriptedMove and the playGame helper live in replay_test.go and are

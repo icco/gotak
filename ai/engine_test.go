@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/icco/gotak"
 	"github.com/nelhage/taktician/tak"
+	"go.icco.me/gotak"
 )
 
 func TestConvertMoveToString(t *testing.T) {

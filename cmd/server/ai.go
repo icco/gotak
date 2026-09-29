@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/icco/gotak"
-	"github.com/icco/gotak/ai"
-	"github.com/icco/gutil/logging"
+	"go.icco.me/gotak"
+	"go.icco.me/gotak/ai"
+	"go.icco.me/gutil/logging"
 	"go.uber.org/zap"
 )
 

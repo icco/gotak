@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/icco/gotak"
 	taktician "github.com/nelhage/taktician/ai"
 	"github.com/nelhage/taktician/ai/mcts"
 	"github.com/nelhage/taktician/tak"
+	"go.icco.me/gotak"
 )
 
 // Regular expressions for parsing PTN moves (copied from move.go)

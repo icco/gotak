@@ -1,6 +1,6 @@
 package gotak
 
-import "github.com/icco/gutil/logging"
+import "go.icco.me/gutil/logging"
 
 const (
 	// Service is the name of this service.

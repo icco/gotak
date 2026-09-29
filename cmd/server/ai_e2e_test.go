@@ -16,8 +16,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/icco/gotak"
-	"github.com/icco/gotak/ai"
+	"go.icco.me/gotak"
+	"go.icco.me/gotak/ai"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
