@@ -324,6 +324,7 @@ func mustParseTime(t *testing.T, s string) time.Time {
 
 func TestLoadMoveTimestamps(t *testing.T) {
 	db := setupTestDB(t)
+	createTestGames(t, db, 7)
 
 	// Insert in reverse turn order with distinct sentinel CreatedAt values
 	// so the returned sequence proves the (turn ASC, player ASC) ordering
