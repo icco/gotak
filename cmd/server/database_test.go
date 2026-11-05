@@ -89,10 +89,11 @@ func closeTestDB(t *testing.T, db *gorm.DB) {
 
 func createTestUser(t *testing.T, db *gorm.DB) *User {
 	user := &User{
-		Provider:   "local",
-		ProviderID: "test-user-123",
-		Email:      "test@example.com",
-		Name:       "Test User",
+		Provider:    "local",
+		ProviderID:  "test-user-123",
+		Email:       "test@example.com",
+		Name:        "Test User",
+		Preferences: emptyJSONObject,
 	}
 
 	if err := db.Create(user).Error; err != nil {

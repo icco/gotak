@@ -14,10 +14,11 @@ func TestUserModel(t *testing.T) {
 
 	// Test creating a user
 	user := User{
-		Provider:   "local",
-		ProviderID: "test-123",
-		Email:      "test@example.com",
-		Name:       "Test User",
+		Provider:    "local",
+		ProviderID:  "test-123",
+		Email:       "test@example.com",
+		Name:        "Test User",
+		Preferences: emptyJSONObject,
 	}
 
 	if err := db.Create(&user).Error; err != nil {
@@ -164,10 +165,11 @@ func TestGameParticipationVerification(t *testing.T) {
 	user1 := createTestUser(t, db)
 
 	user2 := &User{
-		Provider:   "local",
-		ProviderID: "test-user-456",
-		Email:      "user2@example.com",
-		Name:       "Test User 2",
+		Provider:    "local",
+		ProviderID:  "test-user-456",
+		Email:       "user2@example.com",
+		Name:        "Test User 2",
+		Preferences: emptyJSONObject,
 	}
 	if err := db.Create(user2).Error; err != nil {
 		t.Fatalf("Failed to create second test user: %v", err)
