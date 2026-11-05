@@ -1,19 +1,30 @@
 package main
 
 import (
+	"crypto/rand"
+	"net/url"
+	"os"
+	"strings"
 	"testing"
 
 	"go.icco.me/gotak"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	// Use in-memory SQLite for testing with silent logger to avoid test output pollution
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	t.Helper()
+	cfg := &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}
+
+	var db *gorm.DB
+	var err error
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		db = openPostgresTestDB(t, dbURL, cfg)
+	} else {
+		db, err = gorm.Open(sqlite.Open(":memory:"), cfg)
+	}
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
@@ -25,6 +36,55 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	}
 
 	return db
+}
+
+// openPostgresTestDB isolates each test in its own schema so tests can share one server.
+func openPostgresTestDB(t *testing.T, dbURL string, cfg *gorm.Config) *gorm.DB {
+	t.Helper()
+	admin, err := gorm.Open(postgres.Open(dbURL), cfg)
+	if err != nil {
+		t.Fatalf("Failed to connect to postgres: %v", err)
+	}
+
+	schema := "test_" + strings.ToLower(rand.Text())
+	if err := admin.Exec("CREATE SCHEMA " + schema).Error; err != nil {
+		t.Fatalf("Failed to create schema %s: %v", schema, err)
+	}
+
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatalf("Failed to parse DATABASE_URL: %v", err)
+	}
+	q := u.Query()
+	q.Set("search_path", schema)
+	u.RawQuery = q.Encode()
+
+	db, err := gorm.Open(postgres.Open(u.String()), cfg)
+	if err != nil {
+		t.Fatalf("Failed to connect to schema %s: %v", schema, err)
+	}
+
+	t.Cleanup(func() {
+		closeTestDB(t, db)
+		if err := admin.Exec("DROP SCHEMA " + schema + " CASCADE").Error; err != nil {
+			t.Errorf("Failed to drop schema %s: %v", schema, err)
+		}
+		closeTestDB(t, admin)
+	})
+
+	return db
+}
+
+func closeTestDB(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Errorf("Failed to get sql.DB: %v", err)
+		return
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Errorf("Failed to close database: %v", err)
+	}
 }
 
 func createTestUser(t *testing.T, db *gorm.DB) *User {
