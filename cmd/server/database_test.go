@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -635,5 +636,14 @@ func TestGetGameBoardState(t *testing.T) {
 	}
 	if retrievedGame.Board.Color("d4") != gotak.PlayerBlack {
 		t.Errorf("d4 should be black, got %d", retrievedGame.Board.Color("d4"))
+	}
+}
+
+func createTestGames(t *testing.T, db *gorm.DB, ids ...int64) {
+	t.Helper()
+	for _, id := range ids {
+		if err := db.Create(&Game{ID: id, Slug: "test-game-" + strconv.FormatInt(id, 10)}).Error; err != nil {
+			t.Fatalf("Failed to create test game %d: %v", id, err)
+		}
 	}
 }

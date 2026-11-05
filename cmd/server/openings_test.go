@@ -44,6 +44,7 @@ func TestParseOpeningPrefix(t *testing.T) {
 
 func TestComputeOpenings(t *testing.T) {
 	db := setupTestDB(t)
+	createTestGames(t, db, 1, 2, 3)
 
 	// Three games:
 	//   1: a1, e5, b2, d4
