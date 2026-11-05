@@ -10,7 +10,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # reviewdog/action-yamllint's ghcr image currently returns unauthorized;
       # run yamllint directly instead.
       - name: Install yamllint
@@ -22,12 +22,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
       - name: Install yq
-        uses: dcarbone/install-yq-action@v1.3.1
+        uses: dcarbone/install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # v1.3.1
       - name: Format YAML files with yq
         run: |
           # Format YAML in place. Skip generated swagger output (swag's
@@ -56,7 +56,7 @@ jobs:
           done
       - name: Commit formatting changes
         if: github.event_name == 'pull_request'
-        uses: stefanzweifel/git-auto-commit-action@v7
+        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
         with:
           commit_message: 'style: format YAML and JSON with yq'
           # The default GITHUB_TOKEN cannot edit files under .github/workflows.
