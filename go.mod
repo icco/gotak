@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
-	github.com/go-pkgz/auth/v2 v2.3.1
+	github.com/go-pkgz/auth/v2 v2.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
@@ -19,7 +19,7 @@ require (
 	github.com/swaggo/swag v1.16.6
 	github.com/unrolled/render v1.8.1
 	github.com/unrolled/secure v1.17.0
-	go.icco.me/gutil v1.0.37
+	go.icco.me/gutil v1.0.39
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.69.0
