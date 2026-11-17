@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ifo/sanic"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"moul.io/zapgorm2"
@@ -27,6 +28,10 @@ func getDB() (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dbURL), config)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := db.Use(gormtracing.NewPlugin(gormtracing.WithoutMetrics())); err != nil {
+		return nil, fmt.Errorf("failed to use tracing plugin: %w", err)
 	}
 
 	// Auto-migrate the schema
