@@ -27,6 +27,7 @@ import (
 	"go.icco.me/gotak"
 	"go.icco.me/gotak/cmd/server/docs"
 	"go.icco.me/gutil/logging"
+	"go.icco.me/gutil/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
@@ -74,6 +75,22 @@ var (
 const serverName = "gotak"
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	shutdownTracing, err := tracing.Init(ctx, gotak.Service)
+	if err != nil {
+		log.Panicw("failed to initialize tracing", zap.Error(err))
+		return
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			log.Warnw("failed to shutdown tracing", zap.Error(err))
+		}
+	}()
+
 	port := "8080"
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
 		port = fromEnv
@@ -118,9 +135,6 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20, // 1MB
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		log.Infow("http server starting", "addr", server.Addr)
