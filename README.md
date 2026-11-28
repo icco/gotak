@@ -32,6 +32,7 @@ with PostgreSQL persistence.
 | `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required). Body accepts optional `"engine": "taktician"\|"llm"`, level, style, time limit, and personality. |
 | `POST` | `/analyze/game/{slug}` | Score every move of a game: best move and line, White-relative scores, loss, quality, `critical_moments`. Body: `{"level":"advanced","time_limit":2000000000}` (per-position ns, max 10s). Games needing more than 20s of search return **202** with a `status_url` instead. |
 | `GET`  | `/analyze/game/{slug}/jobs/{id}` | Status of a background game analysis: `running`, `failed` with `error`, or `done` with the analysis in `result`. |
+| `GET`  | `/analyze/game/{slug}/report` | HTML analysis report with inline SVG evaluation graph, move quality, and critical moment boards (Print to PDF via browser print; no server-side renderer). Query: `level`, `style`, `time_limit`. |
 | `POST` | `/analyze/position`   | Score a TPS position: best move and line, score, forced win, one-flat road threats. Body: `{"tps":"x5/x5/x5/x5/x5 1 1"}`. |
 | `POST` | `/analyze/compare-moves` | Score up to 16 candidate moves from a TPS position, best first. Body: `{"tps":"...","moves":["e1","a3"]}`. |
 | `GET`  | `/analyze/openings`   | Continuation counts across stored games for a move prefix. Query: `prefix=a1,e5`.                                         |
