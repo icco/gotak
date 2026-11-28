@@ -224,6 +224,7 @@ func buildRouter(opts routerOptions) http.Handler {
 		r.Get("/game/{slug}/position/{turn}", getPositionHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
 		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
+		r.Get("/analyze/game/{slug}/jobs/{id}", getAnalyzeJobHandler)
 		r.Get("/analyze/openings", getOpeningsHandler)
 		r.Post("/analyze/position", postAnalyzePositionHandler)
 		r.Post("/analyze/compare-moves", postCompareMovesHandler)

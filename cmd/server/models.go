@@ -98,5 +98,5 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &AnalysisJob{})
 }
