@@ -658,11 +658,8 @@ func (a *Analyzer) rankTreeCandidates(ctx context.Context, pos *tak.Position, cu
 			}
 		} else {
 			eval := a.mm.Evaluate(childPos)
-			if mover == gotak.PlayerWhite {
-				c.cheapScore = eval
-			} else {
-				c.cheapScore = -eval
-			}
+			// MinimaxAI.Evaluate scores from childPos.ToMove()'s view, which is the mover's opponent.
+			c.cheapScore = -eval
 		}
 		cheapCands = append(cheapCands, c)
 	}

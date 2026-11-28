@@ -205,8 +205,8 @@ func postAnalyzeTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg, levelName := analyzeConfigFromRequest(AnalyzeRequest{Level: req.Level, Style: req.Style, TimeLimit: req.TimeLimit})
-	maxNodes := maxTreeNodesFor(req.Breadth, req.Depth)
-	budget := time.Duration(maxNodes) * cfg.TimeLimit
+	maxSearches := maxTreeSearchesFor(req.Breadth, req.Depth)
+	budget := time.Duration(maxSearches) * cfg.TimeLimit
 	extendWriteDeadline(w, l, budget+analyzeDeadlineSlack)
 	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
 	defer cancel()
@@ -229,20 +229,19 @@ func postAnalyzeTreeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func maxTreeNodesFor(breadth, depth int) int {
-	if breadth <= 1 {
-		return min(1+depth, ai.MaxTreeNodes)
-	}
-	total := 1
-	layer := 1
+func maxTreeSearchesFor(breadth, depth int) int {
+	totalSearches := 1
+	internalLayer := 1
+	totalNodes := 1
 	for range depth {
-		layer *= breadth
-		total += layer
-		if total >= ai.MaxTreeNodes {
-			return ai.MaxTreeNodes
+		totalSearches += internalLayer * (breadth + 1)
+		internalLayer *= breadth
+		totalNodes += internalLayer
+		if totalNodes >= ai.MaxTreeNodes {
+			break
 		}
 	}
-	return min(total, ai.MaxTreeNodes)
+	return totalSearches
 }
 
 func decodePositionBody(w http.ResponseWriter, r *http.Request, dst any) error {

@@ -196,26 +196,26 @@ func TestPostAnalyzeTree_badRequests(t *testing.T) {
 	}
 }
 
-func TestMaxTreeNodesFor(t *testing.T) {
+func TestMaxTreeSearchesFor(t *testing.T) {
 	cases := []struct {
 		breadth int
 		depth   int
 		want    int
 	}{
-		{1, 1, 2},
-		{1, 3, 4},
-		{2, 1, 3},
-		{2, 2, 7},
-		{2, 3, 15},
-		{3, 2, 13},
-		{3, 3, 40},
-		{4, 2, 21},
-		{4, 3, ai.MaxTreeNodes},
+		{1, 1, 3},
+		{1, 3, 7},
+		{2, 1, 4},
+		{2, 2, 10},
+		{2, 3, 22},
+		{3, 2, 17},
+		{3, 3, 53},
+		{4, 2, 26},
+		{4, 3, 106},
 	}
 	for _, c := range cases {
-		got := maxTreeNodesFor(c.breadth, c.depth)
+		got := maxTreeSearchesFor(c.breadth, c.depth)
 		if got != c.want {
-			t.Errorf("maxTreeNodesFor(%d, %d) = %d, want %d", c.breadth, c.depth, got, c.want)
+			t.Errorf("maxTreeSearchesFor(%d, %d) = %d, want %d", c.breadth, c.depth, got, c.want)
 		}
 	}
 }
