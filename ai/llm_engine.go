@@ -119,6 +119,7 @@ func (e *LLMEngine) MoveWithReason(ctx context.Context, g *gotak.Game, cfg AICon
 		return "", "", fmt.Errorf("no legal moves available")
 	}
 
+	boardSize := pos.Size()
 	systemPrompt := buildSystemPrompt(cfg.Personality)
 	userPrompt := buildUserPrompt(g, pos, legalMoves)
 
@@ -146,7 +147,7 @@ func (e *LLMEngine) MoveWithReason(ctx context.Context, g *gotak.Game, cfg AICon
 	cancel()
 
 	if err == nil {
-		if chosenMove, ok := matchLegalMove(resp.Move, int(g.Board.Size), legalMap); ok {
+		if chosenMove, ok := matchLegalMove(resp.Move, boardSize, legalMap); ok {
 			return ptn.FormatMove(chosenMove), resp.Reason, nil
 		}
 	}
@@ -173,7 +174,7 @@ func (e *LLMEngine) MoveWithReason(ctx context.Context, g *gotak.Game, cfg AICon
 	retryCancel()
 
 	if retryErr == nil {
-		if chosenMove, ok := matchLegalMove(retryResp.Move, int(g.Board.Size), legalMap); ok {
+		if chosenMove, ok := matchLegalMove(retryResp.Move, boardSize, legalMap); ok {
 			return ptn.FormatMove(chosenMove), retryResp.Reason, nil
 		}
 	}

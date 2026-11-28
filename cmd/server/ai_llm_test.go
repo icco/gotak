@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.icco.me/gotak"
-	"gorm.io/gorm"
 )
 
 func TestPostAIMoveHandlerUnconfiguredLLM(t *testing.T) {
@@ -21,12 +20,14 @@ func TestPostAIMoveHandlerUnconfiguredLLM(t *testing.T) {
 	})
 
 	testDB := setupTestDB(t)
-	origGetDB := getDBHook
-	getDBHook = func() (*gorm.DB, error) {
-		return testDB, nil
-	}
+	dbMu.Lock()
+	savedDB := dbConn
+	dbConn = testDB
+	dbMu.Unlock()
 	t.Cleanup(func() {
-		getDBHook = origGetDB
+		dbMu.Lock()
+		dbConn = savedDB
+		dbMu.Unlock()
 	})
 
 	user := createTestUser(t, testDB)
