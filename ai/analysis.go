@@ -82,6 +82,7 @@ type Comparison struct {
 type Analyzer struct {
 	size      int
 	timeLimit time.Duration
+	mmCfg     taktician.MinimaxConfig
 	mm        *taktician.MinimaxAI
 }
 
@@ -96,14 +97,16 @@ func NewAnalyzer(size int, cfg AIConfig) (*Analyzer, error) {
 	if timeLimit <= 0 {
 		timeLimit = DefaultAnalysisTimeLimit
 	}
+	mmCfg := taktician.MinimaxConfig{
+		Size:     size,
+		Depth:    analysisDepth(cfg.Level),
+		TableMem: analysisTableMem,
+	}
 	return &Analyzer{
 		size:      size,
 		timeLimit: timeLimit,
-		mm: taktician.NewMinimax(taktician.MinimaxConfig{
-			Size:     size,
-			Depth:    analysisDepth(cfg.Level),
-			TableMem: analysisTableMem,
-		}),
+		mmCfg:     mmCfg,
+		mm:        taktician.NewMinimax(mmCfg),
 	}, nil
 }
 
@@ -375,6 +378,12 @@ func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnaly
 	}
 	sctx, cancel := context.WithTimeout(ctx, a.timeLimit)
 	pv, v, st := a.mm.Analyze(sctx, p)
+	if len(pv) > 0 && st.Visited == 0 && st.Evaluated == 0 {
+		// An exact table hit at full depth skips the search and returns
+		// the cached move with a zero value, so search again from scratch.
+		a.mm = taktician.NewMinimax(a.mmCfg)
+		pv, v, st = a.mm.Analyze(sctx, p)
+	}
 	cancel()
 	if len(pv) == 0 {
 		if err := ctx.Err(); err != nil {

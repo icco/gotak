@@ -208,6 +208,30 @@ func TestAnalyzeTPS_roadThreats(t *testing.T) {
 	}
 }
 
+func TestAnalyzer_repeatedPositionKeepsScore(t *testing.T) {
+	for _, level := range []DifficultyLevel{Beginner, Intermediate} {
+		a, err := NewAnalyzer(5, AIConfig{Level: level, TimeLimit: time.Second})
+		if err != nil {
+			t.Fatalf("NewAnalyzer: %v", err)
+		}
+		tps := "x5/x5/x2,1,x2/x5/2,x4 2 2"
+		first, err := a.EvaluateTPS(context.Background(), tps)
+		if err != nil {
+			t.Fatalf("first: %v", err)
+		}
+		second, err := a.EvaluateTPS(context.Background(), tps)
+		if err != nil {
+			t.Fatalf("second: %v", err)
+		}
+		if first.Score == 0 {
+			t.Fatalf("level %d: want a nonzero score to compare, got 0", level)
+		}
+		if second.Score != first.Score {
+			t.Errorf("level %d: repeated position scored %d then %d", level, first.Score, second.Score)
+		}
+	}
+}
+
 func TestAnalyzer_canceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
