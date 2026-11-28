@@ -384,6 +384,10 @@ func TestSanitizeComment(t *testing.T) {
 		{"{comment in braces}", "comment in braces"},
 		{"<script>alert(1)</script>safe", "safe"},
 		{"  padded  ", "padded"},
+		{"A & B", "A & B"},
+		{"Alice's move", "Alice's move"},
+		{"line one\nline two", "line one line two"},
+		{"  multiple \t whitespace \n lines ", "multiple whitespace lines"},
 		{strings.Repeat("a", 600), strings.Repeat("a", 500)},
 	}
 

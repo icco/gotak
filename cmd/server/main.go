@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"net/http"
 	"os"
@@ -694,13 +695,15 @@ type AnnotateRequest struct {
 	Comment string `json:"comment" example:"blunder" description:"Annotation comment"`
 }
 
-// sanitizeComment cleans an annotation comment using ugcPolicy, removes
-// braces to keep PTN valid, and truncates to 500 characters.
+// sanitizeComment cleans an annotation comment using ugcPolicy, unescapes
+// HTML entities produced by bluemonday, normalizes internal whitespace,
+// removes braces to keep PTN valid, and truncates to 500 characters.
 func sanitizeComment(raw string) string {
 	cleaned := ugcPolicy.Sanitize(raw)
+	cleaned = html.UnescapeString(cleaned)
 	cleaned = strings.ReplaceAll(cleaned, "{", "")
 	cleaned = strings.ReplaceAll(cleaned, "}", "")
-	cleaned = strings.TrimSpace(cleaned)
+	cleaned = strings.Join(strings.Fields(cleaned), " ")
 	runes := []rune(cleaned)
 	if len(runes) > 500 {
 		runes = runes[:500]

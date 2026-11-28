@@ -145,6 +145,8 @@ func TestParsePTN_moveCommentsRoundTrip(t *testing.T) {
 2. b2 { solid } d4
 3. c3 e4 { mistake }
 4. d3 { win threat } R-0 { resignation }
+5. { turn note without final move comment } e1 c2
+6. { turn note on incomplete turn } b3
 `)
 
 	g, err := ParsePTN(src)
@@ -152,8 +154,8 @@ func TestParsePTN_moveCommentsRoundTrip(t *testing.T) {
 		t.Fatalf("ParsePTN: %v", err)
 	}
 
-	if len(g.Turns) != 4 {
-		t.Fatalf("got %d turns, want 4", len(g.Turns))
+	if len(g.Turns) != 6 {
+		t.Fatalf("got %d turns, want 6", len(g.Turns))
 	}
 
 	// Turn 1: both moves have comments
@@ -193,6 +195,30 @@ func TestParsePTN_moveCommentsRoundTrip(t *testing.T) {
 	}
 	if t4.Comment != "resignation" {
 		t.Errorf("turn 4 comment = %q, want 'resignation'", t4.Comment)
+	}
+
+	// Turn 5: turn comment with no annotations on moves
+	t5 := g.Turns[4]
+	if t5.First == nil || t5.First.Comment != "" {
+		t.Errorf("turn 5 first comment = %q, want empty", t5.First.Comment)
+	}
+	if t5.Second == nil || t5.Second.Comment != "" {
+		t.Errorf("turn 5 second comment = %q, want empty", t5.Second.Comment)
+	}
+	if t5.Comment != "turn note without final move comment" {
+		t.Errorf("turn 5 comment = %q, want 'turn note without final move comment'", t5.Comment)
+	}
+
+	// Turn 6: turn comment on incomplete turn with no move annotation
+	t6 := g.Turns[5]
+	if t6.First == nil || t6.First.Comment != "" {
+		t.Errorf("turn 6 first comment = %q, want empty", t6.First.Comment)
+	}
+	if t6.Second != nil {
+		t.Errorf("turn 6 second should be nil")
+	}
+	if t6.Comment != "turn note on incomplete turn" {
+		t.Errorf("turn 6 comment = %q, want 'turn note on incomplete turn'", t6.Comment)
 	}
 
 	out := g.PTN()

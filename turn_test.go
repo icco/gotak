@@ -36,12 +36,12 @@ func TestTurnText_moveComments(t *testing.T) {
 	}
 
 	turn.Comment = "turn note"
-	if got, want := turn.Text(), "1. a1 { opening flat } e5 { counter } { turn note }"; got != want {
+	if got, want := turn.Text(), "1. { turn note } a1 { opening flat } e5 { counter }"; got != want {
 		t.Errorf("Text() = %q, want %q", got, want)
 	}
 
 	turn.Second = nil
-	if got, want := turn.Text(), "1. a1 { opening flat } { turn note }"; got != want {
+	if got, want := turn.Text(), "1. { turn note } a1 { opening flat }"; got != want {
 		t.Errorf("Text() = %q, want %q", got, want)
 	}
 }

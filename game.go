@@ -120,9 +120,6 @@ func (g *Game) PTN() string {
 		if line == "" {
 			continue
 		}
-		if t.Result != "" {
-			line = fmt.Sprintf("%s %s", line, t.Result)
-		}
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
