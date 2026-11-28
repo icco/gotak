@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,9 @@ func TestPostAnalyzePosition(t *testing.T) {
 	}
 	if len(got.Threats.White) != 1 || got.Threats.White[0] != "e1" {
 		t.Errorf("white threats = %v, want [e1]", got.Threats.White)
+	}
+	if !slices.Contains(got.Patterns, ai.PatternTak) || !slices.Contains(got.Patterns, ai.PatternWinningLine) {
+		t.Errorf("patterns = %v, want tak and winning_line", got.Patterns)
 	}
 }
 

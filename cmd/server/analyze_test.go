@@ -30,7 +30,7 @@ func (s *stubEvaluator) Evaluate(_ context.Context, _ *gotak.Game) (*ai.Position
 }
 
 func eval(best string, score int64) *ai.PositionAnalysis {
-	return &ai.PositionAnalysis{Best: best, PV: []string{best}, Score: score, TPS: "x5/x5/x5/x5/x5 1 1"}
+	return &ai.PositionAnalysis{Best: best, PV: []string{best}, Score: score, TPS: "x5/x5/x5/x5/x5 1 1", Patterns: []string{}}
 }
 
 func TestGameBeforeMove_prefixesTurns(t *testing.T) {
@@ -212,6 +212,33 @@ func TestAnalyzeGame_realEngine(t *testing.T) {
 		if m.Error != "" || m.Best == "" || m.TPS == "" || m.Quality == "" {
 			t.Errorf("move %d incomplete: %+v", i, m)
 		}
+		if m.Patterns == nil {
+			t.Errorf("move %d has nil patterns", i)
+		}
+	}
+}
+
+func TestAnalyzeGame_patternsCopiedThrough(t *testing.T) {
+	g := playGame(t, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+	})
+
+	ev := &stubEvaluator{results: []*ai.PositionAnalysis{
+		{Best: "b2", PV: []string{"b2"}, Score: 0, TPS: "x5/x5/x5/x5/x5 1 1", Patterns: []string{ai.PatternFlatRace}},
+		{Best: "e5", PV: []string{"e5"}, Score: 50, TPS: "x5/x5/x5/x5/1,x4 2 1", Patterns: []string{ai.PatternTak, ai.PatternDoubleTak}},
+		{Best: "c3", PV: []string{"c3"}, Score: 100, TPS: "x4,2/x5/x5/x5/1,x4 1 2", Patterns: []string{}},
+	}}
+
+	moves := analyzeGame(context.Background(), ev, g)
+	if len(moves) != 2 {
+		t.Fatalf("got %d moves, want 2", len(moves))
+	}
+	if len(moves[0].Patterns) != 1 || moves[0].Patterns[0] != ai.PatternFlatRace {
+		t.Errorf("move 0 patterns = %v, want [%s]", moves[0].Patterns, ai.PatternFlatRace)
+	}
+	if len(moves[1].Patterns) != 2 || moves[1].Patterns[0] != ai.PatternTak || moves[1].Patterns[1] != ai.PatternDoubleTak {
+		t.Errorf("move 1 patterns = %v, want [%s, %s]", moves[1].Patterns, ai.PatternTak, ai.PatternDoubleTak)
 	}
 }
 

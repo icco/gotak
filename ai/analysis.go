@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/bits"
 	"sort"
 	"strings"
 	"time"
@@ -32,6 +33,26 @@ const analysisTableMem = 16 << 20
 // ErrNoMove is returned when the search ends before finishing even one ply.
 var ErrNoMove = errors.New("engine found no move within the time limit")
 
+// PatternTak indicates that at least one player has a one-flat road threat.
+const PatternTak = "tak"
+
+// PatternDoubleTak indicates that a player has two or more distinct
+// road threats that a single placement cannot both block.
+const PatternDoubleTak = "double_tak"
+
+// PatternTinue indicates that the player to move has an engine-verified
+// forced win (forced_win is set for the side to move).
+const PatternTinue = "tinue"
+
+// PatternWinningLine indicates that the player to move has an
+// engine-verified forced win on their turn.
+const PatternWinningLine = "winning_line"
+
+// PatternFlatRace indicates that the game is approaching a flat count
+// resolution: either player has 3 or fewer pieces remaining in reserve
+// (stones plus capstones), or the board has board-size or fewer empty squares.
+const PatternFlatRace = "flat_race"
+
 // PositionAnalysis is the engine's verdict on one position. Score is from
 // White's point of view: positive favours White, negative favours Black,
 // and roughly 400 is worth one flat on top.
@@ -46,6 +67,7 @@ type PositionAnalysis struct {
 	Winner    int         `json:"winner,omitempty"`
 	Depth     int         `json:"depth"`
 	Threats   RoadThreats `json:"threats"`
+	Patterns  []string    `json:"patterns"`
 }
 
 // RoadThreats lists, per color, the empty squares where a flat placed now
@@ -356,9 +378,10 @@ func (a *Analyzer) play(p *tak.Position, text string) (*tak.Position, error) {
 
 func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnalysis, error) {
 	res := &PositionAnalysis{
-		TPS:     ptn.FormatTPS(p),
-		ToMove:  colorToPlayer(p.ToMove()),
-		Threats: roadThreats(p),
+		TPS:      ptn.FormatTPS(p),
+		ToMove:   colorToPlayer(p.ToMove()),
+		Threats:  roadThreats(p),
+		Patterns: []string{},
 	}
 
 	if over, winner := p.GameOver(); over {
@@ -409,7 +432,33 @@ func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnaly
 	default:
 		res.Score = max(-ForcedWinScore+1, min(ForcedWinScore-1, v))
 	}
+	res.Patterns = detectPatterns(p, res)
 	return res, nil
+}
+
+func detectPatterns(p *tak.Position, res *PositionAnalysis) []string {
+	patterns := []string{}
+	if res.GameOver {
+		return patterns
+	}
+	if len(res.Threats.White) > 0 || len(res.Threats.Black) > 0 {
+		patterns = append(patterns, PatternTak)
+	}
+	if len(res.Threats.White) >= 2 || len(res.Threats.Black) >= 2 {
+		patterns = append(patterns, PatternDoubleTak)
+	}
+	if res.ForcedWin != 0 && res.ForcedWin == res.ToMove {
+		patterns = append(patterns, PatternTinue, PatternWinningLine)
+	}
+	whiteCaps := p.Config().Capstones - bits.OnesCount64(p.White&p.Caps)
+	blackCaps := p.Config().Capstones - bits.OnesCount64(p.Black&p.Caps)
+	whiteReserve := p.WhiteStones() + max(0, whiteCaps)
+	blackReserve := p.BlackStones() + max(0, blackCaps)
+	emptySquares := (p.Size() * p.Size()) - bits.OnesCount64(p.White|p.Black)
+	if whiteReserve <= 3 || blackReserve <= 3 || emptySquares <= p.Size() {
+		patterns = append(patterns, PatternFlatRace)
+	}
+	return patterns
 }
 
 func roadThreats(p *tak.Position) RoadThreats {

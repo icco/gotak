@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -203,6 +204,79 @@ func TestAnalyzeTPS_roadThreats(t *testing.T) {
 			}
 			if strings.Join(res.Threats.Black, ",") != strings.Join(tc.wantBlacks, ",") {
 				t.Errorf("black threats = %v, want %v", res.Threats.Black, tc.wantBlacks)
+			}
+		})
+	}
+}
+
+func TestAnalyzeTPS_endgamePatterns(t *testing.T) {
+	cases := []struct {
+		name         string
+		tps          string
+		wantPatterns []string
+		omitPatterns []string
+	}{
+		{
+			name:         "tak present and double tak absent",
+			tps:          "x5/x5/x5/2,2,2,2,x/1,1,1,1,x 1 5",
+			wantPatterns: []string{PatternTak, PatternTinue, PatternWinningLine},
+			omitPatterns: []string{PatternDoubleTak, PatternFlatRace},
+		},
+		{
+			name:         "double tak with opponent to move has no tinue for mover",
+			tps:          "x4/1,1,1,x/1,1,1,x/x4 2 5",
+			wantPatterns: []string{PatternTak, PatternDoubleTak},
+			omitPatterns: []string{PatternTinue, PatternWinningLine, PatternFlatRace},
+		},
+		{
+			name:         "winning line and tinue present for winning mover",
+			tps:          "x4/1,1,1,x/1,1,1,x/x4 1 5",
+			wantPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+			omitPatterns: []string{PatternFlatRace},
+		},
+		{
+			name:         "flat race present via low empty squares",
+			tps:          "1,2,1,2/2,1,2,1/1,2,1,2/2,x3 1 10",
+			wantPatterns: []string{PatternFlatRace},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+		},
+		{
+			name:         "flat race present via low reserves",
+			tps:          "x4/121,21,12,x/21,12,21,12/12,21,12,21 1 15",
+			wantPatterns: []string{PatternFlatRace},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+		},
+		{
+			name:         "quiet opening position has no patterns",
+			tps:          "x5/x5/x5/x5/x5 1 1",
+			wantPatterns: []string{},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine, PatternFlatRace},
+		},
+		{
+			name:         "completed game has no patterns",
+			tps:          "x5/x5/x5/2,2,x3/1,1,1,1,1 2 5",
+			wantPatterns: []string{},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine, PatternFlatRace},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := AnalyzeTPS(context.Background(), tc.tps, fastCfg)
+			if err != nil {
+				t.Fatalf("AnalyzeTPS: %v", err)
+			}
+			if res.Patterns == nil {
+				t.Fatalf("patterns should not be nil")
+			}
+			for _, p := range tc.wantPatterns {
+				if !slices.Contains(res.Patterns, p) {
+					t.Errorf("patterns %v missing expected %q", res.Patterns, p)
+				}
+			}
+			for _, p := range tc.omitPatterns {
+				if slices.Contains(res.Patterns, p) {
+					t.Errorf("patterns %v should not contain %q", res.Patterns, p)
+				}
 			}
 		})
 	}
