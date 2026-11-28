@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -60,12 +59,16 @@ func TestAnalyzeReport_RendersWithSeededCache(t *testing.T) {
 		{Turn: 2, Player: gotak.PlayerWhite, Played: "c3", Best: "c3", Score: 5, ScoreAfter: 40, Agreed: true, Quality: QualityGood},
 		{Turn: 2, Player: gotak.PlayerBlack, Played: "d4", Best: "c4", Score: 40, ScoreAfter: 850, Agreed: false, Loss: 810, Quality: QualityBlunder},
 	}
+	game, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("getGame: %v", err)
+	}
 	cacheKey := analysisCacheKey{
 		gameID:      gameID,
 		level:       "advanced",
 		style:       "balanced",
 		timeLimitNs: int64(defaultAnalyzeTimeLimit),
-		gameVersion: fmt.Sprintf("v2:moves=%d", len(moves)),
+		gameVersion: gameCacheVersion(game),
 	}
 	saveAnalysisCache(db, zap.NewNop().Sugar(), cacheKey, 3, analysisMoves)
 	if top := criticalMoments(analysisMoves); len(top) != 1 {
@@ -138,12 +141,16 @@ func TestAnalyzeReport_HTMLEscapesHostileInput(t *testing.T) {
 		{Turn: 1, Player: gotak.PlayerWhite, Played: hostileMove, Best: hostileBest, Score: 0, ScoreAfter: 50, Agreed: false, Quality: QualityMistake},
 		{Turn: 1, Player: gotak.PlayerBlack, Played: "e5", Best: "e5", Score: 50, ScoreAfter: 20, Agreed: true, Quality: QualityGood},
 	}
+	game, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("getGame: %v", err)
+	}
 	cacheKey := analysisCacheKey{
 		gameID:      gameID,
 		level:       "advanced",
 		style:       "balanced",
 		timeLimitNs: int64(defaultAnalyzeTimeLimit),
-		gameVersion: "v2:moves=2",
+		gameVersion: gameCacheVersion(game),
 	}
 	saveAnalysisCache(db, zap.NewNop().Sugar(), cacheKey, 1, analysisMoves)
 
@@ -171,7 +178,7 @@ func TestAnalyzeReport_HTMLEscapesHostileInput(t *testing.T) {
 	}
 
 	// Also verify hostile turn comments are escaped when rendered
-	game, err := getGame(db, slug)
+	game, err = getGame(db, slug)
 	if err != nil {
 		t.Fatalf("getGame: %v", err)
 	}
@@ -274,12 +281,16 @@ func TestAnalyzeReport_SVGPresent(t *testing.T) {
 		{Turn: 1, Player: gotak.PlayerWhite, Played: "a1", Best: "a1", Score: 0, ScoreAfter: 20, Agreed: true, Quality: QualityBest},
 		{Turn: 1, Player: gotak.PlayerBlack, Played: "e5", Best: "d4", Score: 20, ScoreAfter: 700, Agreed: false, Loss: 680, Quality: QualityBlunder},
 	}
+	game, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("getGame: %v", err)
+	}
 	cacheKey := analysisCacheKey{
 		gameID:      gameID,
 		level:       "advanced",
 		style:       "balanced",
 		timeLimitNs: int64(defaultAnalyzeTimeLimit),
-		gameVersion: "v2:moves=2",
+		gameVersion: gameCacheVersion(game),
 	}
 	saveAnalysisCache(db, zap.NewNop().Sugar(), cacheKey, 1, analysisMoves)
 
@@ -346,12 +357,16 @@ func TestAnalyzeReport_QueryParamsMatching(t *testing.T) {
 		{Turn: 1, Player: gotak.PlayerBlack, Played: "e5", Best: "e5", Score: 10, ScoreAfter: 0, Agreed: true, Quality: QualityBest},
 	}
 	customTimeLimit := 500 * time.Millisecond
+	game, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("getGame: %v", err)
+	}
 	cacheKey := analysisCacheKey{
 		gameID:      gameID,
 		level:       "intermediate",
 		style:       "aggressive",
 		timeLimitNs: int64(customTimeLimit),
-		gameVersion: "v2:moves=2",
+		gameVersion: gameCacheVersion(game),
 	}
 	saveAnalysisCache(db, zap.NewNop().Sugar(), cacheKey, 2, analysisMoves)
 
