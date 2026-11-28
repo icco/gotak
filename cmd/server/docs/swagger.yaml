@@ -1,5 +1,58 @@
 basePath: /
 definitions:
+  ai.MoveScore:
+    properties:
+      error:
+        type: string
+      forced_win:
+        type: integer
+      loss:
+        type: integer
+      move:
+        type: string
+      reply:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+    type: object
+  ai.PositionAnalysis:
+    properties:
+      best:
+        type: string
+      depth:
+        type: integer
+      forced_win:
+        type: integer
+      game_over:
+        type: boolean
+      pv:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+      threats:
+        $ref: '#/definitions/ai.RoadThreats'
+      to_move:
+        type: integer
+      tps:
+        type: string
+      winner:
+        type: integer
+    type: object
+  ai.RoadThreats:
+    properties:
+      black:
+        items:
+          type: string
+        type: array
+      white:
+        items:
+          type: string
+        type: array
+    type: object
   gotak.Board:
     properties:
       size:
@@ -72,6 +125,10 @@ definitions:
     properties:
       agreed:
         type: integer
+      critical_moments:
+        items:
+          $ref: '#/definitions/main.CriticalMoment'
+        type: array
       level:
         type: string
       move_count:
@@ -92,6 +149,19 @@ definitions:
       user:
         $ref: '#/definitions/main.User'
     type: object
+  main.CompareMovesRequest:
+    type: object
+  main.CompareMovesResponse:
+    properties:
+      level:
+        type: string
+      moves:
+        items:
+          $ref: '#/definitions/ai.MoveScore'
+        type: array
+      position:
+        $ref: '#/definitions/ai.PositionAnalysis'
+    type: object
   main.ConfirmResetRequest:
     properties:
       new_password:
@@ -109,6 +179,23 @@ definitions:
       size:
         example: "8"
         type: string
+    type: object
+  main.CriticalMoment:
+    properties:
+      best:
+        type: string
+      index:
+        type: integer
+      loss:
+        type: integer
+      played:
+        type: string
+      player:
+        type: integer
+      quality:
+        type: string
+      turn:
+        type: integer
     type: object
   main.ErrorResponse:
     properties:
@@ -195,15 +282,29 @@ definitions:
         type: boolean
       best:
         type: string
+      best_line:
+        items:
+          type: string
+        type: array
       error:
         description: |-
           Error captures why the engine couldn't evaluate this move, if any.
-          When non-empty, Best and Agreed should be ignored.
+          When non-empty, the engine fields should be ignored.
         type: string
+      loss:
+        type: integer
       played:
         type: string
       player:
         type: integer
+      quality:
+        type: string
+      score:
+        type: integer
+      score_after:
+        type: integer
+      tps:
+        type: string
       turn:
         type: integer
     type: object
@@ -246,6 +347,35 @@ definitions:
       flat:
         type: integer
       standing:
+        type: integer
+    type: object
+  main.PositionAnalysisRequest:
+    type: object
+  main.PositionAnalysisResponse:
+    properties:
+      best:
+        type: string
+      depth:
+        type: integer
+      forced_win:
+        type: integer
+      game_over:
+        type: boolean
+      level:
+        type: string
+      pv:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+      threats:
+        $ref: '#/definitions/ai.RoadThreats'
+      to_move:
+        type: integer
+      tps:
+        type: string
+      winner:
         type: integer
     type: object
   main.PositionResponse:
@@ -371,14 +501,51 @@ paths:
       summary: Get API information
       tags:
       - info
+  /analyze/compare-moves:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Plays each candidate PTN move from a TPS position and scores
+        the result. Each move reports a White-relative score, its
+        loss against the engine's best move for the player to move,
+        and the engine's best reply. Sorted best first; illegal moves
+        carry an error and sort last. At most 16 moves.
+      parameters:
+      - description: Position, candidate moves, and engine config
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.CompareMovesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.CompareMovesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Compare candidate moves
+      tags:
+      - analysis
   /analyze/game/{slug}:
     post:
       consumes:
       - application/json
       description: |-
-        Walks the game move-by-move, asking the AI engine what it
-        would play at each position, and records whether the player's
-        move matches. Useful as a rough "blunder detector".
+        Walks the game move-by-move and scores every position with
+        the engine. Each move gets the engine's preferred move and
+        line, White-relative scores before and after, the loss it
+        cost its player (about 400 per flat), and a quality label.
+        critical_moments lists the costliest moves. Boards up to 8x8.
       parameters:
       - description: Game slug identifier
         in: path
@@ -478,6 +645,41 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Look up opening continuations
+      tags:
+      - analysis
+  /analyze/position:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Scores an arbitrary position given in TPS. Returns the
+        engine's best move and line, a White-relative score (about
+        400 per flat; forced wins are +/-100000 with forced_win set),
+        and squares where either side could complete a road with one
+        flat. Boards from 4x4 to 8x8.
+      parameters:
+      - description: Position and engine config
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.PositionAnalysisRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PositionAnalysisResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Analyze a TPS position
       tags:
       - analysis
   /auth/confirm-reset:
