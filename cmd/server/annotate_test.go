@@ -12,7 +12,23 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.icco.me/gotak"
+	"gorm.io/gorm"
 )
+
+func createNamedUser(t *testing.T, db *gorm.DB, providerID, email, name string) *User {
+	t.Helper()
+	user := &User{
+		Provider:    "local",
+		ProviderID:  providerID,
+		Email:       email,
+		Name:        name,
+		Preferences: emptyJSONObject,
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("create user %s: %v", name, err)
+	}
+	return user
+}
 
 func setupAnnotateTestGame(t *testing.T) (*User, *User, string) {
 	t.Helper()
@@ -22,25 +38,8 @@ func setupAnnotateTestGame(t *testing.T) (*User, *User, string) {
 		dbOverride = nil
 	})
 
-	alice := &User{
-		Provider:   "local",
-		ProviderID: "alice-1",
-		Email:      "alice@example.com",
-		Name:       "Alice",
-	}
-	if err := db.Create(alice).Error; err != nil {
-		t.Fatalf("create alice: %v", err)
-	}
-
-	bob := &User{
-		Provider:   "local",
-		ProviderID: "bob-1",
-		Email:      "bob@example.com",
-		Name:       "Bob",
-	}
-	if err := db.Create(bob).Error; err != nil {
-		t.Fatalf("create bob: %v", err)
-	}
+	alice := createNamedUser(t, db, "alice-1", "alice@example.com", "Alice")
+	bob := createNamedUser(t, db, "bob-1", "bob@example.com", "Bob")
 
 	slug, err := createGame(db, 5, alice.ID, "human")
 	if err != nil {
@@ -297,15 +296,7 @@ func TestNewMoveHandler_withComment(t *testing.T) {
 		dbOverride = nil
 	})
 
-	alice := &User{
-		Provider:   "local",
-		ProviderID: "alice-move-1",
-		Email:      "alice-move@example.com",
-		Name:       "Alice",
-	}
-	if err := db.Create(alice).Error; err != nil {
-		t.Fatalf("create alice: %v", err)
-	}
+	alice := createNamedUser(t, db, "alice-move-1", "alice-move@example.com", "Alice")
 
 	slug, err := createGame(db, 5, alice.ID, "human")
 	if err != nil {
@@ -360,13 +351,23 @@ func TestNewMoveHandler_withComment(t *testing.T) {
 func TestDatabase_insertMoveWithComment(t *testing.T) {
 	db := setupTestDB(t)
 
-	err := insertMoveWithComment(db, 123, gotak.PlayerWhite, "b2", 1, "test annotation")
+	alice := createNamedUser(t, db, "alice-db-1", "alice-db@example.com", "Alice")
+	slug, err := createGame(db, 5, alice.ID, "human")
+	if err != nil {
+		t.Fatalf("createGame: %v", err)
+	}
+	game, err := getGame(db, slug)
+	if err != nil {
+		t.Fatalf("getGame: %v", err)
+	}
+
+	err = insertMoveWithComment(db, game.ID, gotak.PlayerWhite, "b2", 1, "test annotation")
 	if err != nil {
 		t.Fatalf("insertMoveWithComment: %v", err)
 	}
 
 	var move Move
-	if err := db.Where("game_id = ? AND player = ?", 123, gotak.PlayerWhite).First(&move).Error; err != nil {
+	if err := db.Where("game_id = ? AND player = ?", game.ID, gotak.PlayerWhite).First(&move).Error; err != nil {
 		t.Fatalf("query move: %v", err)
 	}
 	if move.Comment != "test annotation" {
@@ -401,15 +402,7 @@ func TestRouter_annotateRouteAuthMiddleware(t *testing.T) {
 		dbOverride = nil
 	})
 
-	alice := &User{
-		Provider:   "local",
-		ProviderID: "alice-router-1",
-		Email:      "alice-router@example.com",
-		Name:       "Alice",
-	}
-	if err := db.Create(alice).Error; err != nil {
-		t.Fatalf("create alice: %v", err)
-	}
+	alice := createNamedUser(t, db, "alice-router-1", "alice-router@example.com", "Alice")
 
 	token, err := generateJWTForUser(alice)
 	if err != nil {
