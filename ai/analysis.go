@@ -233,15 +233,35 @@ func SameMove(a, b string, size int) bool {
 	if a == b {
 		return true
 	}
-	ma, err := convertStringToMove(a, size)
+	ma, err := parseUserMove(a, size)
 	if err != nil {
 		return false
 	}
-	mb, err := convertStringToMove(b, size)
+	mb, err := parseUserMove(b, size)
 	if err != nil {
 		return false
 	}
 	return ma.Equal(mb)
+}
+
+// parseUserMove parses PTN with taktician's parser, which caps a carry at
+// 8, then checks the square is on the board.
+func parseUserMove(text string, size int) (tak.Move, error) {
+	m, err := ptn.ParseMove(strings.TrimSpace(text))
+	if err != nil {
+		return tak.Move{}, fmt.Errorf("invalid move %q: %w", text, err)
+	}
+	if int(m.X) >= size || int(m.Y) >= size {
+		return tak.Move{}, fmt.Errorf("move %q is off a %dx%d board", text, size, size)
+	}
+	carry := 0
+	for it := m.Slides.Iterator(); it.Ok(); it = it.Next() {
+		carry += it.Elem()
+	}
+	if carry > size {
+		return tak.Move{}, fmt.Errorf("move %q carries more than %d stones", text, size)
+	}
+	return m, nil
 }
 
 func (a *Analyzer) parseTPS(tps string) (*tak.Position, error) {
@@ -256,11 +276,7 @@ func (a *Analyzer) parseTPS(tps string) (*tak.Position, error) {
 }
 
 func (a *Analyzer) play(p *tak.Position, text string) (*tak.Position, error) {
-	mv, err := gotak.NewMove(text)
-	if err != nil {
-		return nil, err
-	}
-	tm, err := convertStringToMove(mv.Text, a.size)
+	tm, err := parseUserMove(text, a.size)
 	if err != nil {
 		return nil, err
 	}
@@ -304,14 +320,7 @@ func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnaly
 	}
 
 	for _, m := range pv {
-		s, err := convertMoveToString(m, a.size)
-		if err != nil {
-			break
-		}
-		res.PV = append(res.PV, s)
-	}
-	if len(res.PV) == 0 {
-		return nil, fmt.Errorf("engine returned an unprintable move: %+v", pv[0])
+		res.PV = append(res.PV, ptn.FormatMove(m))
 	}
 	res.Best = res.PV[0]
 	res.Depth = st.Depth

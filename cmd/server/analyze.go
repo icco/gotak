@@ -167,7 +167,15 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	analyzer, err := ai.NewAnalyzer(int(game.Board.Size), cfg)
+	size, err := analyzableSize(game)
+	if err != nil {
+		l.Warnw("cannot analyze game", "slug", slug, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return
+	}
+	analyzer, err := ai.NewAnalyzer(size, cfg)
 	if err != nil {
 		l.Warnw("cannot analyze game", "slug", slug, zap.Error(err))
 		if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); jerr != nil {
@@ -389,6 +397,13 @@ func analyzeGame(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Mov
 	if len(plies) == 0 {
 		return out
 	}
+	size, err := analyzableSize(g)
+	if err != nil {
+		for _, p := range plies {
+			out = append(out, MoveAnalysis{Turn: p.turn, Player: p.player, Played: p.played, Error: err.Error()})
+		}
+		return out
+	}
 	evals := make([]*ai.PositionAnalysis, len(plies)+1)
 	errs := make([]error, len(plies)+1)
 	for i := range evals {
@@ -399,7 +414,6 @@ func analyzeGame(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Mov
 		evals[i], errs[i] = evaluateBefore(ctx, ev, g, turnIdx, isSecond)
 	}
 
-	size := int(g.Board.Size)
 	for i, p := range plies {
 		m := MoveAnalysis{Turn: p.turn, Player: p.player, Played: p.played}
 		if errs[i] != nil {
@@ -426,6 +440,19 @@ func analyzeGame(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Mov
 		out = append(out, m)
 	}
 	return out
+}
+
+// analyzableSize returns the board size as an int once it is known to be
+// one the engine can search.
+func analyzableSize(g *gotak.Game) (int, error) {
+	if g == nil || g.Board == nil {
+		return 0, errors.New("game has no board")
+	}
+	s := g.Board.Size
+	if s < 3 || s > 8 {
+		return 0, fmt.Errorf("analysis supports boards from 3x3 to 8x8, not %dx%d", s, s)
+	}
+	return int(s), nil
 }
 
 func evaluateBefore(ctx context.Context, ev positionEvaluator, g *gotak.Game, turnIdx int, isSecond bool) (*ai.PositionAnalysis, error) {

@@ -215,6 +215,24 @@ func TestAnalyzeGame_realEngine(t *testing.T) {
 	}
 }
 
+func TestAnalyzeGame_unsupportedSize(t *testing.T) {
+	g, err := gotak.NewGame(9, 1, "big")
+	if err != nil {
+		t.Fatalf("NewGame: %v", err)
+	}
+	if err := g.DoSingleMove("a1", gotak.PlayerWhite); err != nil {
+		t.Fatalf("DoSingleMove: %v", err)
+	}
+	ev := &stubEvaluator{}
+	moves := analyzeGame(context.Background(), ev, g)
+	if len(moves) != 1 || moves[0].Error == "" {
+		t.Errorf("9x9 move should carry an error, got %+v", moves)
+	}
+	if ev.calls != 0 {
+		t.Errorf("evaluator called %d times on 9x9, want 0", ev.calls)
+	}
+}
+
 func TestMoveQuality(t *testing.T) {
 	cases := []struct {
 		agreed bool

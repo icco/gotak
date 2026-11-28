@@ -229,6 +229,30 @@ func TestLoss(t *testing.T) {
 	}
 }
 
+func TestParseUserMove(t *testing.T) {
+	cases := []struct {
+		in      string
+		wantErr bool
+	}{
+		{"a1", false},
+		{"Ce5", false},
+		{"3b2>12", false},
+		{"5a1+", false},
+		{"a6", true},
+		{"f1", true},
+		{"6a1>", true},
+		{"9a1>", true},
+		{"99999999a1>", true},
+		{"", true},
+	}
+	for _, tc := range cases {
+		_, err := parseUserMove(tc.in, 5)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("parseUserMove(%q) err = %v, wantErr %v", tc.in, err, tc.wantErr)
+		}
+	}
+}
+
 func TestSameMove(t *testing.T) {
 	cases := []struct {
 		a, b string
