@@ -116,15 +116,25 @@ func main() {
 		}
 	}()
 
-	if _, err := getDB(); err != nil {
+	db, err := getDB()
+	if err != nil {
 		log.Panicw("could not get db", zap.Error(err))
 		return
 	}
+	defer func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			if cerr := sqlDB.Close(); cerr != nil {
+				log.Warnw("failed to close db", zap.Error(cerr))
+			}
+		}
+	}()
 
 	metricsHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 	handler := buildRouter(routerOptions{
 		IsDev:          isDev,
 		MetricsHandler: metricsHandler,
+		DB:             db,
 	})
 
 	server := &http.Server{

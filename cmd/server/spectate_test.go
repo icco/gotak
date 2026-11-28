@@ -93,13 +93,8 @@ func TestSpectate_HubFanOutAndPollerStop(t *testing.T) {
 
 	logger := zaptest.NewLogger(t).Sugar()
 	mgr := newSpectateHubManager(20*time.Millisecond, 1*time.Second)
-	hub := mgr.getOrCreateHub(slug, game.ID, db, logger)
-
-	c1 := newSpectatorClient()
-	c2 := newSpectatorClient()
-
-	hub.register(c1)
-	hub.register(c2)
+	hub, c1 := mgr.registerSpectator(slug, game.ID, db, logger)
+	_, c2 := mgr.registerSpectator(slug, game.ID, db, logger)
 
 	if err := insertMove(db, game.ID, gotak.PlayerWhite, "a1", 1); err != nil {
 		t.Fatalf("insertMove: %v", err)
@@ -129,7 +124,7 @@ func TestSpectate_HubFanOutAndPollerStop(t *testing.T) {
 		t.Fatalf("unexpected game slugs in messages")
 	}
 
-	mgr.unregister(slug, hub, c1)
+	mgr.unregisterSpectator(slug, hub, c1)
 
 	// Poller continues running while c2 remains subscribed.
 	if err := insertMove(db, game.ID, gotak.PlayerBlack, "b2", 1); err != nil {
@@ -140,12 +135,46 @@ func TestSpectate_HubFanOutAndPollerStop(t *testing.T) {
 		t.Fatalf("expected state message on c2, got %q", msg3.Type)
 	}
 
-	mgr.unregister(slug, hub, c2)
+	mgr.unregisterSpectator(slug, hub, c2)
 
 	select {
 	case <-hub.pollerDone:
 	case <-time.After(1 * time.Second):
 		t.Fatal("poller failed to stop after last subscriber disconnected")
+	}
+}
+
+func TestSpectate_LaggingClientDisconnected(t *testing.T) {
+	db := setupTestDB(t)
+	ada := createNamedTestUser(t, db, "Ada Lovelace", "ada@example.com")
+
+	slug, err := createGame(db, 5, ada.ID, "human")
+	if err != nil {
+		t.Fatalf("create game: %v", err)
+	}
+	var game Game
+	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
+		t.Fatalf("find game: %v", err)
+	}
+
+	logger := zaptest.NewLogger(t).Sugar()
+	mgr := newSpectateHubManager(10*time.Millisecond, 1*time.Second)
+	hub, client := mgr.registerSpectator(slug, game.ID, db, logger)
+	defer mgr.unregisterSpectator(slug, hub, client)
+
+	// Fill the buffer to capacity (32 messages).
+	for i := range cap(client.send) {
+		client.send <- []byte(fmt.Sprintf(`{"dummy":%d}`, i))
+	}
+
+	// Trigger broadcast on full buffer; lagging client should be signaled to disconnect.
+	hub.broadcast([]byte(`{"type":"overflow"}`))
+
+	select {
+	case <-client.done:
+		// Client was signaled to disconnect rather than silently dropping messages.
+	case <-time.After(1 * time.Second):
+		t.Fatal("lagging client was not signaled to disconnect on buffer overflow")
 	}
 }
 

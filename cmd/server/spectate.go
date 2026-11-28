@@ -201,10 +201,8 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 		}
 	}()
 
-	hub := mgr.getOrCreateHub(slug, game.ID, db, l)
-	client := newSpectatorClient()
-	hub.register(client)
-	defer mgr.unregister(slug, hub, client)
+	hub, client := mgr.registerSpectator(slug, game.ID, db, l)
+	defer mgr.unregisterSpectator(slug, hub, client)
 
 	state, err := buildGameStateResponse(db, slug)
 	if err != nil {
@@ -226,7 +224,10 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 		l.Errorw("failed to marshal initial state message", zap.Error(err))
 		return
 	}
-	if err := c.Write(ctx, websocket.MessageText, initialMsg); err != nil {
+	writeCtx, writeCancel := context.WithTimeout(ctx, 5*time.Second)
+	err = c.Write(writeCtx, websocket.MessageText, initialMsg)
+	writeCancel()
+	if err != nil {
 		l.Errorw("failed to send initial state message", zap.Error(err))
 		return
 	}
@@ -240,6 +241,9 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 	for {
 		select {
 		case <-connCtx.Done():
+			return
+		case <-client.done:
+			l.Warnw("disconnecting lagging spectator client", "slug", slug)
 			return
 		case msg, ok := <-client.send:
 			if !ok {
@@ -377,12 +381,21 @@ func getGameFingerprint(db *gorm.DB, gameID int64) (gameFingerprint, *int64, *in
 
 type spectatorClient struct {
 	send chan []byte
+	done chan struct{}
+	once sync.Once
 }
 
 func newSpectatorClient() *spectatorClient {
 	return &spectatorClient{
 		send: make(chan []byte, 32),
+		done: make(chan struct{}),
 	}
+}
+
+func (c *spectatorClient) disconnect() {
+	c.once.Do(func() {
+		close(c.done)
+	})
 }
 
 type gameHub struct {
@@ -408,26 +421,8 @@ func newGameHub(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger, po
 		logger:      l,
 		pollPeriod:  pollPeriod,
 		subscribers: make(map[*spectatorClient]struct{}),
-	}
-}
-
-func (h *gameHub) register(c *spectatorClient) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.subscribers[c] = struct{}{}
-	if len(h.subscribers) == 1 {
-		h.stopPoller = make(chan struct{})
-		h.pollerDone = make(chan struct{})
-		fp, whiteID, blackID, err := getGameFingerprint(h.db, h.gameID)
-		if err == nil {
-			h.lastFP = fp
-			count, err := countSpectators(h.db, h.gameID, whiteID, blackID)
-			if err == nil {
-				h.lastCount = count
-			}
-		}
-		go h.runPoller()
+		stopPoller:  make(chan struct{}),
+		pollerDone:  make(chan struct{}),
 	}
 }
 
@@ -454,7 +449,8 @@ func (h *gameHub) broadcast(msg []byte) {
 		select {
 		case client.send <- msg:
 		default:
-			// Non-blocking send drops message on full buffer so slow clients do not block others.
+			// Disconnect lagging client so it reconnects for a fresh snapshot rather than staying stale.
+			client.disconnect()
 		}
 	}
 }
@@ -532,35 +528,50 @@ func newSpectateHubManager(pollPeriod, heartbeatInterval time.Duration) *spectat
 	}
 }
 
-func (mgr *spectateHubManager) getOrCreateHub(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger) *gameHub {
+func (mgr *spectateHubManager) registerSpectator(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger) (*gameHub, *spectatorClient) {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 
-	if hub, ok := mgr.hubs[slug]; ok {
-		return hub
+	hub, ok := mgr.hubs[slug]
+	if !ok {
+		hub = newGameHub(slug, gameID, db, l, mgr.pollPeriod)
+		mgr.hubs[slug] = hub
 	}
 
-	hub := newGameHub(slug, gameID, db, l, mgr.pollPeriod)
-	mgr.hubs[slug] = hub
-	return hub
+	client := newSpectatorClient()
+
+	hub.mu.Lock()
+	hub.subscribers[client] = struct{}{}
+	if len(hub.subscribers) == 1 {
+		fp, whiteID, blackID, err := getGameFingerprint(hub.db, hub.gameID)
+		if err == nil {
+			hub.lastFP = fp
+			count, err := countSpectators(hub.db, hub.gameID, whiteID, blackID)
+			if err == nil {
+				hub.lastCount = count
+			}
+		}
+		go hub.runPoller()
+	}
+	hub.mu.Unlock()
+
+	return hub, client
 }
 
-func (mgr *spectateHubManager) unregister(slug string, hub *gameHub, client *spectatorClient) {
+func (mgr *spectateHubManager) unregisterSpectator(slug string, hub *gameHub, client *spectatorClient) {
 	mgr.mu.Lock()
 	hub.mu.Lock()
 	delete(hub.subscribers, client)
 	close(client.send)
 	shouldStop := len(hub.subscribers) == 0
-	stopCh := hub.stopPoller
-	doneCh := hub.pollerDone
-	if shouldStop {
+	if shouldStop && mgr.hubs[slug] == hub {
 		delete(mgr.hubs, slug)
 	}
 	hub.mu.Unlock()
 	mgr.mu.Unlock()
 
-	if shouldStop && stopCh != nil {
-		close(stopCh)
-		<-doneCh
+	if shouldStop {
+		close(hub.stopPoller)
+		<-hub.pollerDone
 	}
 }
