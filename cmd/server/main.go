@@ -195,6 +195,7 @@ func buildRouter(opts routerOptions) http.Handler {
 	r.Use(middleware.ClientIPFromXFF(trustedProxies...))
 	r.Use(logging.Middleware(log.Desugar()))
 	r.Use(routeTag)
+	r.Use(recoverPanics)
 
 	r.Use(cors.New(cors.Options{
 		AllowCredentials:   true,
