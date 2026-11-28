@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,25 +13,24 @@ import (
 // scriptedMove and the playGame helper live in replay_test.go and are
 // shared across the cmd/server test binary.
 
-// stubEngine returns the next hard-coded move on each call, so tests can
-// assert how the analyzer drives the engine.
-type stubEngine struct {
-	moves []string
-	calls int
+// stubEvaluator returns the next scripted analysis on each call, so tests
+// can assert how game analysis drives the engine. A nil entry is an error.
+type stubEvaluator struct {
+	results []*ai.PositionAnalysis
+	calls   int
 }
 
-func (s *stubEngine) GetMove(_ context.Context, _ *gotak.Game, _ ai.AIConfig) (string, error) {
-	if s.calls >= len(s.moves) {
-		s.calls++
-		return "", nil
-	}
-	m := s.moves[s.calls]
+func (s *stubEvaluator) Evaluate(_ context.Context, _ *gotak.Game) (*ai.PositionAnalysis, error) {
+	i := s.calls
 	s.calls++
-	return m, nil
+	if i >= len(s.results) || s.results[i] == nil {
+		return nil, errors.New("stub has no result")
+	}
+	return s.results[i], nil
 }
 
-func (s *stubEngine) ExplainMove(_ context.Context, _ *gotak.Game, _ ai.AIConfig) (string, error) {
-	return "", nil
+func eval(best string, score int64) *ai.PositionAnalysis {
+	return &ai.PositionAnalysis{Best: best, PV: []string{best}, Score: score, TPS: "x5/x5/x5/x5/x5 1 1"}
 }
 
 func TestGameBeforeMove_prefixesTurns(t *testing.T) {
@@ -87,7 +87,7 @@ func TestGameBeforeMove_nilGame(t *testing.T) {
 	}
 }
 
-func TestAnalyzeGame_recordsAgreement(t *testing.T) {
+func TestAnalyzeGame_scoresEveryMove(t *testing.T) {
 	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
@@ -95,48 +95,78 @@ func TestAnalyzeGame_recordsAgreement(t *testing.T) {
 		{gotak.PlayerBlack, "d4"},
 	})
 
-	// Engine claims b2 for move 0 (disagrees with a1) and matches the
-	// player on the other three.
-	engine := &stubEngine{moves: []string{"b2", "e5", "b2", "d4"}}
+	// One evaluation before each move plus the final position.
+	ev := &stubEvaluator{results: []*ai.PositionAnalysis{
+		eval("b2", 0),
+		eval("e5", 50),
+		eval("c3", 0),
+		eval("d4", -1000),
+		eval("a2", -900),
+	}}
 
-	moves := analyzeGame(context.Background(), engine, g, ai.AIConfig{TimeLimit: 100 * time.Millisecond})
+	moves := analyzeGame(context.Background(), ev, g)
 
-	if len(moves) != 4 {
-		t.Fatalf("got %d moves, want 4", len(moves))
+	if ev.calls != 5 {
+		t.Errorf("evaluator called %d times, want 5", ev.calls)
 	}
-
 	want := []struct {
-		played string
-		best   string
-		agreed bool
-		player int
+		played     string
+		best       string
+		agreed     bool
+		player     int
+		score      int64
+		scoreAfter int64
+		loss       int64
+		quality    string
 	}{
-		{"a1", "b2", false, gotak.PlayerWhite},
-		{"e5", "e5", true, gotak.PlayerBlack},
-		{"b2", "b2", true, gotak.PlayerWhite},
-		{"d4", "d4", true, gotak.PlayerBlack},
+		{"a1", "b2", false, gotak.PlayerWhite, 0, 50, 0, QualityGood},
+		{"e5", "e5", true, gotak.PlayerBlack, 50, 0, 0, QualityBest},
+		{"b2", "c3", false, gotak.PlayerWhite, 0, -1000, 1000, QualityBlunder},
+		{"d4", "d4", true, gotak.PlayerBlack, -1000, -900, 0, QualityBest},
+	}
+	if len(moves) != len(want) {
+		t.Fatalf("got %d moves, want %d", len(moves), len(want))
 	}
 	for i, w := range want {
 		got := moves[i]
-		if got.Played != w.played || got.Best != w.best || got.Agreed != w.agreed || got.Player != w.player {
+		if got.Played != w.played || got.Best != w.best || got.Agreed != w.agreed || got.Player != w.player ||
+			got.Score != w.score || got.ScoreAfter != w.scoreAfter || got.Loss != w.loss || got.Quality != w.quality {
 			t.Errorf("move %d = %+v, want %+v", i, got, w)
 		}
+		if got.Error != "" {
+			t.Errorf("move %d has error %q", i, got.Error)
+		}
 	}
+}
 
-	if engine.calls != 4 {
-		t.Errorf("engine called %d times, want 4", engine.calls)
+func TestAnalyzeGame_evaluatorErrors(t *testing.T) {
+	g := playGame(t, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+	})
+	ev := &stubEvaluator{results: []*ai.PositionAnalysis{eval("a1", 0), nil, eval("b2", 0)}}
+
+	moves := analyzeGame(context.Background(), ev, g)
+	if len(moves) != 2 {
+		t.Fatalf("got %d moves, want 2", len(moves))
+	}
+	if moves[0].Error == "" || moves[0].Best != "a1" {
+		t.Errorf("move 0 should keep its best move but flag the missing after-score: %+v", moves[0])
+	}
+	if moves[1].Error == "" {
+		t.Errorf("move 1 should carry the evaluator error: %+v", moves[1])
 	}
 }
 
 func TestAnalyzeGame_emptyGame(t *testing.T) {
 	g, _ := gotak.NewGame(5, 1, "t")
-	engine := &stubEngine{}
-	moves := analyzeGame(context.Background(), engine, g, ai.AIConfig{})
+	ev := &stubEvaluator{}
+	moves := analyzeGame(context.Background(), ev, g)
 	if len(moves) != 0 {
 		t.Errorf("empty game produced %d moves, want 0", len(moves))
 	}
-	if engine.calls != 0 {
-		t.Errorf("engine called %d times on empty game, want 0", engine.calls)
+	if ev.calls != 0 {
+		t.Errorf("evaluator called %d times on empty game, want 0", ev.calls)
 	}
 }
 
@@ -146,10 +176,10 @@ func TestAnalyzeGame_canceledContext(t *testing.T) {
 		{gotak.PlayerBlack, "e5"},
 	})
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // already canceled before first call
+	cancel()
 
-	engine := &stubEngine{moves: []string{"a1", "e5"}}
-	moves := analyzeGame(ctx, engine, g, ai.AIConfig{})
+	ev := &stubEvaluator{results: []*ai.PositionAnalysis{eval("a1", 0), eval("e5", 0), eval("b2", 0)}}
+	moves := analyzeGame(ctx, ev, g)
 
 	if len(moves) != 2 {
 		t.Fatalf("want 2 entries (one per move), got %d", len(moves))
@@ -158,6 +188,94 @@ func TestAnalyzeGame_canceledContext(t *testing.T) {
 		if m.Error == "" {
 			t.Errorf("move %d should have Error set when context is canceled, got %+v", i, m)
 		}
+	}
+	if ev.calls != 0 {
+		t.Errorf("evaluator called %d times after cancel, want 0", ev.calls)
+	}
+}
+
+func TestAnalyzeGame_realEngine(t *testing.T) {
+	g := playGame(t, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+		{gotak.PlayerWhite, "b1"},
+	})
+	analyzer, err := ai.NewAnalyzer(5, ai.AIConfig{Level: ai.Intermediate, TimeLimit: 300 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("NewAnalyzer: %v", err)
+	}
+	moves := analyzeGame(context.Background(), analyzer, g)
+	if len(moves) != 3 {
+		t.Fatalf("got %d moves, want 3", len(moves))
+	}
+	for i, m := range moves {
+		if m.Error != "" || m.Best == "" || m.TPS == "" || m.Quality == "" {
+			t.Errorf("move %d incomplete: %+v", i, m)
+		}
+	}
+}
+
+func TestAnalyzeGame_unsupportedSize(t *testing.T) {
+	g, err := gotak.NewGame(9, 1, "big")
+	if err != nil {
+		t.Fatalf("NewGame: %v", err)
+	}
+	if err := g.DoSingleMove("a1", gotak.PlayerWhite); err != nil {
+		t.Fatalf("DoSingleMove: %v", err)
+	}
+	ev := &stubEvaluator{}
+	moves := analyzeGame(context.Background(), ev, g)
+	if len(moves) != 1 || moves[0].Error == "" {
+		t.Errorf("9x9 move should carry an error, got %+v", moves)
+	}
+	if ev.calls != 0 {
+		t.Errorf("evaluator called %d times on 9x9, want 0", ev.calls)
+	}
+}
+
+func TestMoveQuality(t *testing.T) {
+	cases := []struct {
+		agreed bool
+		loss   int64
+		want   string
+	}{
+		{true, 0, QualityBest},
+		{false, 0, QualityGood},
+		{false, 99, QualityGood},
+		{false, 100, QualityInaccuracy},
+		{false, 300, QualityMistake},
+		{false, 800, QualityBlunder},
+		{false, ai.ForcedWinScore, QualityBlunder},
+	}
+	for _, c := range cases {
+		if got := moveQuality(c.agreed, c.loss); got != c.want {
+			t.Errorf("moveQuality(%v, %d) = %q, want %q", c.agreed, c.loss, got, c.want)
+		}
+	}
+}
+
+func TestCriticalMoments(t *testing.T) {
+	moves := []MoveAnalysis{
+		{Played: "a1", Loss: 0, Quality: QualityBest},
+		{Played: "b1", Loss: 150, Quality: QualityInaccuracy},
+		{Played: "c1", Loss: 2000, Quality: QualityBlunder},
+		{Played: "d1", Loss: 50, Quality: QualityGood},
+		{Played: "e1", Loss: 500, Quality: QualityMistake},
+		{Played: "e2", Loss: 120, Quality: QualityInaccuracy},
+		{Played: "e3", Error: "canceled"},
+	}
+	got := criticalMoments(moves, 3)
+	if len(got) != 3 {
+		t.Fatalf("got %d moments, want 3: %+v", len(got), got)
+	}
+	wantIdx := []int{2, 4, 1}
+	for i, w := range wantIdx {
+		if got[i].Index != w || got[i].Played != moves[w].Played {
+			t.Errorf("moment %d = %+v, want index %d", i, got[i], w)
+		}
+	}
+	if none := criticalMoments(moves[:1], 3); none == nil || len(none) != 0 {
+		t.Errorf("clean game should give an empty, non-nil list, got %#v", none)
 	}
 }
 
