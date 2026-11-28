@@ -338,6 +338,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/analyze/tree": {
+            "post": {
+                "description": "Builds a tree of candidate moves and variations from a TPS\nposition. Each node reports score and forced win; leaves carry\nthe engine's principal variation. Breadth up to 4, depth up to 3.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Generate an alternative move tree",
+                "parameters": [
+                    {
+                        "description": "Position, tree shape, and engine config",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.TreeAnalysisRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.TreeAnalysisResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/confirm-reset": {
             "post": {
                 "description": "Reset password with token",
@@ -1246,6 +1292,41 @@ const docTemplate = `{
                 }
             }
         },
+        "ai.MoveTree": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai.MoveTree"
+                    }
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "game_over": {
+                    "type": "boolean"
+                },
+                "move": {
+                    "type": "string"
+                },
+                "pv": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
+                },
+                "winner": {
+                    "type": "integer"
+                }
+            }
+        },
         "ai.PositionAnalysis": {
             "type": "object",
             "properties": {
@@ -2001,6 +2082,47 @@ const docTemplate = `{
                 },
                 "white": {
                     "$ref": "#/definitions/main.PieceCounts"
+                }
+            }
+        },
+        "main.TreeAnalysisRequest": {
+            "type": "object"
+        },
+        "main.TreeAnalysisResponse": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai.MoveTree"
+                    }
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "game_over": {
+                    "type": "boolean"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "move": {
+                    "type": "string"
+                },
+                "pv": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
+                },
+                "winner": {
+                    "type": "integer"
                 }
             }
         },
