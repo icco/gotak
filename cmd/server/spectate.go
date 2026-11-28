@@ -919,10 +919,12 @@ func (mgr *spectateHubManager) registerSpectator(slug string, game Game, uid *in
 		state, err := buildGameStateResponse(db, slug)
 		if err == nil {
 			count, _ := countSpectators(context.Background(), db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
+			fp, _, _, _ := getGameFingerprint(context.Background(), db, game.ID)
 			hub.mu.Lock()
 			if hub.lastStateMsg == nil {
 				hub.revision++
 				hub.lastCount = count
+				hub.lastFP = fp
 				msg, merr := json.Marshal(WSStateMessage{
 					Type:       "state",
 					Game:       state,

@@ -353,16 +353,24 @@ func TestSpectate_WebSocketE2E(t *testing.T) {
 		t.Fatalf("insert move: %v", err)
 	}
 
-	_, updateBytes, err := conn.Read(ctx)
-	if err != nil {
-		t.Fatalf("read update message: %v", err)
-	}
 	var updateMsg WSStateMessage
-	if err := json.Unmarshal(updateBytes, &updateMsg); err != nil {
-		t.Fatalf("unmarshal update: %v", err)
-	}
-	if updateMsg.Type != "state" {
-		t.Fatalf("expected state message, got %q", updateMsg.Type)
+	for {
+		_, updateBytes, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatalf("read update message: %v", err)
+		}
+		var peek struct {
+			Type string `json:"type"`
+		}
+		_ = json.Unmarshal(updateBytes, &peek)
+		if peek.Type == "state" {
+			var sm WSStateMessage
+			_ = json.Unmarshal(updateBytes, &sm)
+			if sm.Game != nil && len(sm.Game.Turns) > 0 && sm.Game.Turns[0].First != nil {
+				updateMsg = sm
+				break
+			}
+		}
 	}
 	if len(updateMsg.Game.Turns) == 0 || updateMsg.Game.Turns[0].First == nil {
 		t.Fatalf("expected move in updated state turns: %+v", updateMsg.Game.Turns)
@@ -761,13 +769,22 @@ func TestSpectate_ChatPlayersExcludedWhileActive(t *testing.T) {
 	if err := adaConn.Write(ctx, websocket.MessageText, []byte(`{"type":"chat","body":"player chat"}`)); err != nil {
 		t.Fatalf("write ada chat: %v", err)
 	}
-	_, errBytes, err := adaConn.Read(ctx)
-	if err != nil {
-		t.Fatalf("ada read error: %v", err)
-	}
 	var errResp map[string]string
-	_ = json.Unmarshal(errBytes, &errResp)
-	if errResp["type"] != "error" || !strings.Contains(errResp["error"], "players cannot chat") {
+	for {
+		_, errBytes, err := adaConn.Read(ctx)
+		if err != nil {
+			t.Fatalf("ada read error: %v", err)
+		}
+		var peek struct {
+			Type string `json:"type"`
+		}
+		_ = json.Unmarshal(errBytes, &peek)
+		if peek.Type == "error" {
+			_ = json.Unmarshal(errBytes, &errResp)
+			break
+		}
+	}
+	if !strings.Contains(errResp["error"], "players cannot chat") {
 		t.Fatalf("expected players cannot chat error, got %v", errResp)
 	}
 
