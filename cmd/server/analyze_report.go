@@ -514,6 +514,11 @@ func renderAnalyzeReport(w http.ResponseWriter, l *zap.SugaredLogger, game *gota
 		steps = nil
 	}
 
+	boardSize := 5
+	if game.Board != nil && game.Board.Size >= 3 && game.Board.Size <= 8 {
+		boardSize = int(game.Board.Size)
+	}
+
 	criticalItems := make([]reportCriticalMomentItem, 0, len(moments))
 	for _, m := range moments {
 		pName := player1
@@ -523,7 +528,7 @@ func renderAnalyzeReport(w http.ResponseWriter, l *zap.SugaredLogger, game *gota
 
 		var bSVG template.HTML
 		if steps != nil && m.Index < len(steps) {
-			bSVG = renderBoardSVG(steps[m.Index].Board, int(game.Board.Size), baseSquare(m.Played))
+			bSVG = renderBoardSVG(steps[m.Index].Board, boardSize, baseSquare(m.Played))
 		}
 
 		var scoreBefore, scoreAfter int64
