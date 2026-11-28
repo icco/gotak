@@ -1261,6 +1261,12 @@ const docTemplate = `{
                 "game_over": {
                     "type": "boolean"
                 },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "pv": {
                     "type": "array",
                     "items": {
@@ -1693,6 +1699,12 @@ const docTemplate = `{
                 "loss": {
                     "type": "integer"
                 },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "played": {
                     "type": "string"
                 },
@@ -1802,6 +1814,12 @@ const docTemplate = `{
                 },
                 "level": {
                     "type": "string"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "pv": {
                     "type": "array",

@@ -27,6 +27,10 @@ definitions:
         type: integer
       game_over:
         type: boolean
+      patterns:
+        items:
+          type: string
+        type: array
       pv:
         items:
           type: string
@@ -320,6 +324,10 @@ definitions:
         type: string
       loss:
         type: integer
+      patterns:
+        items:
+          type: string
+        type: array
       played:
         type: string
       player:
@@ -393,6 +401,10 @@ definitions:
         type: boolean
       level:
         type: string
+      patterns:
+        items:
+          type: string
+        type: array
       pv:
         items:
           type: string

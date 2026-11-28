@@ -1255,6 +1255,12 @@
                 "game_over": {
                     "type": "boolean"
                 },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "pv": {
                     "type": "array",
                     "items": {
@@ -1687,6 +1693,12 @@
                 "loss": {
                     "type": "integer"
                 },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "played": {
                     "type": "string"
                 },
@@ -1796,6 +1808,12 @@
                 },
                 "level": {
                     "type": "string"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "pv": {
                     "type": "array",
