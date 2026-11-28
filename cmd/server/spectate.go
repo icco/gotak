@@ -43,12 +43,84 @@ type WSSpectatorsMessage struct {
 	Count int    `json:"count"`
 }
 
+// WSChatMessage represents a chat message relayed to spectators.
+type WSChatMessage struct {
+	Type       string    `json:"type"`
+	ID         int64     `json:"id"`
+	UserID     int64     `json:"user_id"`
+	AuthorName string    `json:"author_name"`
+	Body       string    `json:"body"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// ChatHistoryResponse represents the chat history payload returned by GET /game/{slug}/chat.
+type ChatHistoryResponse struct {
+	Slug     string          `json:"slug"`
+	Messages []WSChatMessage `json:"messages"`
+}
+
+type wsInboundMessage struct {
+	Type string `json:"type"`
+	Body string `json:"body"`
+}
+
 const (
 	spectatorActiveThreshold    = 45 * time.Second
 	spectatorCleanupGracePeriod = 5 * time.Minute
+	chatRateLimitCount          = 5
+	chatRateLimitWindow         = 10 * time.Second
+	maxChatMessageLength        = 500
+	clientSendBufferCapacity    = 128
 )
 
 var defaultSpectateManager = newSpectateHubManager(1*time.Second, 15*time.Second)
+
+type userRateLimiter struct {
+	mu      sync.Mutex
+	history map[int64][]time.Time
+	limit   int
+	window  time.Duration
+}
+
+func newUserRateLimiter(limit int, window time.Duration) *userRateLimiter {
+	return &userRateLimiter{
+		history: make(map[int64][]time.Time),
+		limit:   limit,
+		window:  window,
+	}
+}
+
+// Allow reports whether a user is permitted to send a chat message under the rate limit.
+// Rate limiting is performed in-process per instance.
+func (rl *userRateLimiter) Allow(userID int64) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-rl.window)
+
+	var valid []time.Time
+	for _, t := range rl.history[userID] {
+		if t.After(cutoff) {
+			valid = append(valid, t)
+		}
+	}
+
+	if len(valid) >= rl.limit {
+		rl.history[userID] = valid
+		return false
+	}
+
+	rl.history[userID] = append(valid, now)
+	return true
+}
+
+func formatAuthorName(name string, userID int64) string {
+	if name != "" {
+		return name
+	}
+	return fmt.Sprintf("User %d", userID)
+}
 
 // @Summary Spectate game
 // @Description Returns the current game state, spectator count, and WebSocket URL for live updates.
@@ -210,11 +282,32 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 		}
 	}()
 
-	hub, client := mgr.registerSpectator(slug, game.ID, db, l)
+	hub, client := mgr.registerSpectator(slug, game, uid, db, l)
 	defer mgr.unregisterSpectator(slug, hub, client)
 
-	// CloseRead drains frames in background to respond to pings and detects client disconnect.
-	connCtx := c.CloseRead(ctx)
+	connCtx, connCancel := context.WithCancel(ctx)
+	defer connCancel()
+
+	// Inbound message reader goroutine processes frames such as spectator chat.
+	go func() {
+		defer connCancel()
+		for {
+			msgType, data, rerr := c.Read(connCtx)
+			if rerr != nil {
+				return
+			}
+			if msgType != websocket.MessageText {
+				continue
+			}
+			var inMsg wsInboundMessage
+			if jerr := json.Unmarshal(data, &inMsg); jerr != nil {
+				continue
+			}
+			if inMsg.Type == "chat" {
+				handleInboundChat(connCtx, inMsg.Body, game.ID, uid, db, hub, mgr.rateLimiter, client)
+			}
+		}
+	}()
 
 	heartbeatTicker := time.NewTicker(mgr.heartbeatInterval)
 	defer heartbeatTicker.Stop()
@@ -236,32 +329,202 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 				Type     string `json:"type"`
 				Revision int64  `json:"revision"`
 			}
-			if err := json.Unmarshal(msg, &header); err == nil && header.Type == "state" && header.Revision > 0 {
+			if jerr := json.Unmarshal(msg, &header); jerr == nil && header.Type == "state" && header.Revision > 0 {
 				if header.Revision < lastRevision {
 					continue
 				}
 				lastRevision = header.Revision
 			}
 			writeCtx, writeCancel := context.WithTimeout(connCtx, 5*time.Second)
-			err := c.Write(writeCtx, websocket.MessageText, msg)
+			werr := c.Write(writeCtx, websocket.MessageText, msg)
 			writeCancel()
-			if err != nil {
-				l.Warnw("failed to write websocket message to spectator", zap.Error(err))
+			if werr != nil {
+				l.Warnw("failed to write websocket message to spectator", zap.Error(werr))
 				return
 			}
 		case <-heartbeatTicker.C:
 			spectator.LastSeen = time.Now()
-			if err := upsertSpectator(db, &spectator); err != nil {
-				l.Warnw("failed to refresh spectator heartbeat", zap.Error(err))
+			if herr := upsertSpectator(db, &spectator); herr != nil {
+				l.Warnw("failed to refresh spectator heartbeat", zap.Error(herr))
 			}
 			pingCtx, pingCancel := context.WithTimeout(connCtx, 5*time.Second)
-			err := c.Ping(pingCtx)
+			perr := c.Ping(pingCtx)
 			pingCancel()
-			if err != nil {
-				l.Infow("spectator ping failed; terminating connection", zap.Error(err))
+			if perr != nil {
+				l.Infow("spectator ping failed; terminating connection", zap.Error(perr))
 				return
 			}
 		}
+	}
+}
+
+func handleInboundChat(ctx context.Context, rawBody string, gameID int64, uid *int64, db *gorm.DB, hub *gameHub, rl *userRateLimiter, client *spectatorClient) {
+	sendError := func(errText string) {
+		errMsg, err := json.Marshal(map[string]string{
+			"type":  "error",
+			"error": errText,
+		})
+		if err == nil {
+			client.sendMsg(errMsg)
+		}
+	}
+
+	if uid == nil {
+		sendError("sign-in required to chat")
+		return
+	}
+
+	// Reload current game status and player IDs before authorizing.
+	var current Game
+	if err := db.WithContext(ctx).
+		Select("id, status, white_player_id, black_player_id").
+		Where("id = ?", gameID).
+		First(&current).Error; err != nil {
+		sendError("game not found")
+		return
+	}
+
+	isPlayer := (current.WhitePlayerID != nil && *uid == *current.WhitePlayerID) || (current.BlackPlayerID != nil && *uid == *current.BlackPlayerID)
+	if isPlayer && current.Status != "finished" {
+		sendError("players cannot chat while game is active")
+		return
+	}
+
+	if !rl.Allow(*uid) {
+		sendError("rate limit exceeded: max 5 messages per 10 seconds")
+		return
+	}
+
+	trimmed := strings.TrimSpace(rawBody)
+	if len(trimmed) == 0 {
+		return
+	}
+	if len(trimmed) > maxChatMessageLength {
+		sendError("message too long: max 500 characters")
+		return
+	}
+
+	sanitized := strings.TrimSpace(ugcPolicy.Sanitize(trimmed))
+	if len(sanitized) == 0 {
+		return
+	}
+
+	msg := SpectatorMessage{
+		GameID:    gameID,
+		UserID:    *uid,
+		Body:      sanitized,
+		CreatedAt: time.Now(),
+	}
+
+	// Serialize insertion per game with a transaction to ensure monotonic ID assignment.
+	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var g Game
+		if lerr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			Where("id = ?", gameID).
+			First(&g).Error; lerr != nil {
+			return lerr
+		}
+		return tx.Create(&msg).Error
+	})
+	if err != nil {
+		log.Errorw("failed to save spectator message", zap.Error(err))
+		return
+	}
+
+	hub.wakePoller()
+}
+
+// @Summary Get spectator chat history
+// @Description Returns recent spectator chat history (up to 50 messages). Active game players are forbidden from reading.
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param slug path string true "Game slug identifier"
+// @Success 200 {object} ChatHistoryResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /game/{slug}/chat [get]
+func getGameChatHandler(w http.ResponseWriter, r *http.Request) {
+	getGameChatHandlerWithDB(w, r, nil)
+}
+
+func getGameChatHandlerWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
+	if db == nil {
+		var err error
+		db, err = getDB()
+		if err != nil {
+			l := logging.FromContext(r.Context())
+			l.Errorw("could not get db", zap.Error(err))
+			if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); jerr != nil {
+				l.Errorw("failed to render JSON", zap.Error(jerr))
+			}
+			return
+		}
+	}
+
+	ctx := r.Context()
+	l := logging.FromContext(ctx)
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+
+	var game Game
+	if err := db.WithContext(ctx).Where("slug = ?", slug).First(&game).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if jerr := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); jerr != nil {
+				l.Errorw("failed to render JSON", zap.Error(jerr))
+			}
+			return
+		}
+		l.Errorw("could not get game", "slug", slug, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "database error"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return
+	}
+
+	// Active players cannot inspect spectator chat during the game.
+	if user := getOptionalUser(r, db); user != nil {
+		isPlayer := (game.WhitePlayerID != nil && user.ID == *game.WhitePlayerID) || (game.BlackPlayerID != nil && user.ID == *game.BlackPlayerID)
+		if isPlayer && game.Status != "finished" {
+			if jerr := Renderer.JSON(w, http.StatusForbidden, ErrorResponse{Error: "players cannot view spectator chat while game is active"}); jerr != nil {
+				l.Errorw("failed to render JSON", zap.Error(jerr))
+			}
+			return
+		}
+	}
+
+	var msgs []SpectatorMessage
+	if err := db.WithContext(ctx).Preload("User").Where("game_id = ?", game.ID).Order("id DESC").Limit(50).Find(&msgs).Error; err != nil {
+		l.Errorw("failed to load chat history", "slug", slug, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "failed to load chat history"}); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return
+	}
+
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	}
+
+	chatMessages := make([]WSChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		author := formatAuthorName(m.User.Name, m.UserID)
+		chatMessages = append(chatMessages, WSChatMessage{
+			Type:       "chat",
+			ID:         m.ID,
+			UserID:     m.UserID,
+			AuthorName: author,
+			Body:       m.Body,
+			CreatedAt:  m.CreatedAt,
+		})
+	}
+
+	if jerr := Renderer.JSON(w, http.StatusOK, ChatHistoryResponse{
+		Slug:     slug,
+		Messages: chatMessages,
+	}); jerr != nil {
+		l.Errorw("failed to render JSON", zap.Error(jerr))
 	}
 }
 
@@ -371,22 +634,49 @@ func getGameFingerprint(ctx context.Context, db *gorm.DB, gameID int64) (gameFin
 }
 
 type spectatorClient struct {
-	send chan []byte
-	done chan struct{}
-	once sync.Once
+	mu     sync.Mutex
+	send   chan []byte
+	done   chan struct{}
+	closed bool
+	userID *int64
 }
 
-func newSpectatorClient() *spectatorClient {
+func newSpectatorClient(uid *int64) *spectatorClient {
 	return &spectatorClient{
-		send: make(chan []byte, 32),
-		done: make(chan struct{}),
+		send:   make(chan []byte, clientSendBufferCapacity),
+		done:   make(chan struct{}),
+		userID: uid,
 	}
 }
 
-func (c *spectatorClient) disconnect() {
-	c.once.Do(func() {
+func (c *spectatorClient) sendMsg(msg []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return
+	}
+	select {
+	case c.send <- msg:
+	default:
+		c.disconnectLocked()
+	}
+}
+
+func (c *spectatorClient) disconnectLocked() {
+	select {
+	case <-c.done:
+	default:
 		close(c.done)
-	})
+	}
+}
+
+func (c *spectatorClient) closeSend() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.closed {
+		c.closed = true
+		close(c.send)
+	}
 }
 
 type gameHub struct {
@@ -400,13 +690,20 @@ type gameHub struct {
 	subscribers  map[*spectatorClient]struct{}
 	stopPoller   chan struct{}
 	pollerDone   chan struct{}
+	wakeCh       chan struct{}
 	lastFP       gameFingerprint
 	lastCount    int
+	lastChatID   int64
+	lastWhiteID  *int64
+	lastBlackID  *int64
+	lastStatus   string
 	lastStateMsg []byte
 	revision     int64
 }
 
 func newGameHub(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger, pollPeriod time.Duration) *gameHub {
+	var maxID int64
+	_ = db.Model(&SpectatorMessage{}).Where("game_id = ?", gameID).Select("COALESCE(MAX(id), 0)").Scan(&maxID)
 	return &gameHub{
 		slug:        slug,
 		gameID:      gameID,
@@ -416,7 +713,16 @@ func newGameHub(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger, po
 		subscribers: make(map[*spectatorClient]struct{}),
 		stopPoller:  make(chan struct{}),
 		pollerDone:  make(chan struct{}),
+		wakeCh:      make(chan struct{}, 1),
+		lastChatID:  maxID,
 	}
+}
+
+func (h *gameHub) isPlayerBlocked(userID *int64) bool {
+	if userID == nil || h.lastStatus == "finished" {
+		return false
+	}
+	return (h.lastWhiteID != nil && *userID == *h.lastWhiteID) || (h.lastBlackID != nil && *userID == *h.lastBlackID)
 }
 
 func (h *gameHub) runPoller() {
@@ -432,9 +738,18 @@ func (h *gameHub) runPoller() {
 		select {
 		case <-h.stopPoller:
 			return
+		case <-h.wakeCh:
+			h.pollAndBroadcast()
 		case <-ticker.C:
 			h.pollAndBroadcast()
 		}
+	}
+}
+
+func (h *gameHub) wakePoller() {
+	select {
+	case h.wakeCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -443,12 +758,19 @@ func (h *gameHub) broadcast(msg []byte) {
 	defer h.mu.Unlock()
 
 	for client := range h.subscribers {
-		select {
-		case client.send <- msg:
-		default:
-			// Disconnect lagging client so it reconnects for a fresh snapshot rather than staying stale.
-			client.disconnect()
+		client.sendMsg(msg)
+	}
+}
+
+func (h *gameHub) broadcastChat(msg []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for client := range h.subscribers {
+		if h.isPlayerBlocked(client.userID) {
+			continue
 		}
+		client.sendMsg(msg)
 	}
 }
 
@@ -471,16 +793,15 @@ func (h *gameHub) pollAndBroadcast() {
 	h.mu.Lock()
 	stateChanged := fp != h.lastFP || h.lastStateMsg == nil
 	countChanged := count != h.lastCount
+	h.lastWhiteID = whiteID
+	h.lastBlackID = blackID
+	h.lastStatus = fp.Status
 	h.mu.Unlock()
 
-	if !stateChanged && !countChanged {
-		return
-	}
-
 	if stateChanged {
-		state, err := buildGameStateResponse(h.db, h.slug)
-		if err != nil {
-			h.logger.Warnw("failed to build game state", "slug", h.slug, zap.Error(err))
+		state, berr := buildGameStateResponse(h.db, h.slug)
+		if berr != nil {
+			h.logger.Warnw("failed to build game state", "slug", h.slug, zap.Error(berr))
 			return
 		}
 		h.mu.Lock()
@@ -488,14 +809,14 @@ func (h *gameHub) pollAndBroadcast() {
 		rev := h.revision
 		h.mu.Unlock()
 
-		msg, err := json.Marshal(WSStateMessage{
+		msg, merr := json.Marshal(WSStateMessage{
 			Type:       "state",
 			Game:       state,
 			Spectators: count,
 			Revision:   rev,
 		})
-		if err != nil {
-			h.logger.Warnw("failed to marshal state message", zap.Error(err))
+		if merr != nil {
+			h.logger.Warnw("failed to marshal state message", zap.Error(merr))
 			return
 		}
 		h.mu.Lock()
@@ -505,18 +826,65 @@ func (h *gameHub) pollAndBroadcast() {
 		h.mu.Unlock()
 		h.broadcast(msg)
 	} else if countChanged {
-		msg, err := json.Marshal(WSSpectatorsMessage{
+		msg, merr := json.Marshal(WSSpectatorsMessage{
 			Type:  "spectators",
 			Count: count,
 		})
-		if err != nil {
-			h.logger.Warnw("failed to marshal spectators message", zap.Error(err))
+		if merr != nil {
+			h.logger.Warnw("failed to marshal spectators message", zap.Error(merr))
 			return
 		}
 		h.mu.Lock()
 		h.lastCount = count
 		h.mu.Unlock()
 		h.broadcast(msg)
+	}
+
+	// Check for new chat messages with bounded upper and lower IDs.
+	var maxChatID int64
+	if cerr := h.db.WithContext(queryCtx).Model(&SpectatorMessage{}).
+		Where("game_id = ?", h.gameID).
+		Select("COALESCE(MAX(id), 0)").
+		Scan(&maxChatID).Error; cerr != nil {
+		h.logger.Warnw("failed to get max chat id", "slug", h.slug, zap.Error(cerr))
+		return
+	}
+
+	h.mu.Lock()
+	prevChatID := h.lastChatID
+	h.mu.Unlock()
+
+	if maxChatID > prevChatID {
+		var newMsgs []SpectatorMessage
+		if lerr := h.db.WithContext(queryCtx).
+			Preload("User").
+			Where("game_id = ? AND id > ? AND id <= ?", h.gameID, prevChatID, maxChatID).
+			Order("id ASC").
+			Find(&newMsgs).Error; lerr != nil {
+			h.logger.Warnw("failed to load new chat messages", "slug", h.slug, zap.Error(lerr))
+			return
+		}
+
+		for _, m := range newMsgs {
+			author := formatAuthorName(m.User.Name, m.UserID)
+			chatJSON, jerr := json.Marshal(WSChatMessage{
+				Type:       "chat",
+				ID:         m.ID,
+				UserID:     m.UserID,
+				AuthorName: author,
+				Body:       m.Body,
+				CreatedAt:  m.CreatedAt,
+			})
+			if jerr == nil {
+				h.broadcastChat(chatJSON)
+			}
+		}
+
+		h.mu.Lock()
+		if maxChatID > h.lastChatID {
+			h.lastChatID = maxChatID
+		}
+		h.mu.Unlock()
 	}
 }
 
@@ -525,6 +893,7 @@ type spectateHubManager struct {
 	hubs              map[string]*gameHub
 	pollPeriod        time.Duration
 	heartbeatInterval time.Duration
+	rateLimiter       *userRateLimiter
 	cleanupOnce       sync.Once
 	cleanupStop       chan struct{}
 }
@@ -534,6 +903,7 @@ func newSpectateHubManager(pollPeriod, heartbeatInterval time.Duration) *spectat
 		hubs:              make(map[string]*gameHub),
 		pollPeriod:        pollPeriod,
 		heartbeatInterval: heartbeatInterval,
+		rateLimiter:       newUserRateLimiter(chatRateLimitCount, chatRateLimitWindow),
 	}
 }
 
@@ -559,33 +929,89 @@ func (mgr *spectateHubManager) ensureCleanup(db *gorm.DB) {
 }
 
 //nolint:contextcheck // hub poller outlives individual request contexts
-func (mgr *spectateHubManager) registerSpectator(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger) (*gameHub, *spectatorClient) {
+func (mgr *spectateHubManager) registerSpectator(slug string, game Game, uid *int64, db *gorm.DB, l *zap.SugaredLogger) (*gameHub, *spectatorClient) {
 	mgr.mu.Lock()
 	hub, ok := mgr.hubs[slug]
 	if !ok {
-		hub = newGameHub(slug, gameID, db, l, mgr.pollPeriod)
+		hub = newGameHub(slug, game.ID, db, l, mgr.pollPeriod)
 		mgr.hubs[slug] = hub
 	}
+	mgr.mu.Unlock()
 
-	client := newSpectatorClient()
+	client := newSpectatorClient(uid)
 
+	hub.mu.Lock()
+	hub.lastWhiteID = game.WhitePlayerID
+	hub.lastBlackID = game.BlackPlayerID
+	hub.lastStatus = game.Status
+	blocked := hub.isPlayerBlocked(uid)
+	cursor := hub.lastChatID
+	cachedState := hub.lastStateMsg
+	hub.mu.Unlock()
+
+	// Ensure the initial state message is sent first.
+	if cachedState == nil {
+		state, err := buildGameStateResponse(db, slug)
+		if err == nil {
+			count, _ := countSpectators(context.Background(), db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
+			fp, _, _, _ := getGameFingerprint(context.Background(), db, game.ID)
+			hub.mu.Lock()
+			if hub.lastStateMsg == nil {
+				hub.revision++
+				hub.lastCount = count
+				hub.lastFP = fp
+				msg, merr := json.Marshal(WSStateMessage{
+					Type:       "state",
+					Game:       state,
+					Spectators: count,
+					Revision:   hub.revision,
+				})
+				if merr == nil {
+					hub.lastStateMsg = msg
+				}
+			}
+			cachedState = hub.lastStateMsg
+			hub.mu.Unlock()
+		}
+	}
+
+	if cachedState != nil {
+		client.sendMsg(cachedState)
+	}
+
+	// Queue history up to cursor for unblocked clients before activating live delivery.
+	if !blocked {
+		var history []SpectatorMessage
+		q := db.Preload("User").Where("game_id = ?", game.ID)
+		if cursor > 0 {
+			q = q.Where("id <= ?", cursor)
+		}
+		if err := q.Order("id DESC").Limit(50).Find(&history).Error; err == nil {
+			for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
+				history[i], history[j] = history[j], history[i]
+			}
+			for _, m := range history {
+				author := formatAuthorName(m.User.Name, m.UserID)
+				chatJSON, jerr := json.Marshal(WSChatMessage{
+					Type:       "chat",
+					ID:         m.ID,
+					UserID:     m.UserID,
+					AuthorName: author,
+					Body:       m.Body,
+					CreatedAt:  m.CreatedAt,
+				})
+				if jerr == nil {
+					client.sendMsg(chatJSON)
+				}
+			}
+		}
+	}
+
+	// Activate subscriber on hub for live broadcast.
 	hub.mu.Lock()
 	hub.subscribers[client] = struct{}{}
 	isFirst := len(hub.subscribers) == 1
-	var cachedMsg []byte
-	if !isFirst && hub.lastStateMsg != nil {
-		cachedMsg = hub.lastStateMsg
-	}
 	hub.mu.Unlock()
-	mgr.mu.Unlock()
-
-	if cachedMsg != nil {
-		select {
-		case client.send <- cachedMsg:
-		default:
-			client.disconnect()
-		}
-	}
 
 	if isFirst {
 		go hub.runPoller()
@@ -595,10 +1021,11 @@ func (mgr *spectateHubManager) registerSpectator(slug string, gameID int64, db *
 }
 
 func (mgr *spectateHubManager) unregisterSpectator(slug string, hub *gameHub, client *spectatorClient) {
+	client.closeSend()
+
 	mgr.mu.Lock()
 	hub.mu.Lock()
 	delete(hub.subscribers, client)
-	close(client.send)
 	shouldStop := len(hub.subscribers) == 0
 	if shouldStop && mgr.hubs[slug] == hub {
 		delete(mgr.hubs, slug)

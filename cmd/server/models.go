@@ -99,7 +99,7 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &AnalysisJob{}, &Puzzle{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &SpectatorMessage{}, &AnalysisJob{}, &Puzzle{})
 }
 
 // Puzzle represents a tactical puzzle mined from a game position.
@@ -128,4 +128,16 @@ type Spectator struct {
 
 	Game Game  `gorm:"foreignKey:GameID" json:"-"`
 	User *User `gorm:"foreignKey:UserID" json:"-"`
+}
+
+// SpectatorMessage represents a chat message sent by a spectator during a game.
+type SpectatorMessage struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	GameID    int64     `gorm:"index;not null" json:"game_id"`
+	UserID    int64     `gorm:"index;not null" json:"user_id"`
+	Body      string    `gorm:"type:text;not null" json:"body"`
+	CreatedAt time.Time `gorm:"not null;index" json:"created_at"`
+
+	Game Game `gorm:"foreignKey:GameID" json:"-"`
+	User User `gorm:"foreignKey:UserID" json:"-"`
 }

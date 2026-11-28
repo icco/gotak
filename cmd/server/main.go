@@ -248,6 +248,14 @@ func buildRouter(opts routerOptions) http.Handler {
 		} else {
 			r.Get("/game/{slug}/spectate", spectateHandler)
 		}
+		if opts.DB != nil {
+			r.Get("/game/{slug}/chat", func(w http.ResponseWriter, r *http.Request) {
+				getGameChatHandlerWithDB(w, r, opts.DB)
+			})
+		} else {
+			r.Get("/game/{slug}/chat", getGameChatHandler)
+		}
+
 		r.Group(func(r chi.Router) {
 			r.Use(limitByClientIP(engineRequestsPerMinute, time.Minute))
 			r.Post("/analyze/game/{slug}", postAnalyzeHandler)
