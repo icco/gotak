@@ -1142,3 +1142,85 @@ func TestSpectate_ChatWebSocketE2E(t *testing.T) {
 		t.Fatalf("expected user id %d, got %d", viewer.ID, receivedChat.UserID)
 	}
 }
+
+func TestSpectate_ChatFull50HistoryOnConnect(t *testing.T) {
+	t.Setenv("AUTH_JWT_SECRET", "test-secret")
+	db := setupTestDB(t)
+	ada := createNamedTestUser(t, db, "Ada Lovelace", "ada@example.com")
+	viewer := createNamedTestUser(t, db, "Charlie Bucket", "charlie@example.com")
+
+	slug, err := createGame(db, 5, ada.ID, "human")
+	if err != nil {
+		t.Fatalf("create game: %v", err)
+	}
+	var game Game
+	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
+		t.Fatalf("find game: %v", err)
+	}
+
+	// Insert 50 messages.
+	now := time.Now()
+	for i := 1; i <= 50; i++ {
+		m := SpectatorMessage{
+			GameID:    game.ID,
+			UserID:    viewer.ID,
+			Body:      fmt.Sprintf("history-%02d", i),
+			CreatedAt: now.Add(time.Duration(i) * time.Second),
+		}
+		if err := db.Create(&m).Error; err != nil {
+			t.Fatalf("create msg %d: %v", i, err)
+		}
+	}
+
+	mgr := newSpectateHubManager(20*time.Millisecond, 1*time.Second)
+	handler := buildRouter(routerOptions{
+		IsDev:      true,
+		DB:         db,
+		HubManager: mgr,
+	})
+
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/game/" + slug + "/spectate"
+	conn, dialResp, err := websocket.Dial(ctx, wsURL, nil)
+	if dialResp != nil && dialResp.Body != nil {
+		_ = dialResp.Body.Close()
+	}
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test finished") }()
+
+	// Read initial state message.
+	_, initBytes, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("read init: %v", err)
+	}
+	var stateMsg WSStateMessage
+	if err := json.Unmarshal(initBytes, &stateMsg); err != nil {
+		t.Fatalf("unmarshal init: %v", err)
+	}
+	if stateMsg.Type != "state" {
+		t.Fatalf("expected state message, got %q", stateMsg.Type)
+	}
+
+	// Read all 50 history messages in order.
+	for i := 1; i <= 50; i++ {
+		_, msgBytes, err := conn.Read(ctx)
+		if err != nil {
+			t.Fatalf("read history msg %d: %v", i, err)
+		}
+		var chat WSChatMessage
+		if err := json.Unmarshal(msgBytes, &chat); err != nil {
+			t.Fatalf("unmarshal history msg %d: %v", i, err)
+		}
+		wantBody := fmt.Sprintf("history-%02d", i)
+		if chat.Body != wantBody {
+			t.Fatalf("msg %d: got body %q, want %q", i, chat.Body, wantBody)
+		}
+	}
+}
