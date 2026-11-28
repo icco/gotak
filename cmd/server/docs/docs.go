@@ -45,9 +45,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/analyze/compare-moves": {
+            "post": {
+                "description": "Plays each candidate PTN move from a TPS position and scores\nthe result. Each move reports a White-relative score, its\nloss against the engine's best move for the player to move,\nand the engine's best reply. Sorted best first; illegal moves\ncarry an error and sort last. At most 16 moves.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Compare candidate moves",
+                "parameters": [
+                    {
+                        "description": "Position, candidate moves, and engine config",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.CompareMovesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.CompareMovesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/analyze/game/{slug}": {
             "post": {
-                "description": "Walks the game move-by-move, asking the AI engine what it\nwould play at each position, and records whether the player's\nmove matches. Useful as a rough \"blunder detector\".",
+                "description": "Walks the game move-by-move and scores every position with\nthe engine. Each move gets the engine's preferred move and\nline, White-relative scores before and after, the loss it\ncost its player (about 400 per flat), and a quality label.\ncritical_moments lists the costliest moves. Boards up to 8x8.",
                 "consumes": [
                     "application/json"
                 ],
@@ -185,6 +231,52 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analyze/position": {
+            "post": {
+                "description": "Scores an arbitrary position given in TPS. Returns the\nengine's best move and line, a White-relative score (about\n400 per flat; forced wins are +/-100000 with forced_win set),\nand squares where either side could complete a road with one\nflat. Boards from 4x4 to 8x8.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Analyze a TPS position",
+                "parameters": [
+                    {
+                        "description": "Position and engine config",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.PositionAnalysisRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.PositionAnalysisResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
@@ -965,6 +1057,87 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "ai.MoveScore": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "loss": {
+                    "type": "integer"
+                },
+                "move": {
+                    "type": "string"
+                },
+                "reply": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ai.PositionAnalysis": {
+            "type": "object",
+            "properties": {
+                "best": {
+                    "type": "string"
+                },
+                "depth": {
+                    "type": "integer"
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "game_over": {
+                    "type": "boolean"
+                },
+                "pv": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "threats": {
+                    "$ref": "#/definitions/ai.RoadThreats"
+                },
+                "to_move": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
+                },
+                "winner": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ai.RoadThreats": {
+            "type": "object",
+            "properties": {
+                "black": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "white": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "gotak.Board": {
             "type": "object",
             "properties": {
@@ -1069,6 +1242,12 @@ const docTemplate = `{
                 "agreed": {
                     "type": "integer"
                 },
+                "critical_moments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.CriticalMoment"
+                    }
+                },
                 "level": {
                     "type": "string"
                 },
@@ -1100,6 +1279,26 @@ const docTemplate = `{
                 }
             }
         },
+        "main.CompareMovesRequest": {
+            "type": "object"
+        },
+        "main.CompareMovesResponse": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "string"
+                },
+                "moves": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai.MoveScore"
+                    }
+                },
+                "position": {
+                    "$ref": "#/definitions/ai.PositionAnalysis"
+                }
+            }
+        },
         "main.ConfirmResetRequest": {
             "type": "object",
             "properties": {
@@ -1123,6 +1322,32 @@ const docTemplate = `{
                 "size": {
                     "type": "string",
                     "example": "8"
+                }
+            }
+        },
+        "main.CriticalMoment": {
+            "type": "object",
+            "properties": {
+                "best": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "loss": {
+                    "type": "integer"
+                },
+                "played": {
+                    "type": "string"
+                },
+                "player": {
+                    "type": "integer"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "turn": {
+                    "type": "integer"
                 }
             }
         },
@@ -1252,15 +1477,36 @@ const docTemplate = `{
                 "best": {
                     "type": "string"
                 },
+                "best_line": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "error": {
-                    "description": "Error captures why the engine couldn't evaluate this move, if any.\nWhen non-empty, Best and Agreed should be ignored.",
+                    "description": "Error captures why the engine couldn't evaluate this move, if any.\nWhen non-empty, the engine fields should be ignored.",
                     "type": "string"
+                },
+                "loss": {
+                    "type": "integer"
                 },
                 "played": {
                     "type": "string"
                 },
                 "player": {
                     "type": "integer"
+                },
+                "quality": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "score_after": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
                 },
                 "turn": {
                     "type": "integer"
@@ -1325,6 +1571,50 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "standing": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.PositionAnalysisRequest": {
+            "type": "object"
+        },
+        "main.PositionAnalysisResponse": {
+            "type": "object",
+            "properties": {
+                "best": {
+                    "type": "string"
+                },
+                "depth": {
+                    "type": "integer"
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "game_over": {
+                    "type": "boolean"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "pv": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "threats": {
+                    "$ref": "#/definitions/ai.RoadThreats"
+                },
+                "to_move": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
+                },
+                "winner": {
                     "type": "integer"
                 }
             }
