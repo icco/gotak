@@ -3,7 +3,6 @@
 [![Tests](https://github.com/icco/gotak/actions/workflows/test.yml/badge.svg)](https://github.com/icco/gotak/actions/workflows/test.yml)
 [![CodeQL](https://github.com/icco/gotak/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/icco/gotak/actions/workflows/codeql-analysis.yml)
 [![GoDoc](https://pkg.go.dev/badge/go.icco.me/gotak.svg)](https://pkg.go.dev/go.icco.me/gotak)
-[![Go Report Card](https://goreportcard.com/badge/github.com/icco/gotak)](https://goreportcard.com/report/github.com/icco/gotak)
 
 A server, CLI, and core library for the board game [Tak](https://en.wikipedia.org/wiki/Tak_(game)),
 including PTN parsing, full rules (roads, piece limits, win conditions), and a chi-based HTTP API
