@@ -278,7 +278,11 @@ func parseUserMove(text string, size int) (tak.Move, error) {
 // indexes into empty cells and bare piece markers and panics on them.
 func (a *Analyzer) parseTPS(tps string) (p *tak.Position, err error) {
 	norm := strings.Join(strings.Fields(tps), " ")
-	if _, _, _, err := gotak.ParseTPS(norm); err != nil {
+	board, _, _, err := gotak.ParseTPS(norm)
+	if err != nil {
+		return nil, fmt.Errorf("invalid tps: %w", err)
+	}
+	if err := checkInventory(board); err != nil {
 		return nil, fmt.Errorf("invalid tps: %w", err)
 	}
 	defer func() {
@@ -294,6 +298,38 @@ func (a *Analyzer) parseTPS(tps string) (p *tak.Position, err error) {
 		return nil, fmt.Errorf("tps is %dx%d but analyzer is %dx%d", p.Size(), p.Size(), a.size, a.size)
 	}
 	return p, nil
+}
+
+// checkInventory rejects positions with more pieces than a player owns.
+// taktician stores stack heights in a uint8 and wraps on oversized stacks.
+func checkInventory(b *gotak.Board) error {
+	if b.Size < 3 || b.Size > 8 {
+		return fmt.Errorf("board size %d: the engine supports 3 to 8", b.Size)
+	}
+	limits := tak.New(tak.Config{Size: int(b.Size)}).Config()
+	stones := map[int]int{}
+	caps := map[int]int{}
+	for _, stack := range b.Squares {
+		for _, s := range stack {
+			if s == nil {
+				continue
+			}
+			if s.Type == gotak.StoneCap {
+				caps[s.Player]++
+			} else {
+				stones[s.Player]++
+			}
+		}
+	}
+	for _, p := range []int{gotak.PlayerWhite, gotak.PlayerBlack} {
+		if stones[p] > limits.Pieces {
+			return fmt.Errorf("player %d has %d stones, more than the %d a %dx%d game allows", p, stones[p], limits.Pieces, b.Size, b.Size)
+		}
+		if caps[p] > limits.Capstones {
+			return fmt.Errorf("player %d has %d capstones, more than the %d a %dx%d game allows", p, caps[p], limits.Capstones, b.Size, b.Size)
+		}
+	}
+	return nil
 }
 
 func (a *Analyzer) play(p *tak.Position, text string) (*tak.Position, error) {
