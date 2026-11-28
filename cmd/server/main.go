@@ -123,12 +123,13 @@ func main() {
 		return
 	}
 
-	llmEngine, err = ai.NewLLMEngineFromEnv(ctx)
+	engine, err := ai.NewLLMEngineFromEnv(ctx)
 	if err != nil {
 		log.Panicw("failed to initialize LLM engine", zap.Error(err))
 		return
 	}
-	if llmEngine != nil {
+	if engine != nil {
+		llmEngine = engine
 		log.Infow("LLM AI opponent initialized")
 	}
 

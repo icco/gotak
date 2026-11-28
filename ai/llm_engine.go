@@ -327,7 +327,7 @@ func buildUserPrompt(g *gotak.Game, pos *tak.Position, legalMoves []tak.Move) st
 	b.WriteString("- Board coordinates: Columns a-h (left-to-right), rows 1-8 (bottom-to-top). a1 is bottom-left.\n")
 	b.WriteString("- Turn 1: Player 1 (White) places a flat stone of the OPPONENT's color (Black). Player 2 (Black) places a flat stone of the OPPONENT's color (White).\n")
 	b.WriteString("- Normal turns: Place a flat (e.g. 'c3'), standing stone/wall ('Sc3'), or capstone ('Cc3') on an empty square; or move a stack ('3c3>12', 'c3+').\n")
-	b.WriteString("- Walls and capstones block roads. Capstones can flatten standing walls when moved alone onto them.\n\n")
+	b.WriteString("- Walls block roads and capstones cannot be stacked on top of. Capstones count toward roads and can flatten standing walls when moved alone onto them.\n\n")
 
 	fmt.Fprintf(&b, "Board size: %dx%d\n", size, size)
 	fmt.Fprintf(&b, "Position (TPS): %s\n\n", ptn.FormatTPS(pos))

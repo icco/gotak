@@ -120,6 +120,37 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		Personality: req.Personality,
 	}
 
+	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
+	if err != nil {
+		l.Errorw("could not get user player number", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "internal server error"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	aiPlayerNumber := gotak.PlayerBlack
+	if userPlayerNumber == gotak.PlayerBlack {
+		aiPlayerNumber = gotak.PlayerWhite
+	}
+
+	var dbGame Game
+	if err := db.Where("slug = ?", slug).First(&dbGame).Error; err != nil {
+		l.Errorw("could not get game state for turn check", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not verify game state"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if dbGame.CurrentPlayer != aiPlayerNumber {
+		l.Errorw("not AI's turn", "current_player", dbGame.CurrentPlayer, "ai_player", aiPlayerNumber)
+		if err := Renderer.JSON(w, 400, map[string]string{"error": "it's not the AI's turn"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
 	var moveEngine ai.Engine
 	switch req.Engine {
 	case "llm":
@@ -154,37 +185,6 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		l.Errorw("AI move failed", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "AI move failed"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
-	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
-	if err != nil {
-		l.Errorw("could not get user player number", "slug", slug, "user_id", user.ID, zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "internal server error"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
-	aiPlayerNumber := gotak.PlayerBlack
-	if userPlayerNumber == gotak.PlayerBlack {
-		aiPlayerNumber = gotak.PlayerWhite
-	}
-
-	var dbGame Game
-	if err := db.Where("slug = ?", slug).First(&dbGame).Error; err != nil {
-		l.Errorw("could not get game state for turn check", "slug", slug, zap.Error(err))
-		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not verify game state"}); err != nil {
-			l.Errorw("failed to render JSON", zap.Error(err))
-		}
-		return
-	}
-
-	if dbGame.CurrentPlayer != aiPlayerNumber {
-		l.Errorw("not AI's turn", "current_player", dbGame.CurrentPlayer, "ai_player", aiPlayerNumber)
-		if err := Renderer.JSON(w, 400, map[string]string{"error": "it's not the AI's turn"}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
