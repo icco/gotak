@@ -2,10 +2,12 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"go.icco.me/gotak"
+	"go.icco.me/gotak/ai"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +26,21 @@ type GameStateResponse struct {
 }
 
 var errInvalidGameMode = errors.New(`invalid mode: must be "human" or "ai"`)
+
+var errInvalidBoardSize = errors.New("invalid board size")
+
+// validateBoardSize allows what the rules allow for human games, and only
+// what the engine can search for AI games.
+func validateBoardSize(size int, mode string) error {
+	maxSize := 9
+	if mode == "ai" {
+		maxSize = ai.MaxBoardSize
+	}
+	if size < 4 || size > maxSize {
+		return fmt.Errorf("%w: %d, %s games support 4 to %d", errInvalidBoardSize, size, mode, maxSize)
+	}
+	return nil
+}
 
 // wantsJSON reports whether the client prefers a JSON body over a redirect.
 func wantsJSON(r *http.Request) bool {
