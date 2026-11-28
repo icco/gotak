@@ -95,6 +95,131 @@ func TestPostCompareMoves(t *testing.T) {
 	}
 }
 
+func TestPostAnalyzeTree(t *testing.T) {
+	rec := postJSON(t, postAnalyzeTreeHandler,
+		`{"tps":"`+roadInOneTPS+`","breadth":3,"depth":2,"level":"intermediate","time_limit":300000000}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body)
+	}
+	var got TreeAnalysisResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Level != "intermediate" {
+		t.Errorf("level = %q, want intermediate", got.Level)
+	}
+	if got.Move != "" {
+		t.Errorf("root move = %q, want empty", got.Move)
+	}
+	if len(got.Children) == 0 {
+		t.Fatal("tree has no children")
+	}
+	top := got.Children[0]
+	if top.Move != "e1" {
+		t.Errorf("top move = %q, want e1", top.Move)
+	}
+	if top.Score != ai.ForcedWinScore {
+		t.Errorf("top score = %d, want %d", top.Score, ai.ForcedWinScore)
+	}
+	if top.ForcedWin != gotak.PlayerWhite {
+		t.Errorf("top forced_win = %d, want %d", top.ForcedWin, gotak.PlayerWhite)
+	}
+	if !top.GameOver || top.Winner != gotak.PlayerWhite {
+		t.Errorf("top game_over = %v winner = %d, want white win", top.GameOver, top.Winner)
+	}
+}
+
+func TestPostAnalyzeTree_shape(t *testing.T) {
+	rec := postJSON(t, postAnalyzeTreeHandler,
+		`{"tps":"x5/x5/x5/x5/x5 1 1","breadth":2,"depth":2,"level":"intermediate","time_limit":300000000}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body)
+	}
+	var got TreeAnalysisResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.Children) != 2 {
+		t.Fatalf("root children = %d, want 2", len(got.Children))
+	}
+	if len(got.PV) != 0 {
+		t.Errorf("root PV = %v, want empty on intermediate node", got.PV)
+	}
+	for i, c := range got.Children {
+		if c.Move == "" {
+			t.Errorf("child %d move is empty", i)
+		}
+		if len(c.PV) != 0 {
+			t.Errorf("child %d PV = %v, want empty on intermediate node", i, c.PV)
+		}
+		if len(c.Children) != 2 {
+			t.Fatalf("child %d children = %d, want 2", i, len(c.Children))
+		}
+		for j, gc := range c.Children {
+			if gc.Move == "" {
+				t.Errorf("leaf %d.%d move is empty", i, j)
+			}
+			if len(gc.Children) != 0 {
+				t.Errorf("leaf %d.%d children = %d, want 0", i, j, len(gc.Children))
+			}
+			if len(gc.PV) == 0 {
+				t.Errorf("leaf %d.%d PV is empty", i, j)
+			}
+		}
+	}
+}
+
+func TestPostAnalyzeTree_badRequests(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"not json", `{`},
+		{"missing tps", `{"breadth":2,"depth":2}`},
+		{"blank tps", `{"tps":"   ","breadth":2,"depth":2}`},
+		{"breadth zero", `{"tps":"x5/x5/x5/x5/x5 1 1","breadth":0,"depth":2}`},
+		{"breadth negative", `{"tps":"x5/x5/x5/x5/x5 1 1","breadth":-1,"depth":2}`},
+		{"breadth too large", `{"tps":"x5/x5/x5/x5/x5 1 1","breadth":5,"depth":2}`},
+		{"depth zero", `{"tps":"x5/x5/x5/x5/x5 1 1","breadth":2,"depth":0}`},
+		{"depth negative", `{"tps":"x5/x5/x5/x5/x5 1 1","breadth":2,"depth":-1}`},
+		{"depth too large", `{"tps":"x5/x5/x5/x5/x5 1 1","breadth":2,"depth":4}`},
+		{"bad tps", `{"tps":"x5/x5 1 1","breadth":2,"depth":2}`},
+		{"nine by nine", `{"tps":"x9/x9/x9/x9/x9/x9/x9/x9/x9 1 1","breadth":2,"depth":2}`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := postJSON(t, postAnalyzeTreeHandler, c.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400 (body %s)", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
+func TestMaxTreeNodesFor(t *testing.T) {
+	cases := []struct {
+		breadth int
+		depth   int
+		want    int
+	}{
+		{1, 1, 2},
+		{1, 3, 4},
+		{2, 1, 3},
+		{2, 2, 7},
+		{2, 3, 15},
+		{3, 2, 13},
+		{3, 3, 40},
+		{4, 2, 21},
+		{4, 3, ai.MaxTreeNodes},
+	}
+	for _, c := range cases {
+		got := maxTreeNodesFor(c.breadth, c.depth)
+		if got != c.want {
+			t.Errorf("maxTreeNodesFor(%d, %d) = %d, want %d", c.breadth, c.depth, got, c.want)
+		}
+	}
+}
+
 func TestPostCompareMoves_badRequests(t *testing.T) {
 	many, _ := json.Marshal(make([]string, ai.MaxCompareMoves+1))
 	cases := []struct {

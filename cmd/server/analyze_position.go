@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -44,6 +45,23 @@ type CompareMovesRequest struct {
 // CompareMovesResponse is the payload returned by POST /analyze/compare-moves.
 type CompareMovesResponse struct {
 	ai.Comparison
+	Level string `json:"level"`
+}
+
+// TreeAnalysisRequest asks for a move tree exploring alternative lines
+// from one TPS position.
+type TreeAnalysisRequest struct {
+	TPS       string        `json:"tps" example:"x5/x5/x5/2,2,x3/1,1,1,1,x 1 5"`
+	Breadth   int           `json:"breadth" example:"3"`
+	Depth     int           `json:"depth" example:"2"`
+	Level     string        `json:"level" example:"advanced"`
+	Style     string        `json:"style" example:"balanced"`
+	TimeLimit time.Duration `json:"time_limit" example:"2000000000"`
+}
+
+// TreeAnalysisResponse is the payload returned by POST /analyze/tree.
+type TreeAnalysisResponse struct {
+	ai.MoveTree
 	Level string `json:"level"`
 }
 
@@ -150,6 +168,74 @@ func postCompareMovesHandler(w http.ResponseWriter, r *http.Request) {
 	if err := Renderer.JSON(w, http.StatusOK, CompareMovesResponse{Comparison: *res, Level: levelName}); err != nil {
 		l.Errorw("failed to render move comparison", zap.Error(err))
 	}
+}
+
+// @Summary Generate an alternative move tree
+// @Description Builds a tree of candidate moves and variations from a TPS
+// @Description position. Each node reports score and forced win; leaves carry
+// @Description the engine's principal variation. Breadth up to 4, depth up to 3.
+// @Tags analysis
+// @Accept json
+// @Produce json
+// @Param request body TreeAnalysisRequest true "Position, tree shape, and engine config"
+// @Success 200 {object} TreeAnalysisResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Router /analyze/tree [post]
+func postAnalyzeTreeHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	l := logging.FromContext(ctx)
+
+	var req TreeAnalysisRequest
+	if err := decodePositionBody(w, r, &req); err != nil {
+		writeAnalysisError(w, l, http.StatusBadRequest, err)
+		return
+	}
+	if strings.TrimSpace(req.TPS) == "" {
+		writeAnalysisError(w, l, http.StatusBadRequest, errors.New("tps is required"))
+		return
+	}
+	if req.Breadth < 1 || req.Breadth > ai.MaxTreeBreadth {
+		writeAnalysisError(w, l, http.StatusBadRequest, fmt.Errorf("breadth must be between 1 and %d", ai.MaxTreeBreadth))
+		return
+	}
+	if req.Depth < 1 || req.Depth > ai.MaxTreeDepth {
+		writeAnalysisError(w, l, http.StatusBadRequest, fmt.Errorf("depth must be between 1 and %d", ai.MaxTreeDepth))
+		return
+	}
+
+	cfg, levelName := analyzeConfigFromRequest(AnalyzeRequest{Level: req.Level, Style: req.Style, TimeLimit: req.TimeLimit})
+	maxNodes := maxTreeNodesFor(req.Breadth, req.Depth)
+	budget := time.Duration(maxNodes) * cfg.TimeLimit
+	extendWriteDeadline(w, l, budget+analyzeDeadlineSlack)
+	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
+	defer cancel()
+
+	res, err := ai.MoveTreeTPS(actx, req.TPS, req.Breadth, req.Depth, cfg)
+	if err != nil {
+		writeAnalysisError(w, l, analysisErrorStatus(err), err)
+		return
+	}
+
+	if err := Renderer.JSON(w, http.StatusOK, TreeAnalysisResponse{MoveTree: *res, Level: levelName}); err != nil {
+		l.Errorw("failed to render tree analysis", zap.Error(err))
+	}
+}
+
+func maxTreeNodesFor(breadth, depth int) int {
+	if breadth <= 1 {
+		return min(1+depth, ai.MaxTreeNodes)
+	}
+	total := 1
+	layer := 1
+	for range depth {
+		layer *= breadth
+		total += layer
+		if total >= ai.MaxTreeNodes {
+			return ai.MaxTreeNodes
+		}
+	}
+	return min(total, ai.MaxTreeNodes)
 }
 
 func decodePositionBody(w http.ResponseWriter, r *http.Request, dst any) error {
