@@ -35,6 +35,7 @@ with PostgreSQL persistence.
 | `GET`  | `/analyze/game/{slug}/jobs/{id}` | Status of a background game analysis: `running`, `failed` with `error`, or `done` with the analysis in `result`. |
 | `POST` | `/analyze/position`     | Score a TPS position: best move and line, score, forced win, one-flat road threats, patterns. Body: `{"tps":"x5/x5/x5/x5/x5 1 1"}`. |
 | `POST` | `/analyze/compare-moves`| Score up to 16 candidate moves from a TPS position, best first. Body: `{"tps":"...","moves":["e1","a3"]}`. |
+| `POST` | `/analyze/tree`         | Build a move tree of alternative lines from a TPS position. Body: `{"tps":"...","breadth":3,"depth":2}`. |
 | `GET`  | `/analyze/openings`     | Continuation counts across stored games for a move prefix. Query: `prefix=a1,e5`.                                         |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
 | `GET`  | `/analyze/heatmap`    | Per-square piece placement heatmap for a board size (4-9). Public.                                                         |
