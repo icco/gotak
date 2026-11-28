@@ -3,7 +3,6 @@
 [![Tests](https://github.com/icco/gotak/actions/workflows/test.yml/badge.svg)](https://github.com/icco/gotak/actions/workflows/test.yml)
 [![CodeQL](https://github.com/icco/gotak/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/icco/gotak/actions/workflows/codeql-analysis.yml)
 [![GoDoc](https://pkg.go.dev/badge/go.icco.me/gotak.svg)](https://pkg.go.dev/go.icco.me/gotak)
-[![Go Report Card](https://goreportcard.com/badge/github.com/icco/gotak)](https://goreportcard.com/report/github.com/icco/gotak)
 
 A server, CLI, and core library for the board game [Tak](https://en.wikipedia.org/wiki/Tak_(game)),
 including PTN parsing, full rules (roads, piece limits, win conditions), and a chi-based HTTP API
@@ -30,21 +29,24 @@ with PostgreSQL persistence.
 | `POST` | `/game/new`           | Create a game (auth). Body: `{"size":"8","mode":"human\|ai"}`. `Accept: application/json` → **201** JSON; else **307** redirect. |
 | `POST` | `/game/{slug}/join`   | Join a waiting game as black (auth required).                                              |
 | `POST` | `/game/{slug}/move`   | Submit a move (auth required). Body: `{"player": 1, "move": "c3", "turn": 1}`.             |
-| `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required).                                                        |
+| `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required). Body accepts optional `"engine": "taktician"\|"llm"`, level, style, time limit, and personality. |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
 | `GET`  | `/analyze/heatmap`    | Per-square piece placement heatmap for a board size (4-9). Public.                                                         |
 | `GET`  | `/metrics`            | OTel HTTP semconv metrics (e.g. `http_server_request_duration_seconds`) in Prometheus exposition format.                   |
 
 ## Environment variables
 
-| Variable               | Required | Default     | Description                                                       |
-|------------------------|----------|-------------|-------------------------------------------------------------------|
-| `PORT`                 | no       | `8080`      | HTTP listen port.                                                 |
-| `DATABASE_URL`         | yes      | _(empty)_   | Postgres DSN. SQLite fallback in tests.                           |
-| `AUTH_JWT_SECRET`      | yes      | _(empty)_   | HMAC secret for JWTs.                                             |
-| `GOOGLE_CLIENT_ID`     | no       | _(empty)_   | Enables Google OAuth provider.                                    |
-| `GOOGLE_CLIENT_SECRET` | no       | _(empty)_   | Pairs with `GOOGLE_CLIENT_ID`.                                    |
-| `NAT_ENV`              | no       | _(empty)_   | Set to `production` to enable SSL redirect / strict headers.      |
+| Variable                 | Required | Default            | Description                                                       |
+|--------------------------|----------|--------------------|-------------------------------------------------------------------|
+| `PORT`                   | no       | `8080`             | HTTP listen port.                                                 |
+| `DATABASE_URL`           | yes      | _(empty)_          | Postgres DSN. SQLite fallback in tests.                           |
+| `AUTH_JWT_SECRET`        | yes      | _(empty)_          | HMAC secret for JWTs.                                             |
+| `GOOGLE_CLIENT_ID`       | no       | _(empty)_          | Enables Google OAuth provider.                                    |
+| `GOOGLE_CLIENT_SECRET`   | no       | _(empty)_          | Pairs with `GOOGLE_CLIENT_ID`.                                    |
+| `NAT_ENV`                | no       | _(empty)_          | Set to `production` to enable SSL redirect / strict headers.      |
+| `GEMINI_API_KEY`         | no       | _(empty)_          | Virtual key for the LiteLLM proxy; enables the LLM AI opponent.   |
+| `GOOGLE_GEMINI_BASE_URL` | with key | _(empty)_          | LiteLLM proxy URL. Required when GEMINI_API_KEY is set.           |
+| `GEMINI_MODEL`           | no       | `gemini-2.5-flash` | Gemini model name routed by the proxy.                            |
 
 ## Running
 

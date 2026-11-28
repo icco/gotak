@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/ifo/sanic"
 	"gorm.io/driver/postgres"
@@ -14,13 +16,33 @@ import (
 	"go.icco.me/gotak"
 )
 
+var (
+	dbMu   sync.Mutex
+	dbConn *gorm.DB
+)
+
+// getDB returns the process-wide connection pool, opening and migrating it
+// on first use. A failed open is not cached, so the next call retries.
 func getDB() (*gorm.DB, error) {
-	dbURL := os.Getenv("DATABASE_URL")
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	if dbConn != nil {
+		return dbConn, nil
+	}
+
+	db, err := openDB(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return nil, err
+	}
+	dbConn = db
+	return db, nil
+}
+
+func openDB(dbURL string) (*gorm.DB, error) {
 	if dbURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
 
-	// Configure GORM to use zapgorm2 logger
 	config := &gorm.Config{
 		Logger: zapgorm2.New(log.Desugar()),
 	}
@@ -31,16 +53,22 @@ func getDB() (*gorm.DB, error) {
 	}
 
 	if err := db.Use(gormtracing.NewPlugin(gormtracing.WithoutMetrics(), gormtracing.WithoutQueryVariables())); err != nil {
-		return nil, fmt.Errorf("failed to use tracing plugin: %w", err)
+		return nil, errors.Join(fmt.Errorf("failed to use tracing plugin: %w", err), closeDB(db))
 	}
 
-	// Auto-migrate the schema
-	err = AutoMigrate(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run auto-migration: %w", err)
+	if err := AutoMigrate(db); err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to run auto-migration: %w", err), closeDB(db))
 	}
 
 	return db, nil
+}
+
+func closeDB(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
 
 // slugWorker is shared across createGame calls so back-to-back creations within

@@ -39,13 +39,13 @@ func TestConvertMoveToString(t *testing.T) {
 			name:     "slide right",
 			move:     tak.Move{X: 1, Y: 1, Type: tak.SlideRight, Slides: tak.MkSlides(1, 2)},
 			size:     5,
-			expected: "2b2>12",
+			expected: "3b2>12",
 		},
 		{
 			name:     "slide up",
 			move:     tak.Move{X: 0, Y: 0, Type: tak.SlideUp, Slides: tak.MkSlides(3)},
 			size:     5,
-			expected: "1a1+3",
+			expected: "3a1+",
 		},
 		{
 			name:     "invalid coordinates - out of bounds",
@@ -104,7 +104,7 @@ func TestConvertStringToMove(t *testing.T) {
 		},
 		{
 			name:     "slide right with drops",
-			moveStr:  "2b2>12",
+			moveStr:  "3b2>12",
 			size:     5,
 			expected: tak.Move{X: 1, Y: 1, Type: tak.SlideRight, Slides: tak.MkSlides(1, 2)},
 		},
@@ -112,7 +112,25 @@ func TestConvertStringToMove(t *testing.T) {
 			name:     "slide up simple",
 			moveStr:  "3a1+",
 			size:     5,
-			expected: tak.Move{X: 0, Y: 0, Type: tak.SlideUp, Slides: tak.MkSlides(1, 1, 1)},
+			expected: tak.Move{X: 0, Y: 0, Type: tak.SlideUp, Slides: tak.MkSlides(3)},
+		},
+		{
+			name:     "single stone slide",
+			moveStr:  "a1>",
+			size:     5,
+			expected: tak.Move{X: 0, Y: 0, Type: tak.SlideRight, Slides: tak.MkSlides(1)},
+		},
+		{
+			name:    "drops do not match carry",
+			moveStr: "2b2>12",
+			size:    5,
+			wantErr: true,
+		},
+		{
+			name:    "carry larger than board",
+			moveStr: "6a1>",
+			size:    5,
+			wantErr: true,
 		},
 		{
 			name:    "invalid move format",
@@ -356,50 +374,80 @@ func TestAIConfigurationOptions(t *testing.T) {
 }
 
 func TestRoundTripConversion(t *testing.T) {
-	// Test that converting a move to string and back gives the same result
-	testMoves := []string{
-		"a1",
-		"Sa1",
-		"Ca1",
-		"b2",
-		"2c3>11",
-		"3d4+111",
-		"1a1<1",
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"a1", "a1"},
+		{"Sa1", "Sa1"},
+		{"Ca1", "Ca1"},
+		{"b2", "b2"},
+		{"a1<", "a1<"},
+		{"1a1<1", "a1<"},
+		{"3b2-", "3b2-"},
+		{"3b2-3", "3b2-"},
+		{"2c3>11", "2c3>11"},
+		{"3d4+12", "3d4+12"},
+		{"5a1>212", "5a1>212"},
 	}
 
-	for _, moveStr := range testMoves {
-		t.Run(moveStr, func(t *testing.T) {
-			// Convert string to move
-			takMove, err := convertStringToMove(moveStr, 5)
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			takMove, err := convertStringToMove(tt.in, 5)
 			if err != nil {
-				t.Errorf("convertStringToMove() error = %v", err)
-				return
+				t.Fatalf("convertStringToMove(%q) error = %v", tt.in, err)
 			}
-
-			// Convert back to string
-			resultStr, err := convertMoveToString(takMove, 5)
+			got, err := convertMoveToString(takMove, 5)
 			if err != nil {
-				t.Errorf("convertMoveToString() error = %v", err)
-				return
+				t.Fatalf("convertMoveToString() error = %v", err)
 			}
-
-			// For simple placement moves, they should be identical
-			// For slide moves, the format might be normalized but should be equivalent
-			if takMove.Type == tak.PlaceFlat || takMove.Type == tak.PlaceStanding || takMove.Type == tak.PlaceCapstone {
-				if resultStr != moveStr {
-					t.Errorf("Round trip conversion failed: %s -> %s", moveStr, resultStr)
-				}
-			} else {
-				// For slide moves, at least verify the coordinates match
-				takMove2, err := convertStringToMove(resultStr, 5)
-				if err != nil {
-					t.Errorf("Second convertStringToMove() error = %v", err)
-					return
-				}
-				if takMove.X != takMove2.X || takMove.Y != takMove2.Y || takMove.Type != takMove2.Type {
-					t.Errorf("Round trip slide move conversion failed: coordinates or type mismatch")
-				}
+			if got != tt.want {
+				t.Errorf("round trip %q = %q, want %q", tt.in, got, tt.want)
+			}
+			if _, err := gotak.NewMove(got); err != nil {
+				t.Errorf("gotak rejects engine output %q: %v", got, err)
 			}
 		})
+	}
+}
+
+func TestTakticianEngineRejectsUnsupportedSize(t *testing.T) {
+	game, err := gotak.NewGame(9, 1, "test-nine")
+	if err != nil {
+		t.Fatalf("NewGame(9): %v", err)
+	}
+	_, err = (&TakticianEngine{}).GetMove(context.Background(), game, AIConfig{Level: Intermediate})
+	if err == nil {
+		t.Fatal("GetMove on a 9x9 board should return an error, not a move")
+	}
+}
+
+func TestTakticianEngineSlidesStayInSync(t *testing.T) {
+	game, err := gotak.NewGame(5, 1, "test-slide")
+	if err != nil {
+		t.Fatalf("NewGame: %v", err)
+	}
+	if err := game.DoTurn("a1", "e5"); err != nil {
+		t.Fatalf("turn 1: %v", err)
+	}
+	if err := game.DoTurn("b1", "a2"); err != nil {
+		t.Fatalf("turn 2: %v", err)
+	}
+	if err := game.DoTurn("b1<", "a2-"); err != nil {
+		t.Fatalf("turn 3: %v", err)
+	}
+	if err := game.DoTurn("c3", "3a1>"); err != nil {
+		t.Fatalf("turn 4: %v", err)
+	}
+
+	pos, err := convertGameToPosition(game)
+	if err != nil {
+		t.Fatalf("convertGameToPosition: %v", err)
+	}
+	if h := pos.At(1, 0); len(h) != 3 {
+		t.Errorf("b1 height in engine = %d, want 3", len(h))
+	}
+	if h := pos.At(0, 0); len(h) != 0 {
+		t.Errorf("a1 height in engine = %d, want 0", len(h))
 	}
 }
