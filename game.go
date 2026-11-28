@@ -120,9 +120,6 @@ func (g *Game) PTN() string {
 		if line == "" {
 			continue
 		}
-		if t.Result != "" {
-			line = fmt.Sprintf("%s %s", line, t.Result)
-		}
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
@@ -526,71 +523,171 @@ func (g *Game) Branches() []string {
 	return out
 }
 
-func parseTag(line string) *Tag {
-	// Example: [Tag_Name "Tag Data"]
-	tagRegex := regexp.MustCompile(`\[([0-9A-Za-z_]+) "(.*)"\]`)
-	parts := tagRegex.FindStringSubmatch(line)
+var tagRegex = regexp.MustCompile(`^\s*\[([0-9A-Za-z_]+)\s+"(.*)"\]\s*$`)
 
+func parseTag(line string) *Tag {
+	parts := tagRegex.FindStringSubmatch(line)
 	if len(parts) >= 3 {
 		return &Tag{
 			Key:   parts[1],
 			Value: parts[2],
 		}
 	}
-
 	return nil
 }
 
+type turnTokenKind int
+
+const (
+	tokenWord turnTokenKind = iota
+	tokenComment
+)
+
+type turnToken struct {
+	kind turnTokenKind
+	val  string
+}
+
+func tokenizeTurnLine(line string) []turnToken {
+	var tokens []turnToken
+	i := 0
+	n := len(line)
+	for i < n {
+		if line[i] == ' ' || line[i] == '\t' || line[i] == '\r' || line[i] == '\n' {
+			i++
+			continue
+		}
+		if line[i] == '{' {
+			start := i + 1
+			end := strings.IndexByte(line[start:], '}')
+			if end == -1 {
+				val := strings.TrimSpace(line[start:])
+				tokens = append(tokens, turnToken{kind: tokenComment, val: val})
+				break
+			}
+			val := strings.TrimSpace(line[start : start+end])
+			tokens = append(tokens, turnToken{kind: tokenComment, val: val})
+			i = start + end + 1
+			continue
+		}
+		start := i
+		for i < n && line[i] != ' ' && line[i] != '\t' && line[i] != '\r' && line[i] != '\n' && line[i] != '{' {
+			i++
+		}
+		tokens = append(tokens, turnToken{kind: tokenWord, val: line[start:i]})
+	}
+	return tokens
+}
+
+func isPTNResult(s string) bool {
+	switch s {
+	case "R-0", "0-R", "F-0", "0-F", "1-0", "0-1", "1/2-1/2":
+		return true
+	}
+	normalized := strings.Trim(s, "\"'?!")
+	return strings.Contains(s, "-") && !moveRegex.MatchString(normalized) && !placeRegex.MatchString(normalized)
+}
+
+func appendComment(base, next string) string {
+	if base == "" {
+		return next
+	}
+	return base + " " + next
+}
+
 func parseTurn(line string) (*Turn, error) {
+	tokens := tokenizeTurnLine(line)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
 	turn := &Turn{}
 
-	// Parse out comments
-	commentRegex := regexp.MustCompile("{.+}")
-	cmnt := strings.TrimSpace(strings.Join(commentRegex.FindAllString(line, -1), " "))
-	cmnt = strings.Trim(cmnt, "{}")
-	turn.Comment = cmnt
-
-	cleanLine := strings.TrimSpace(commentRegex.ReplaceAllString(line, ""))
-
-	if cleanLine != "" {
-		fields := strings.Fields(cleanLine)
-		if len(fields) < 2 || len(fields) > 4 {
-			return turn, fmt.Errorf("line does not have correct number of parts: %+v", fields)
+	var words []string
+	for _, tok := range tokens {
+		if tok.kind == tokenWord {
+			words = append(words, tok.val)
 		}
+	}
 
-		numberVal := strings.TrimRight(fields[0], ".")
-		num, branch, ok := parseTurnLabel(numberVal)
-		if !ok {
-			log.Warnw("not a turn label, ignoring line", "number", numberVal)
-			return nil, nil
+	if len(words) == 0 {
+		var cmnts []string
+		for _, tok := range tokens {
+			if tok.kind == tokenComment && tok.val != "" {
+				cmnts = append(cmnts, tok.val)
+			}
 		}
-		turn.Number = num
-		turn.Branch = branch
-
-		p1, err := NewMove(fields[1])
-		if err != nil {
-			return nil, err
+		turn.Comment = strings.Join(cmnts, " ")
+		if turn.Comment != "" {
+			return turn, nil
 		}
+		return nil, nil
+	}
 
-		turn.First = p1
+	if len(words) < 2 || len(words) > 4 {
+		return turn, fmt.Errorf("line does not have correct number of parts: %+v", words)
+	}
 
-		// Handle second move or result
-		if len(fields) >= 3 {
-			// Check if the third field is a result (contains '-' or is a game result)
-			if strings.Contains(fields[2], "-") || fields[2] == "R-0" || fields[2] == "0-R" || fields[2] == "F-0" || fields[2] == "0-F" {
-				turn.Result = fields[2]
-			} else {
-				// It's a second move
-				p2, err := NewMove(fields[2])
+	numberVal := strings.TrimRight(words[0], ".")
+	num, branch, ok := parseTurnLabel(numberVal)
+	if !ok {
+		log.Warnw("not a turn label, ignoring line", "number", numberVal)
+		return nil, nil
+	}
+	turn.Number = num
+	turn.Branch = branch
+
+	const (
+		targetPreMove = iota
+		targetFirstMove
+		targetSecondMove
+		targetPostResult
+	)
+	state := targetPreMove
+
+	firstWordSeen := false
+	for _, tok := range tokens {
+		if tok.kind == tokenWord {
+			if !firstWordSeen {
+				firstWordSeen = true
+				continue
+			}
+
+			if turn.First == nil {
+				p1, err := NewMove(tok.val)
+				if err != nil {
+					return nil, err
+				}
+				turn.First = p1
+				state = targetFirstMove
+				continue
+			}
+
+			if turn.Second == nil && !isPTNResult(tok.val) {
+				p2, err := NewMove(tok.val)
 				if err != nil {
 					return nil, err
 				}
 				turn.Second = p2
-
-				if len(fields) == 4 {
-					turn.Result = fields[3]
-				}
+				state = targetSecondMove
+				continue
 			}
+
+			turn.Result = tok.val
+			state = targetPostResult
+			continue
+		}
+
+		if tok.val == "" {
+			continue
+		}
+		switch state {
+		case targetFirstMove:
+			turn.First.Comment = appendComment(turn.First.Comment, tok.val)
+		case targetSecondMove:
+			turn.Second.Comment = appendComment(turn.Second.Comment, tok.val)
+		default:
+			turn.Comment = appendComment(turn.Comment, tok.val)
 		}
 	}
 
