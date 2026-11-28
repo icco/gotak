@@ -901,6 +901,56 @@
                 }
             }
         },
+        "/game/{slug}/chat": {
+            "get": {
+                "description": "Returns recent spectator chat history (up to 50 messages). Active game players are forbidden from reading.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Get spectator chat history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ChatHistoryResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/game/{slug}/join": {
             "post": {
                 "description": "Join a game that is waiting for a second player (as black player)",
@@ -1563,6 +1613,20 @@
                 }
             }
         },
+        "main.ChatHistoryResponse": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.WSChatMessage"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
         "main.CompareMovesRequest": {
             "type": "object"
         },
@@ -2160,6 +2224,29 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "main.WSChatMessage": {
+            "type": "object",
+            "properties": {
+                "author_name": {
+                    "type": "string"
+                },
+                "body": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         }

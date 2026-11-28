@@ -203,6 +203,15 @@ definitions:
       user:
         $ref: '#/definitions/main.User'
     type: object
+  main.ChatHistoryResponse:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/main.WSChatMessage'
+        type: array
+      slug:
+        type: string
+    type: object
   main.CompareMovesRequest:
     type: object
   main.CompareMovesResponse:
@@ -603,6 +612,21 @@ definitions:
         type: string
       updated_at:
         type: string
+    type: object
+  main.WSChatMessage:
+    properties:
+      author_name:
+        type: string
+      body:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      type:
+        type: string
+      user_id:
+        type: integer
     type: object
 host: gotak.app
 info:
@@ -1187,6 +1211,40 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Annotate a move
+      tags:
+      - game
+  /game/{slug}/chat:
+    get:
+      consumes:
+      - application/json
+      description: Returns recent spectator chat history (up to 50 messages). Active
+        game players are forbidden from reading.
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ChatHistoryResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get spectator chat history
       tags:
       - game
   /game/{slug}/join:
