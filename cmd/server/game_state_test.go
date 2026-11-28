@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.icco.me/gotak"
 )
 
 func TestNormalizeGameMode(t *testing.T) {
@@ -137,5 +139,29 @@ func TestCreateGameDefaultMode(t *testing.T) {
 	}
 	if state.Mode != "human" {
 		t.Errorf("mode = %q, want human", state.Mode)
+	}
+}
+
+func TestPlyTurn_blackCompletesTurn(t *testing.T) {
+	g, err := gotak.NewGame(5, 1, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mv := range []struct {
+		text   string
+		player int
+		want   int64
+	}{
+		{"a1", gotak.PlayerWhite, 1},
+		{"e5", gotak.PlayerBlack, 1},
+		{"b1", gotak.PlayerWhite, 2},
+		{"d5", gotak.PlayerBlack, 2},
+	} {
+		if err := g.DoSingleMove(mv.text, mv.player); err != nil {
+			t.Fatalf("%s: %v", mv.text, err)
+		}
+		if got := plyTurn(g); got != mv.want {
+			t.Errorf("after %s got turn %d, want %d", mv.text, got, mv.want)
+		}
 	}
 }

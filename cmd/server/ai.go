@@ -180,20 +180,7 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the AI move in database - determine which turn this move belongs to
-	// Check if we need to complete an existing turn or start a new one
-	var currentTurn int64 = 1 // Default to turn 1 if no turns exist
-
-	if len(game.Turns) > 0 {
-		lastTurn := game.Turns[len(game.Turns)-1]
-		if lastTurn.First != nil && lastTurn.Second == nil {
-			// Incomplete turn - AI move should complete this turn
-			currentTurn = int64(len(game.Turns))
-		} else {
-			// Complete turn - AI move should start a new turn
-			currentTurn = int64(len(game.Turns)) + 1
-		}
-	}
+	currentTurn := plyTurn(game)
 
 	if err := insertMove(db, game.ID, aiPlayerNumber, move, currentTurn); err != nil {
 		l.Errorw("could not insert AI move", "move", move, "player", aiPlayerNumber, zap.Error(err))

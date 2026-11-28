@@ -76,3 +76,9 @@ func buildGameStateResponse(db *gorm.DB, slug string) (*GameStateResponse, error
 		Mode:          mode,
 	}, nil
 }
+
+// plyTurn returns the turn number of the ply DoSingleMove just applied, which
+// always lands in the game's last turn.
+func plyTurn(g *gotak.Game) int64 {
+	return g.Turns[len(g.Turns)-1].Number
+}

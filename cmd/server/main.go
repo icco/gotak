@@ -615,18 +615,7 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the move in database - determine which turn this move belongs to.
-	// Check if we need to complete an existing turn or start a new one.
-	var currentTurn int64 = 1
-
-	if len(game.Turns) > 0 {
-		lastTurn := game.Turns[len(game.Turns)-1]
-		if lastTurn.First != nil && lastTurn.Second == nil {
-			currentTurn = int64(len(game.Turns))
-		} else {
-			currentTurn = int64(len(game.Turns)) + 1
-		}
-	}
+	currentTurn := plyTurn(game)
 
 	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
 		l.Errorw("could not insert move", "data", data, zap.Error(err))
