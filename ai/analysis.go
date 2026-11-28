@@ -25,6 +25,15 @@ const DefaultAnalysisTimeLimit = 2 * time.Second
 // MaxCompareMoves caps how many candidates CompareMoves will search.
 const MaxCompareMoves = 16
 
+// MaxTreeBreadth is the maximum number of candidate moves searched per node.
+const MaxTreeBreadth = 4
+
+// MaxTreeDepth is the maximum plies the move tree will recurse.
+const MaxTreeDepth = 3
+
+// MaxTreeNodes is the hard cap on total nodes generated in a move tree.
+const MaxTreeNodes = 40
+
 // analysisTableMem keeps the transposition table well below taktician's
 // 100MB default, since one Analyzer lives for a whole request.
 const analysisTableMem = 16 << 20
@@ -74,6 +83,21 @@ type Comparison struct {
 	Position PositionAnalysis `json:"position"`
 	Moves    []MoveScore      `json:"moves"`
 }
+
+// MoveTree is a node in an analysis move tree.
+type MoveTree struct {
+	Move      string      `json:"move"`
+	TPS       string      `json:"tps"`
+	Score     int64       `json:"score"`
+	ForcedWin int         `json:"forced_win,omitempty"`
+	PV        []string    `json:"pv,omitempty"`
+	GameOver  bool        `json:"game_over,omitempty"`
+	Winner    int         `json:"winner,omitempty"`
+	Children  []*MoveTree `json:"children,omitempty"`
+}
+
+// MoveTreeNode is an alias for MoveTree.
+type MoveTreeNode = MoveTree
 
 // Analyzer scores positions with a minimax search. It keeps its
 // transposition table between calls, so walking one game through a
@@ -366,9 +390,9 @@ func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnaly
 		res.Winner = colorToPlayer(winner)
 		switch res.Winner {
 		case gotak.PlayerWhite:
-			res.Score = ForcedWinScore
+			res.Score, res.ForcedWin = ForcedWinScore, gotak.PlayerWhite
 		case gotak.PlayerBlack:
-			res.Score = -ForcedWinScore
+			res.Score, res.ForcedWin = -ForcedWinScore, gotak.PlayerBlack
 		}
 		return res, nil
 	}
@@ -480,6 +504,233 @@ func CompareMovesTPS(ctx context.Context, tps string, moves []string, cfg AIConf
 		return nil, err
 	}
 	return a.CompareMoves(ctx, tps, moves)
+}
+
+// MoveTree builds a tree of candidate moves and variations up to depth plies.
+func (a *Analyzer) MoveTree(ctx context.Context, tps string, breadth, depth int) (*MoveTree, error) {
+	if breadth < 1 || breadth > MaxTreeBreadth {
+		return nil, fmt.Errorf("breadth must be between 1 and %d, got %d", MaxTreeBreadth, breadth)
+	}
+	if depth < 1 || depth > MaxTreeDepth {
+		return nil, fmt.Errorf("depth must be between 1 and %d, got %d", MaxTreeDepth, depth)
+	}
+	p, err := a.parseTPS(tps)
+	if err != nil {
+		return nil, err
+	}
+
+	if over, winner := p.GameOver(); over {
+		res := &MoveTree{
+			TPS:      ptn.FormatTPS(p),
+			GameOver: true,
+			Winner:   colorToPlayer(winner),
+		}
+		switch res.Winner {
+		case gotak.PlayerWhite:
+			res.Score, res.ForcedWin = ForcedWinScore, gotak.PlayerWhite
+		case gotak.PlayerBlack:
+			res.Score, res.ForcedWin = -ForcedWinScore, gotak.PlayerBlack
+		}
+		return res, nil
+	}
+
+	rootAnalysis, err := a.analyze(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	root := &MoveTree{
+		TPS:       rootAnalysis.TPS,
+		Score:     rootAnalysis.Score,
+		ForcedWin: rootAnalysis.ForcedWin,
+		PV:        rootAnalysis.PV,
+	}
+
+	type queueItem struct {
+		node     *MoveTree
+		pos      *tak.Position
+		depth    int
+		analysis *PositionAnalysis
+	}
+
+	queue := []*queueItem{{
+		node:     root,
+		pos:      p,
+		depth:    0,
+		analysis: rootAnalysis,
+	}}
+	totalNodes := 1
+
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+
+		if item.depth >= depth || totalNodes >= MaxTreeNodes || item.node.GameOver {
+			continue
+		}
+
+		candidates, err := a.rankTreeCandidates(ctx, item.pos, item.analysis, breadth, MaxTreeNodes-totalNodes)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, sc := range candidates {
+			if totalNodes >= MaxTreeNodes {
+				break
+			}
+			childNode := &MoveTree{
+				Move:      ptn.FormatMove(sc.cand.m),
+				TPS:       sc.analysis.TPS,
+				Score:     sc.analysis.Score,
+				ForcedWin: sc.analysis.ForcedWin,
+				GameOver:  sc.analysis.GameOver,
+				Winner:    sc.analysis.Winner,
+				PV:        sc.analysis.PV,
+			}
+			item.node.Children = append(item.node.Children, childNode)
+			totalNodes++
+			queue = append(queue, &queueItem{
+				node:     childNode,
+				pos:      sc.cand.childPos,
+				depth:    item.depth + 1,
+				analysis: sc.analysis,
+			})
+		}
+
+		if len(item.node.Children) > 0 {
+			item.node.PV = nil
+		}
+	}
+
+	return root, nil
+}
+
+type treeCand struct {
+	m          tak.Move
+	childPos   *tak.Position
+	cheapScore int64
+	isWin      bool
+	isBest     bool
+}
+
+type searchedTreeCand struct {
+	cand       treeCand
+	analysis   *PositionAnalysis
+	moverScore int64
+}
+
+func (a *Analyzer) rankTreeCandidates(ctx context.Context, pos *tak.Position, currentAnalysis *PositionAnalysis, breadth, availableSlots int) ([]searchedTreeCand, error) {
+	if availableSlots <= 0 {
+		return nil, nil
+	}
+	mover := colorToPlayer(pos.ToMove())
+	bestMove := ""
+	if currentAnalysis != nil && len(currentAnalysis.PV) > 0 {
+		bestMove = currentAnalysis.Best
+	}
+
+	allMoves := pos.AllMoves(nil)
+	cheapCands := make([]treeCand, 0, len(allMoves))
+	for _, m := range allMoves {
+		childPos, err := pos.Move(m)
+		if err != nil {
+			continue
+		}
+		c := treeCand{
+			m:        m,
+			childPos: childPos,
+		}
+		if bestMove != "" && SameMove(ptn.FormatMove(m), bestMove, a.size) {
+			c.isBest = true
+		}
+		if over, winner := childPos.GameOver(); over {
+			switch colorToPlayer(winner) {
+			case mover:
+				c.isWin = true
+				c.cheapScore = ForcedWinScore
+				if m.Type == tak.PlaceFlat {
+					c.cheapScore++
+				}
+			case 0:
+				c.cheapScore = 0
+			default:
+				c.cheapScore = -ForcedWinScore
+			}
+		} else {
+			eval := a.mm.Evaluate(childPos)
+			if mover == gotak.PlayerWhite {
+				c.cheapScore = eval
+			} else {
+				c.cheapScore = -eval
+			}
+		}
+		cheapCands = append(cheapCands, c)
+	}
+
+	if len(cheapCands) == 0 {
+		return nil, nil
+	}
+
+	sort.SliceStable(cheapCands, func(i, j int) bool {
+		if cheapCands[i].isWin != cheapCands[j].isWin {
+			return cheapCands[i].isWin
+		}
+		if cheapCands[i].isBest != cheapCands[j].isBest {
+			return cheapCands[i].isBest
+		}
+		return cheapCands[i].cheapScore > cheapCands[j].cheapScore
+	})
+
+	numChildren := min(breadth, availableSlots, len(cheapCands))
+	if numChildren <= 0 {
+		return nil, nil
+	}
+	numToSearch := min(len(cheapCands), max(numChildren, numChildren+1))
+
+	searched := make([]searchedTreeCand, 0, numToSearch)
+	for _, c := range cheapCands[:numToSearch] {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		res, err := a.analyze(ctx, c.childPos)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		moverScore := res.Score
+		if mover == gotak.PlayerBlack {
+			moverScore = -moverScore
+		}
+		searched = append(searched, searchedTreeCand{
+			cand:       c,
+			analysis:   res,
+			moverScore: moverScore,
+		})
+	}
+
+	sort.SliceStable(searched, func(i, j int) bool {
+		if searched[i].moverScore != searched[j].moverScore {
+			return searched[i].moverScore > searched[j].moverScore
+		}
+		return searched[i].cand.cheapScore > searched[j].cand.cheapScore
+	})
+
+	if len(searched) > numChildren {
+		searched = searched[:numChildren]
+	}
+	return searched, nil
+}
+
+// MoveTreeTPS is a one-shot MoveTree that sizes the Analyzer from the
+// TPS itself.
+func MoveTreeTPS(ctx context.Context, tps string, breadth, depth int, cfg AIConfig) (*MoveTree, error) {
+	a, err := analyzerForTPS(tps, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return a.MoveTree(ctx, tps, breadth, depth)
 }
 
 func analyzerForTPS(tps string, cfg AIConfig) (*Analyzer, error) {
