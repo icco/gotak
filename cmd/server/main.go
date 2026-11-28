@@ -179,8 +179,8 @@ type routerOptions struct {
 func buildRouter(opts routerOptions) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logging.Middleware(log.Desugar()))
-	r.Use(recoverPanics)
 	r.Use(routeTag)
+	r.Use(recoverPanics)
 
 	r.Use(cors.New(cors.Options{
 		AllowCredentials:   true,

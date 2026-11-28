@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -50,4 +51,37 @@ func TestRecoverPanics_keepsAbortHandler(t *testing.T) {
 		}
 	}()
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+}
+
+func TestRecoverPanics_abortsCommittedResponse(t *testing.T) {
+	cases := map[string]func(http.ResponseWriter){
+		"after write": func(w http.ResponseWriter) {
+			if _, err := w.Write([]byte("partial")); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"after flush": func(w http.ResponseWriter) {
+			w.(http.Flusher).Flush()
+		},
+	}
+	for name, start := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := recoverPanics(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				start(w)
+				panic("boom")
+			}))
+			rec := httptest.NewRecorder()
+			defer func() {
+				r := recover()
+				err, ok := r.(error)
+				if !ok || !errors.Is(err, http.ErrAbortHandler) {
+					t.Errorf("recovered %v, want http.ErrAbortHandler", r)
+				}
+				if strings.Contains(rec.Body.String(), "internal server error") {
+					t.Errorf("error JSON appended to a committed response: %q", rec.Body.String())
+				}
+			}()
+			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+		})
+	}
 }
