@@ -80,8 +80,8 @@ Positions evaluated by `/analyze/position` and `/analyze/game/{slug}` report rec
 
 - `tak`: at least one player has a one-flat road threat.
 - `double_tak`: a player has two or more distinct road-threat squares that a single placement cannot both block.
-- `tinue`: the player to move faces an unavoidable forced loss (`forced_win` belongs to the opponent).
-- `winning_line`: the player to move has an engine-verified forced win (`forced_win` matches `to_move`).
+- `tinue`: the player to move has an engine-verified forced win (`forced_win` matches `to_move`).
+- `winning_line`: companion label for an engine-verified forced win for the player to move.
 - `flat_race`: either player has 3 or fewer pieces remaining in reserve (stones plus capstones), or the board has board-size or fewer empty squares.
 
 ## Development

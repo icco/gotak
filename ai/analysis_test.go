@@ -219,20 +219,20 @@ func TestAnalyzeTPS_endgamePatterns(t *testing.T) {
 		{
 			name:         "tak present and double tak absent",
 			tps:          "x5/x5/x5/2,2,2,2,x/1,1,1,1,x 1 5",
-			wantPatterns: []string{PatternTak, PatternWinningLine},
-			omitPatterns: []string{PatternDoubleTak, PatternTinue, PatternFlatRace},
+			wantPatterns: []string{PatternTak, PatternTinue, PatternWinningLine},
+			omitPatterns: []string{PatternDoubleTak, PatternFlatRace},
 		},
 		{
-			name:         "double tak and tinue present",
+			name:         "double tak with opponent to move has no tinue for mover",
 			tps:          "x4/1,1,1,x/1,1,1,x/x4 2 5",
-			wantPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue},
-			omitPatterns: []string{PatternWinningLine, PatternFlatRace},
+			wantPatterns: []string{PatternTak, PatternDoubleTak},
+			omitPatterns: []string{PatternTinue, PatternWinningLine, PatternFlatRace},
 		},
 		{
-			name:         "winning line present",
+			name:         "winning line and tinue present for winning mover",
 			tps:          "x4/1,1,1,x/1,1,1,x/x4 1 5",
-			wantPatterns: []string{PatternTak, PatternDoubleTak, PatternWinningLine},
-			omitPatterns: []string{PatternTinue, PatternFlatRace},
+			wantPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+			omitPatterns: []string{PatternFlatRace},
 		},
 		{
 			name:         "flat race present via low empty squares",

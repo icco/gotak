@@ -40,8 +40,8 @@ const PatternTak = "tak"
 // road threats that a single placement cannot both block.
 const PatternDoubleTak = "double_tak"
 
-// PatternTinue indicates that the player to move faces unavoidable defeat;
-// the engine has found a forced win for their opponent.
+// PatternTinue indicates that the player to move has an engine-verified
+// forced win (forced_win is set for the side to move).
 const PatternTinue = "tinue"
 
 // PatternWinningLine indicates that the player to move has an
@@ -447,12 +447,8 @@ func detectPatterns(p *tak.Position, res *PositionAnalysis) []string {
 	if len(res.Threats.White) >= 2 || len(res.Threats.Black) >= 2 {
 		patterns = append(patterns, PatternDoubleTak)
 	}
-	if res.ForcedWin != 0 {
-		if res.ForcedWin == res.ToMove {
-			patterns = append(patterns, PatternWinningLine)
-		} else {
-			patterns = append(patterns, PatternTinue)
-		}
+	if res.ForcedWin != 0 && res.ForcedWin == res.ToMove {
+		patterns = append(patterns, PatternTinue, PatternWinningLine)
 	}
 	whiteCaps := p.Config().Capstones - bits.OnesCount64(p.White&p.Caps)
 	blackCaps := p.Config().Capstones - bits.OnesCount64(p.Black&p.Caps)
