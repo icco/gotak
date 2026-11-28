@@ -6,10 +6,12 @@ require (
 	charm.land/bubbles/v2 v2.2.2
 	charm.land/bubbletea/v2 v2.2.0
 	charm.land/lipgloss/v2 v2.1.1
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
 	github.com/go-pkgz/auth/v2 v2.6.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -74,7 +76,6 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.10 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.22 // indirect
 	github.com/googleapis/gax-go/v2 v2.25.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
