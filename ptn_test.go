@@ -362,3 +362,47 @@ func TestGamePTN_unrenderableTurnsSkipped(t *testing.T) {
 		t.Errorf("got %d turns, want 0", len(round.Turns))
 	}
 }
+
+func TestParsePTN_annotatedSlideNotTreatedAsResult(t *testing.T) {
+	src := []byte(`[Size "5"]
+[Player1 "alice"]
+[Player2 "bob"]
+
+1. a1 1b3-1! { note }
+`)
+
+	g, err := ParsePTN(src)
+	if err != nil {
+		t.Fatalf("ParsePTN: %v", err)
+	}
+
+	if len(g.Turns) != 1 {
+		t.Fatalf("got %d turns, want 1", len(g.Turns))
+	}
+	t1 := g.Turns[0]
+	if t1.First == nil || t1.First.Text != "a1" {
+		t.Errorf("first move = %+v, want a1", t1.First)
+	}
+	if t1.Second == nil || t1.Second.Text != "1b3-1" {
+		t.Errorf("second move = %+v, want 1b3-1", t1.Second)
+	}
+	if t1.Second.Comment != "note" {
+		t.Errorf("second move comment = %q, want 'note'", t1.Second.Comment)
+	}
+	if t1.Result != "" {
+		t.Errorf("result = %q, want empty", t1.Result)
+	}
+	if t1.Comment != "" {
+		t.Errorf("turn comment = %q, want empty", t1.Comment)
+	}
+
+	// Round-trip check
+	out := g.PTN()
+	round, err := ParsePTN([]byte(out))
+	if err != nil {
+		t.Fatalf("ParsePTN(PTN): %v\noutput was:\n%s", err, out)
+	}
+	if len(round.Turns) != 1 || round.Turns[0].Second == nil || round.Turns[0].Second.Text != "1b3-1" || round.Turns[0].Second.Comment != "note" {
+		t.Fatalf("round-trip drift: %+v", round.Turns[0])
+	}
+}

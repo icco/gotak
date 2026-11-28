@@ -509,6 +509,9 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxRequestBody bounds request bodies for write endpoints.
+const maxRequestBody = 64 << 10
+
 // MoveRequest represents the request body for making a move
 type MoveRequest struct {
 	Player  int    `json:"player" example:"1" description:"Player number (1 or 2)"`
@@ -563,9 +566,18 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	var data MoveRequest
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			l.Warnw("body too large", zap.Error(err))
+			if err := Renderer.JSON(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "request body too large"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
 		l.Errorw("could not read body", zap.Error(err))
-		if err := Renderer.JSON(w, 400, map[string]string{"error": err.Error()}); err != nil {
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -768,7 +780,16 @@ func annotateHandler(w http.ResponseWriter, r *http.Request) {
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 
 	var data AnnotateRequest
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			l.Warnw("body too large", zap.Error(err))
+			if err := Renderer.JSON(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "request body too large"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
 		l.Errorw("could not read body", zap.Error(err))
 		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))

@@ -584,7 +584,8 @@ func isPTNResult(s string) bool {
 	case "R-0", "0-R", "F-0", "0-F", "1-0", "0-1", "1/2-1/2":
 		return true
 	}
-	return strings.Contains(s, "-") && !moveRegex.MatchString(s) && !placeRegex.MatchString(s)
+	normalized := strings.Trim(s, "\"'?!")
+	return strings.Contains(s, "-") && !moveRegex.MatchString(normalized) && !placeRegex.MatchString(normalized)
 }
 
 func appendComment(base, next string) string {

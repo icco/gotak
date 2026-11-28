@@ -181,6 +181,53 @@ func TestAnnotateHandler_validationAndNotFound(t *testing.T) {
 	}
 }
 
+func TestAnnotateHandler_bodyTooLarge(t *testing.T) {
+	alice, _, slug := setupAnnotateTestGame(t)
+
+	oversizedComment := strings.Repeat("a", 70<<10)
+	w := callAnnotate(t, alice, slug, AnnotateRequest{
+		Turn:    1,
+		Player:  gotak.PlayerWhite,
+		Comment: oversizedComment,
+	})
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized body got %d, want 413", w.Code)
+	}
+}
+
+func TestNewMoveHandler_bodyTooLarge(t *testing.T) {
+	db := setupTestDB(t)
+	dbOverride = db
+	t.Cleanup(func() {
+		dbOverride = nil
+	})
+
+	alice := createNamedUser(t, db, "alice-large-1", "alice-large@example.com", "Alice")
+	slug, err := createGame(db, 5, alice.ID, "human")
+	if err != nil {
+		t.Fatalf("createGame: %v", err)
+	}
+
+	oversizedPayload, _ := json.Marshal(MoveRequest{
+		Player:  gotak.PlayerWhite,
+		Text:    "a1",
+		Turn:    1,
+		Comment: strings.Repeat("x", 70<<10),
+	})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/game/"+slug+"/move", bytes.NewReader(oversizedPayload))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("slug", slug)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = req.WithContext(context.WithValue(req.Context(), userContextKey, alice))
+
+	w := httptest.NewRecorder()
+	newMoveHandler(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized move body got %d, want 413", w.Code)
+	}
+}
+
 func TestAnnotateHandler_successAndSanitization(t *testing.T) {
 	alice, bob, slug := setupAnnotateTestGame(t)
 
