@@ -478,3 +478,19 @@ func TestTakticianEngineConcurrentMoves(t *testing.T) {
 		}
 	}
 }
+
+func TestExpertLimit(t *testing.T) {
+	cases := []struct{ in, want time.Duration }{
+		{0, time.Second},
+		{-time.Second, time.Second},
+		{300 * time.Millisecond, time.Second},
+		{2400 * time.Millisecond, 2 * time.Second},
+		{10 * time.Second, 10 * time.Second},
+		{time.Hour, 30 * time.Second},
+	}
+	for _, c := range cases {
+		if got := expertLimit(c.in); got != c.want {
+			t.Errorf("expertLimit(%v) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}

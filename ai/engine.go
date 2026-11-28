@@ -81,6 +81,17 @@ type playerKey struct {
 // by one request at a time, which taktician requires.
 var playerPools sync.Map
 
+// Expert time limits are rounded to whole seconds in this range, so the
+// pool registry has a bounded number of MCTS keys.
+const (
+	minExpertLimit = time.Second
+	maxExpertLimit = 30 * time.Second
+)
+
+func expertLimit(d time.Duration) time.Duration {
+	return min(max(d.Round(time.Second), minExpertLimit), maxExpertLimit)
+}
+
 func newPlayer(k playerKey) taktician.TakPlayer {
 	switch k.level {
 	case Beginner:
@@ -114,7 +125,7 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 
 	key := playerKey{level: cfg.Level, size: boardSize}
 	if cfg.Level == Expert {
-		key.limit = cfg.TimeLimit
+		key.limit = expertLimit(cfg.TimeLimit)
 	}
 	poolAny, _ := playerPools.LoadOrStore(key, &sync.Pool{New: func() any { return newPlayer(key) }})
 	pool := poolAny.(*sync.Pool)
