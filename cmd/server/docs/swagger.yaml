@@ -67,6 +67,8 @@ definitions:
     type: object
   gotak.Move:
     properties:
+      comment:
+        type: string
       moveCount:
         description: Move only
         format: int64
@@ -154,6 +156,18 @@ definitions:
         type: integer
       slug:
         type: string
+    type: object
+  main.AnnotateRequest:
+    properties:
+      comment:
+        example: blunder
+        type: string
+      player:
+        example: 1
+        type: integer
+      turn:
+        example: 1
+        type: integer
     type: object
   main.AuthResponse:
     properties:
@@ -323,6 +337,9 @@ definitions:
     type: object
   main.MoveRequest:
     properties:
+      comment:
+        example: great move
+        type: string
       move:
         example: c3
         type: string
@@ -437,6 +454,8 @@ definitions:
             $ref: '#/definitions/gotak.Stone'
           type: array
         type: object
+      comment:
+        type: string
       move:
         type: string
       played_at:
@@ -1030,6 +1049,49 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Get specific turn
+      tags:
+      - game
+  /game/{slug}/annotate:
+    post:
+      consumes:
+      - application/json
+      description: Add or update a comment on a specific move
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Annotation details
+        in: body
+        name: annotation
+        required: true
+        schema:
+          $ref: '#/definitions/main.AnnotateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ReplayStep'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Annotate a move
       tags:
       - game
   /game/{slug}/join:

@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	dbMu   sync.Mutex
-	dbConn *gorm.DB
+	dbMu       sync.Mutex
+	dbConn     *gorm.DB
+	dbOverride *gorm.DB
 )
 
 // getDB returns the process-wide connection pool, opening and migrating it
@@ -26,6 +27,9 @@ var (
 func getDB() (*gorm.DB, error) {
 	dbMu.Lock()
 	defer dbMu.Unlock()
+	if dbOverride != nil {
+		return dbOverride, nil
+	}
 	if dbConn != nil {
 		return dbConn, nil
 	}
@@ -130,11 +134,17 @@ func updateTag(db *gorm.DB, slug, key, value string) error {
 }
 
 func insertMove(db *gorm.DB, gameID int64, player int, text string, turnNumber int64) error {
+	return insertMoveWithComment(db, gameID, player, text, turnNumber, "")
+}
+
+// insertMoveWithComment saves a move with an optional annotation comment.
+func insertMoveWithComment(db *gorm.DB, gameID int64, player int, text string, turnNumber int64, comment string) error {
 	move := Move{
-		GameID: gameID,
-		Player: player,
-		Text:   text,
-		Turn:   turnNumber,
+		GameID:  gameID,
+		Player:  player,
+		Text:    text,
+		Turn:    turnNumber,
+		Comment: comment,
 	}
 
 	return db.Create(&move).Error
@@ -206,6 +216,7 @@ func getTurns(db *gorm.DB, game *gotak.Game) error {
 		if err != nil {
 			return err
 		}
+		mv.Comment = move.Comment
 
 		// White player always goes first, Black player always goes second
 		if move.Player == gotak.PlayerWhite {

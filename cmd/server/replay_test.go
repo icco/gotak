@@ -373,3 +373,41 @@ func TestReplayStep_zeroPlayedAtIsOmitted(t *testing.T) {
 		t.Errorf("played_at should be omitted when nil, got: %s", payload)
 	}
 }
+
+func TestBuildReplaySteps_moveComments(t *testing.T) {
+	g := playGame(t, []scriptedMove{
+		{gotak.PlayerWhite, "a1"},
+		{gotak.PlayerBlack, "e5"},
+	})
+	g.Turns[0].First.Comment = "opening annotation"
+
+	steps, err := buildReplaySteps(g, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 2 {
+		t.Fatalf("want 2 steps, got %d", len(steps))
+	}
+	if steps[0].Comment != "opening annotation" {
+		t.Errorf("step 0 comment = %q, want 'opening annotation'", steps[0].Comment)
+	}
+	if steps[1].Comment != "" {
+		t.Errorf("step 1 comment = %q, want empty", steps[1].Comment)
+	}
+
+	payload0, err := json.Marshal(steps[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload0), `"comment":"opening annotation"`) {
+		t.Errorf("step 0 JSON missing comment: %s", payload0)
+	}
+
+	payload1, err := json.Marshal(steps[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload1), "comment") {
+		t.Errorf("step 1 JSON should omit empty comment: %s", payload1)
+	}
+}
