@@ -18,7 +18,8 @@ type Move struct {
 	MoveDirection  string
 	MoveDropCounts []int64
 
-	Text string
+	Text    string
+	Comment string
 }
 
 // (stone)(square)

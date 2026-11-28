@@ -25,9 +25,21 @@ func (t *Turn) Text() string {
 	var line string
 	switch {
 	case t.First != nil && t.Second != nil:
-		line = fmt.Sprintf("%d%s. %s %s", t.Number, t.Branch, t.First.Text, t.Second.Text)
+		first := t.First.Text
+		if t.First.Comment != "" {
+			first = fmt.Sprintf("%s { %s }", first, t.First.Comment)
+		}
+		second := t.Second.Text
+		if t.Second.Comment != "" {
+			second = fmt.Sprintf("%s { %s }", second, t.Second.Comment)
+		}
+		line = fmt.Sprintf("%d%s. %s %s", t.Number, t.Branch, first, second)
 	case t.First != nil:
-		line = fmt.Sprintf("%d%s. %s", t.Number, t.Branch, t.First.Text)
+		first := t.First.Text
+		if t.First.Comment != "" {
+			first = fmt.Sprintf("%s { %s }", first, t.First.Comment)
+		}
+		line = fmt.Sprintf("%d%s. %s", t.Number, t.Branch, first)
 	}
 
 	if t.Comment != "" {
