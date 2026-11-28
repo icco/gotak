@@ -119,6 +119,19 @@ definitions:
       second:
         $ref: '#/definitions/gotak.Move'
     type: object
+  main.AnalyzeJobResponse:
+    properties:
+      error:
+        type: string
+      id:
+        type: integer
+      result:
+        $ref: '#/definitions/main.AnalyzeResponse'
+      status:
+        type: string
+      status_url:
+        type: string
+    type: object
   main.AnalyzeRequest:
     type: object
   main.AnalyzeResponse:
@@ -600,6 +613,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/main.AnalyzeResponse'
+        "202":
+          description: 'Long game: analysis runs in the background; poll status_url'
+          schema:
+            $ref: '#/definitions/main.AnalyzeJobResponse'
         "400":
           description: Bad Request
           schema:
@@ -613,6 +630,41 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Analyze a game move-by-move
+      tags:
+      - analysis
+  /analyze/game/{slug}/jobs/{id}:
+    get:
+      description: |-
+        Reports a job started by POST /analyze/game/{slug} for a
+        long game: running, failed with an error, or done with the
+        full analysis in result.
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Job id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.AnalyzeJobResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get a background game analysis
       tags:
       - analysis
   /analyze/heatmap:

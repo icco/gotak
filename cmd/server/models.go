@@ -98,7 +98,7 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &Puzzle{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &AnalysisJob{}, &Puzzle{})
 }
 
 // Puzzle represents a tactical puzzle mined from a game position.
