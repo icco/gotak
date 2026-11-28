@@ -99,8 +99,6 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-// AutoMigrate runs the database migrations
-func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &SpectatorMessage{}, &AnalysisJob{}, &Puzzle{})
 }
 
@@ -117,7 +115,6 @@ type Puzzle struct {
 	Depth     int       `gorm:"not null" json:"depth"`
 	Source    string    `gorm:"type:varchar(32);not null" json:"source"`
 	CreatedAt time.Time `json:"created_at"`
-}
 }
 
 // Spectator tracks active spectator sessions for live games.
