@@ -79,30 +79,36 @@ func TestMinePuzzles_identifiesWinningLineAndMissedWin(t *testing.T) {
 }
 
 func TestMinePuzzles_deduplicatesSequence(t *testing.T) {
-	// Game where both ply 0 and ply 1 have ForcedWin == side to move
+	// Game where White has ForcedWin across White (ply 0), Black (ply 1), and White (ply 2).
+	// It should emit only ONE puzzle (for ply 0) and not a second puzzle for ply 2.
 	g := playGame(t, []scriptedMove{
 		{gotak.PlayerWhite, "a1"},
 		{gotak.PlayerBlack, "e5"},
+		{gotak.PlayerWhite, "b1"},
 	})
 
-	// ply 0: White forced win
-	// ply 1: White still forced win (Black made move, White to move again, or consecutive)
+	// ply 0 (White): ForcedWin = White, PV = ["a1", "e5", "b1"]
+	// ply 1 (Black): ForcedWin = White
+	// ply 2 (White): ForcedWin = White, PV = ["b1"]
+	// ply 3 (final): GameOver = true, Winner = White
 	ev := &stubEvaluator{
 		results: []*ai.PositionAnalysis{
-			{Best: "a1", PV: []string{"a1"}, Score: ai.ForcedWinScore, ForcedWin: gotak.PlayerWhite, Depth: 2, TPS: "tps0"},
+			{Best: "a1", PV: []string{"a1", "e5", "b1"}, Score: ai.ForcedWinScore, ForcedWin: gotak.PlayerWhite, Depth: 3, TPS: "tps0"},
 			{Best: "e5", PV: []string{"e5"}, Score: ai.ForcedWinScore, ForcedWin: gotak.PlayerWhite, Depth: 2, TPS: "tps1"},
-			{Best: "b2", PV: []string{"b2"}, Score: ai.ForcedWinScore, ForcedWin: gotak.PlayerWhite, Depth: 2, TPS: "tps2"},
+			{Best: "b1", PV: []string{"b1"}, Score: ai.ForcedWinScore, ForcedWin: gotak.PlayerWhite, Depth: 1, TPS: "tps2"},
+			{Best: "", PV: []string{}, Score: ai.ForcedWinScore, GameOver: true, Winner: gotak.PlayerWhite, TPS: "tps3"},
 		},
 	}
 
 	puzzles := minePuzzles(context.Background(), ev, g)
-	// Only ply 0 has side to move (White) matching ForcedWin (White).
-	// ply 1 is Black to move, so ForcedWin (White) != Player (Black), sequence breaks.
 	if len(puzzles) != 1 {
 		t.Fatalf("got %d puzzles, want 1: %+v", len(puzzles), puzzles)
 	}
 	if puzzles[0].Ply != 0 {
 		t.Errorf("expected puzzle at ply 0, got %d", puzzles[0].Ply)
+	}
+	if puzzles[0].Source != "winning_line" {
+		t.Errorf("expected source winning_line for terminal win, got %q", puzzles[0].Source)
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 const (
 	puzzleMineTimeLimit = 1 * time.Second
 	puzzleDeadlineSlack = 10 * time.Second
+	maxAttemptBody      = 64 << 10
 )
 
 // TacticalPuzzleResponse is the payload returned by GET /puzzles/tactical.
@@ -82,24 +83,31 @@ func minePuzzles(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Puz
 	}
 
 	var candidates []Puzzle
-	var inWinningSequence bool
+	var seqWinner int
 
 	for i, p := range plies {
 		if errs[i] != nil || evals[i] == nil {
-			inWinningSequence = false
+			seqWinner = 0
 			continue
 		}
 
 		cur := evals[i]
+		if cur.ForcedWin != 0 {
+			if seqWinner != 0 && cur.ForcedWin != seqWinner {
+				seqWinner = 0
+			}
+		} else {
+			seqWinner = 0
+		}
+
 		if cur.ForcedWin != p.player {
-			inWinningSequence = false
 			continue
 		}
 
-		if inWinningSequence {
+		if seqWinner == p.player {
 			continue
 		}
-		inWinningSequence = true
+		seqWinner = p.player
 
 		if len(cur.PV) == 0 {
 			continue
@@ -107,7 +115,9 @@ func minePuzzles(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Puz
 
 		source := "winning_line"
 		if errs[i+1] == nil && evals[i+1] != nil {
-			if evals[i+1].ForcedWin != p.player {
+			next := evals[i+1]
+			preserved := (next.GameOver && next.Winner == p.player) || (next.ForcedWin == p.player)
+			if !preserved {
 				source = "missed_win"
 			}
 		}
@@ -219,6 +229,13 @@ func postMinePuzzlesHandler(w http.ResponseWriter, r *http.Request) {
 	extendWriteDeadline(w, l, budget+puzzleDeadlineSlack)
 	actx, cancel := context.WithTimeout(ctx, budget+puzzleDeadlineSlack/2)
 	defer cancel()
+
+	release, err := acquireEngineSlot(actx)
+	if err != nil {
+		writeEngineBusy(w, r, err)
+		return
+	}
+	defer release()
 
 	puzzles := minePuzzles(actx, analyzer, game)
 	inserted, err := savePuzzles(db, l, puzzles)
@@ -340,7 +357,7 @@ func postPuzzleAttemptHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req PuzzleAttemptRequest
 	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxAttemptBody)).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 			if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); jerr != nil {
 				l.Errorw("failed to render JSON", zap.Error(jerr))
 			}

@@ -269,7 +269,7 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Post("/game/{slug}/join", joinGameHandler)
 			r.Post("/game/{slug}/move", newMoveHandler)
 			r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
-			r.Post("/puzzles/mine/{slug}", postMinePuzzlesHandler)
+			r.With(limitByClientIP(engineRequestsPerMinute, time.Minute)).Post("/puzzles/mine/{slug}", postMinePuzzlesHandler)
 		})
 	})
 
