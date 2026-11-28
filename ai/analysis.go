@@ -202,12 +202,17 @@ func (a *Analyzer) CompareMoves(ctx context.Context, tps string, moves []string)
 		out.Moves = append(out.Moves, ms)
 	}
 
+	// Loss is clamped at zero, so it cannot order moves that beat the root
+	// score; the mover-relative score can.
 	sort.SliceStable(out.Moves, func(i, j int) bool {
 		mi, mj := out.Moves[i], out.Moves[j]
 		if (mi.Error == "") != (mj.Error == "") {
 			return mi.Error == ""
 		}
-		return mi.Loss < mj.Loss
+		if mover == gotak.PlayerBlack {
+			return mi.Score < mj.Score
+		}
+		return mi.Score > mj.Score
 	})
 	return out, nil
 }
@@ -245,9 +250,14 @@ func SameMove(a, b string, size int) bool {
 }
 
 // parseUserMove parses PTN with taktician's parser, which caps a carry at
-// 8, then checks the square is on the board.
+// 8, then checks the square is on the board. gotak accepts a stone marker
+// after a slide (a1>C) that taktician does not, so it is dropped.
 func parseUserMove(text string, size int) (tak.Move, error) {
-	m, err := ptn.ParseMove(strings.TrimSpace(text))
+	clean := strings.TrimSpace(text)
+	if strings.ContainsAny(clean, "<>+-") {
+		clean = strings.TrimRight(clean, "CSF")
+	}
+	m, err := ptn.ParseMove(clean)
 	if err != nil {
 		return tak.Move{}, fmt.Errorf("invalid move %q: %w", text, err)
 	}
@@ -264,8 +274,19 @@ func parseUserMove(text string, size int) (tak.Move, error) {
 	return m, nil
 }
 
-func (a *Analyzer) parseTPS(tps string) (*tak.Position, error) {
-	p, err := ptn.ParseTPS(strings.Join(strings.Fields(tps), " "))
+// parseTPS validates with gotak's stricter parser first, since taktician's
+// indexes into empty cells and bare piece markers and panics on them.
+func (a *Analyzer) parseTPS(tps string) (p *tak.Position, err error) {
+	norm := strings.Join(strings.Fields(tps), " ")
+	if _, _, _, err := gotak.ParseTPS(norm); err != nil {
+		return nil, fmt.Errorf("invalid tps: %w", err)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			p, err = nil, fmt.Errorf("invalid tps: %v", r)
+		}
+	}()
+	p, err = ptn.ParseTPS(norm)
 	if err != nil {
 		return nil, fmt.Errorf("invalid tps: %w", err)
 	}

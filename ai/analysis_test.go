@@ -68,6 +68,10 @@ func TestAnalyzeTPS_rejectsBadInput(t *testing.T) {
 		{"empty", ""},
 		{"two fields", "x5/x5/x5/x5/x5 1"},
 		{"nine by nine", "x9/x9/x9/x9/x9/x9/x9/x9/x9 1 1"},
+		{"empty row", "/x3/x3 1 1"},
+		{"empty cell", "x5/x5/x5/x5/,x4 1 2"},
+		{"bare standing marker", "x5/x5/x5/x5/S,x4 1 2"},
+		{"bare capstone marker", "x5/x5/x5/x5/C,x4 1 2"},
 		{"ragged row", "x5/x5/x5/x5/x4 1 1"},
 		{"bad player", "x5/x5/x5/x5/x5 3 1"},
 	}
@@ -260,6 +264,9 @@ func TestSameMove(t *testing.T) {
 	}{
 		{"a1", "a1", true},
 		{"a1>", "1a1>1", true},
+		{"2a1>", "2a1>2", true},
+		{"2a1>", "2a1>11", false},
+		{"3b2>12C", "3b2>12", true},
 		{"a1", "Sa1", false},
 		{"a1", "", false},
 		{"junk", "junk2", false},

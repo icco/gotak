@@ -52,7 +52,7 @@ type CompareMovesResponse struct {
 // @Description engine's best move and line, a White-relative score (about
 // @Description 400 per flat; forced wins are +/-100000 with forced_win set),
 // @Description and squares where either side could complete a road with one
-// @Description flat. Boards from 3x3 to 8x8.
+// @Description flat. Boards from 4x4 to 8x8.
 // @Tags analysis
 // @Accept json
 // @Produce json
