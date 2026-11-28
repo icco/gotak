@@ -291,7 +291,7 @@ func TestCriticalMoments(t *testing.T) {
 		{Played: "e2", Loss: 120, Quality: QualityInaccuracy},
 		{Played: "e3", Error: "canceled"},
 	}
-	got := criticalMoments(moves, 3)
+	got := criticalMoments(moves)
 	if len(got) != 3 {
 		t.Fatalf("got %d moments, want 3: %+v", len(got), got)
 	}
@@ -301,7 +301,7 @@ func TestCriticalMoments(t *testing.T) {
 			t.Errorf("moment %d = %+v, want index %d", i, got[i], w)
 		}
 	}
-	if none := criticalMoments(moves[:1], 3); none == nil || len(none) != 0 {
+	if none := criticalMoments(moves[:1]); none == nil || len(none) != 0 {
 		t.Errorf("clean game should give an empty, non-nil list, got %#v", none)
 	}
 }
