@@ -98,5 +98,18 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{})
+}
+
+// Spectator tracks active spectator sessions for live games.
+type Spectator struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	GameID    int64     `gorm:"not null;uniqueIndex:idx_spectator_game_session,priority:1;index" json:"game_id"`
+	Session   string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_spectator_game_session,priority:2" json:"session"`
+	UserID    *int64    `gorm:"index" json:"user_id,omitempty"`
+	LastSeen  time.Time `gorm:"not null;index" json:"last_seen"`
+	CreatedAt time.Time `json:"created_at"`
+
+	Game Game  `gorm:"foreignKey:GameID" json:"-"`
+	User *User `gorm:"foreignKey:UserID" json:"-"`
 }

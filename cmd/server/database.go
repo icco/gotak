@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/ifo/sanic"
-	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"moul.io/zapgorm2"
 
 	"go.icco.me/gotak"
