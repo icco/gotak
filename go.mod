@@ -15,7 +15,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nelhage/taktician v0.0.0-20240227154445-7af1aca31945
 	github.com/prometheus/client_golang v1.25.0
-	github.com/swaggo/http-swagger v1.3.4
+	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/swaggo/swag v1.16.6
 	github.com/unrolled/render v1.8.1
 	github.com/unrolled/secure v1.18.0
@@ -96,7 +96,7 @@ require (
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rrivera/identicon v0.0.0-20240116195454-d5ba35832c0d // indirect
-	github.com/swaggo/files v1.0.1 // indirect
+	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/xdg-go/scram v1.4.0 // indirect
 	github.com/xdg-go/stringprep v1.0.5 // indirect
 	github.com/xo/terminfo v1.3.1 // indirect
