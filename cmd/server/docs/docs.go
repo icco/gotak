@@ -103,6 +103,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/analyze/heatmap": {
+            "get": {
+                "description": "Returns per-square piece placement counts across all stored games of\nthe given board size, split by player color and stone type.\nTurn 1 placements in Tak place the opponent's piece, so turn 1 placements\nare attributed to the stone's color (the opponent).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Look up piece placement heatmap",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "example": 6,
+                        "description": "Board size (4-9)",
+                        "name": "size",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.HeatmapResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/analyze/openings": {
             "get": {
                 "description": "Given a prefix of moves (in PTN order — White on turn 1\nfirst, Black second, then alternating), returns the count\nof stored games matching the prefix and the frequency of\nmoves played in the next half-turn. Empty prefix lists\nfirst-move distribution across all games.",
@@ -1156,6 +1201,26 @@ const docTemplate = `{
                 }
             }
         },
+        "main.HeatmapResponse": {
+            "type": "object",
+            "properties": {
+                "game_count": {
+                    "type": "integer"
+                },
+                "placements": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "squares": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/main.SquareCounts"
+                    }
+                }
+            }
+        },
         "main.LoginRequest": {
             "type": "object",
             "properties": {
@@ -1250,6 +1315,20 @@ const docTemplate = `{
                 }
             }
         },
+        "main.PieceCounts": {
+            "type": "object",
+            "properties": {
+                "capstone": {
+                    "type": "integer"
+                },
+                "flat": {
+                    "type": "integer"
+                },
+                "standing": {
+                    "type": "integer"
+                }
+            }
+        },
         "main.PositionResponse": {
             "type": "object",
             "properties": {
@@ -1339,6 +1418,17 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "example": "user@example.com"
+                }
+            }
+        },
+        "main.SquareCounts": {
+            "type": "object",
+            "properties": {
+                "black": {
+                    "$ref": "#/definitions/main.PieceCounts"
+                },
+                "white": {
+                    "$ref": "#/definitions/main.PieceCounts"
                 }
             }
         },

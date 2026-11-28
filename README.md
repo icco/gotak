@@ -32,6 +32,7 @@ with PostgreSQL persistence.
 | `POST` | `/game/{slug}/annotate` | Annotate a move with a comment (auth required). Body: `{"turn": 1, "player": 1, "comment": "..."}`. |
 | `POST` | `/game/{slug}/ai-move`  | Request an AI move (auth required).                                                        |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
+| `GET`  | `/analyze/heatmap`    | Per-square piece placement heatmap for a board size (4-9). Public.                                                         |
 | `GET`  | `/metrics`            | OTel HTTP semconv metrics (e.g. `http_server_request_duration_seconds`) in Prometheus exposition format.                   |
 
 ## Environment variables

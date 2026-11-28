@@ -11,6 +11,7 @@ import (
 
 	taktician "github.com/nelhage/taktician/ai"
 	"github.com/nelhage/taktician/ai/mcts"
+	"github.com/nelhage/taktician/ptn"
 	"github.com/nelhage/taktician/tak"
 	"go.icco.me/gotak"
 )
@@ -19,6 +20,13 @@ import (
 var (
 	placeRegex = regexp.MustCompile(`^([CSF])?([a-z]\d+)$`)
 	moveRegex  = regexp.MustCompile(`^([1-9]*)([a-z]\d+)([<>+\-])(\d*)([CSF])?$`)
+)
+
+// Board sizes the engine supports. Taktician packs the board into 64-bit
+// bitboards, so 9x9 is out of reach even though the rules allow it.
+const (
+	MinBoardSize = 3
+	MaxBoardSize = 8
 )
 
 // DifficultyLevel represents AI strength.
@@ -63,9 +71,8 @@ type TakticianEngine struct{}
 
 // GetMove returns the engine's chosen move for the given game state, formatted as a PTN string.
 func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error) {
-	// Ensure board size is within expected bounds (Tak standard: 3 - 9)
-	if g.Board.Size < 3 || g.Board.Size > 9 {
-		return "", fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
+	if g.Board.Size < MinBoardSize || g.Board.Size > MaxBoardSize {
+		return "", fmt.Errorf("invalid board size %d: must be between %d and %d", g.Board.Size, MinBoardSize, MaxBoardSize)
 	}
 
 	// Convert gotak.Game to tak.Position
@@ -127,8 +134,8 @@ func convertGameToPosition(g *gotak.Game) (*tak.Position, error) {
 	}
 
 	// Validate board size and safe int64 -> int conversion
-	if g.Board.Size < 3 || g.Board.Size > 9 {
-		return nil, fmt.Errorf("invalid board size %d: must be between 3 and 9", g.Board.Size)
+	if g.Board.Size < MinBoardSize || g.Board.Size > MaxBoardSize {
+		return nil, fmt.Errorf("invalid board size %d: must be between %d and %d", g.Board.Size, MinBoardSize, MaxBoardSize)
 	}
 	if g.Board.Size > int64(math.MaxInt) || g.Board.Size < int64(math.MinInt) {
 		return nil, fmt.Errorf("board size %d exceeds platform int size limits", g.Board.Size)
@@ -186,51 +193,17 @@ func convertMoveToString(move tak.Move, boardSize int) (string, error) {
 		return "", fmt.Errorf("invalid move coordinates: %d,%d", x, y)
 	}
 
-	// Convert coordinates to algebraic notation (a1, b2, etc.)
-	col := string(rune('a' + x))
-	row := fmt.Sprintf("%d", y+1)
-	square := col + row
-
 	switch move.Type {
-	case tak.PlaceFlat:
-		return square, nil
-	case tak.PlaceStanding:
-		return "S" + square, nil
-	case tak.PlaceCapstone:
-		return "C" + square, nil
+	case tak.PlaceFlat, tak.PlaceStanding, tak.PlaceCapstone:
 	case tak.SlideLeft, tak.SlideRight, tak.SlideUp, tak.SlideDown:
-		// Handle slide moves
-		direction := ""
-		switch move.Type {
-		case tak.SlideLeft:
-			direction = "<"
-		case tak.SlideRight:
-			direction = ">"
-		case tak.SlideUp:
-			direction = "+"
-		case tak.SlideDown:
-			direction = "-"
+		if move.Slides.Empty() {
+			return "", fmt.Errorf("slide at %d,%d has no drops", x, y)
 		}
-
-		// Build move string: (count)(square)(direction)(drops)
-		count := move.Slides.Len()
-		moveStr := fmt.Sprintf("%d%s%s", count, square, direction)
-
-		// Add drop counts if needed
-		if !move.Slides.Empty() {
-			drops := ""
-			it := move.Slides.Iterator()
-			for it.Ok() {
-				drops += fmt.Sprintf("%d", it.Elem())
-				it = it.Next()
-			}
-			moveStr += drops
-		}
-
-		return moveStr, nil
 	default:
 		return "", fmt.Errorf("unsupported move type: %v", move.Type)
 	}
+
+	return ptn.FormatMove(move), nil
 }
 
 // convertStringToMove converts PTN move string to Taktician's tak.Move
@@ -292,28 +265,28 @@ func convertStringToMove(moveStr string, boardSize int) (tak.Move, error) {
 			return tak.Move{}, fmt.Errorf("unknown direction: %s", direction)
 		}
 
-		// Parse drop counts
-		var slides tak.Slides
+		// PTN: without drop counts the whole carry lands on the first square.
+		drops := []int{count}
 		if dropsStr != "" {
-			drops := []int{}
+			drops = drops[:0]
+			total := 0
 			for _, dropChar := range dropsStr {
 				drop, err := strconv.Atoi(string(dropChar))
-				if err != nil {
+				if err != nil || drop < 1 {
 					return tak.Move{}, fmt.Errorf("invalid drop count: %s", string(dropChar))
 				}
 				drops = append(drops, drop)
+				total += drop
 			}
-			slides = tak.MkSlides(drops...)
-		} else {
-			// Default: drop all stones one by one
-			drops := make([]int, count)
-			for i := range count {
-				drops[i] = 1
+			if total != count {
+				return tak.Move{}, fmt.Errorf("drops %s do not add up to carry %d", dropsStr, count)
 			}
-			slides = tak.MkSlides(drops...)
+		}
+		if count < 1 || count > boardSize {
+			return tak.Move{}, fmt.Errorf("carry %d is outside 1..%d", count, boardSize)
 		}
 
-		return tak.Move{X: x, Y: y, Type: moveType, Slides: slides}, nil
+		return tak.Move{X: x, Y: y, Type: moveType, Slides: tak.MkSlides(drops...)}, nil
 	}
 
 	return tak.Move{}, fmt.Errorf("invalid move format: %s", moveStr)
