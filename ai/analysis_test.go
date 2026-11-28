@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -163,6 +164,164 @@ func TestCompareMovesTPS(t *testing.T) {
 	}
 }
 
+func countTreeNodes(root *MoveTree) int {
+	if root == nil {
+		return 0
+	}
+	n := 1
+	for _, c := range root.Children {
+		n += countTreeNodes(c)
+	}
+	return n
+}
+
+func maxTreeDepth(root *MoveTree) int {
+	if root == nil || len(root.Children) == 0 {
+		return 0
+	}
+	m := 0
+	for _, c := range root.Children {
+		if d := maxTreeDepth(c); d > m {
+			m = d
+		}
+	}
+	return m + 1
+}
+
+func TestMoveTreeTPS_shape(t *testing.T) {
+	tps := "x5/x5/x5/x5/x5 1 1"
+	tree, err := MoveTreeTPS(context.Background(), tps, 2, 2, fastCfg)
+	if err != nil {
+		t.Fatalf("MoveTreeTPS: %v", err)
+	}
+	if tree.Move != "" {
+		t.Errorf("root move = %q, want empty", tree.Move)
+	}
+	if tree.TPS == "" {
+		t.Error("root TPS should not be empty")
+	}
+	if len(tree.PV) != 0 {
+		t.Errorf("root PV = %v, want empty on intermediate node", tree.PV)
+	}
+	if len(tree.Children) != 2 {
+		t.Fatalf("root children = %d, want 2", len(tree.Children))
+	}
+	for i, c := range tree.Children {
+		if c.Move == "" {
+			t.Errorf("child %d move is empty", i)
+		}
+		if len(c.PV) != 0 {
+			t.Errorf("child %d PV = %v, want empty on intermediate node", i, c.PV)
+		}
+		if len(c.Children) != 2 {
+			t.Fatalf("child %d children = %d, want 2", i, len(c.Children))
+		}
+		for j, gc := range c.Children {
+			if gc.Move == "" {
+				t.Errorf("grandchild %d.%d move is empty", i, j)
+			}
+			if len(gc.Children) != 0 {
+				t.Errorf("leaf %d.%d has %d children, want 0", i, j, len(gc.Children))
+			}
+			if len(gc.PV) == 0 {
+				t.Errorf("leaf %d.%d has empty PV", i, j)
+			}
+		}
+	}
+	if got := countTreeNodes(tree); got != 7 {
+		t.Errorf("total nodes = %d, want 7", got)
+	}
+	if got := maxTreeDepth(tree); got != 2 {
+		t.Errorf("max depth = %d, want 2", got)
+	}
+}
+
+func TestMoveTreeTPS_caps(t *testing.T) {
+	tps := "x5/x5/x5/x5/x5 1 1"
+	for _, b := range []int{0, MaxTreeBreadth + 1} {
+		if _, err := MoveTreeTPS(context.Background(), tps, b, 2, fastCfg); err == nil {
+			t.Errorf("breadth %d should fail", b)
+		}
+	}
+	for _, d := range []int{0, MaxTreeDepth + 1} {
+		if _, err := MoveTreeTPS(context.Background(), tps, 2, d, fastCfg); err == nil {
+			t.Errorf("depth %d should fail", d)
+		}
+	}
+
+	tree, err := MoveTreeTPS(context.Background(), tps, MaxTreeBreadth, MaxTreeDepth, fastCfg)
+	if err != nil {
+		t.Fatalf("MoveTreeTPS(4, 3): %v", err)
+	}
+	if got := countTreeNodes(tree); got > MaxTreeNodes {
+		t.Errorf("total nodes = %d, want <= %d", got, MaxTreeNodes)
+	}
+	if got := maxTreeDepth(tree); got > MaxTreeDepth {
+		t.Errorf("max depth = %d, want <= %d", got, MaxTreeDepth)
+	}
+}
+
+func TestMoveTreeTPS_findsRoadInOne(t *testing.T) {
+	tps := "x5/x5/x5/2,2,x3/1,1,1,1,x 1 5"
+	tree, err := MoveTreeTPS(context.Background(), tps, 3, 2, fastCfg)
+	if err != nil {
+		t.Fatalf("MoveTreeTPS: %v", err)
+	}
+	if len(tree.Children) == 0 {
+		t.Fatal("tree has no children")
+	}
+	winChild := tree.Children[0]
+	if winChild.Move != "e1" {
+		t.Errorf("top move = %q, want e1", winChild.Move)
+	}
+	if winChild.Score != ForcedWinScore {
+		t.Errorf("top score = %d, want %d", winChild.Score, ForcedWinScore)
+	}
+	if winChild.ForcedWin != gotak.PlayerWhite {
+		t.Errorf("top forced_win = %d, want %d", winChild.ForcedWin, gotak.PlayerWhite)
+	}
+	if !winChild.GameOver || winChild.Winner != gotak.PlayerWhite {
+		t.Errorf("top game_over = %v winner = %d, want white win", winChild.GameOver, winChild.Winner)
+	}
+	if len(winChild.Children) != 0 {
+		t.Errorf("terminal node has %d children, want 0", len(winChild.Children))
+	}
+
+	hasNonWin := false
+	for _, c := range tree.Children[1:] {
+		if !c.GameOver {
+			hasNonWin = true
+			if c.Score >= ForcedWinScore {
+				t.Errorf("non-winning move %s score %d >= forced win score %d", c.Move, c.Score, ForcedWinScore)
+			}
+		}
+	}
+	if !hasNonWin {
+		t.Error("expected at least one non-winning alternative move")
+	}
+}
+
+func TestMoveTreeTPS_finishedGame(t *testing.T) {
+	res, err := MoveTreeTPS(context.Background(), "x5/x5/x5/2,2,x3/1,1,1,1,1 2 5", 2, 2, fastCfg)
+	if err != nil {
+		t.Fatalf("MoveTreeTPS: %v", err)
+	}
+	if !res.GameOver || res.Winner != gotak.PlayerWhite {
+		t.Errorf("game over = %v winner = %d, want white win", res.GameOver, res.Winner)
+	}
+	if res.Score != ForcedWinScore || len(res.Children) != 0 {
+		t.Errorf("score = %d children = %d, want %d and 0 children", res.Score, len(res.Children), ForcedWinScore)
+	}
+}
+
+func TestMoveTreeTPS_canceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := MoveTreeTPS(ctx, "x5/x5/x5/x5/x5 1 1", 2, 2, fastCfg); err == nil {
+		t.Error("canceled context should fail")
+	}
+}
+
 func TestCompareMovesTPS_limits(t *testing.T) {
 	tps := "x5/x5/x5/x5/x5 1 1"
 	if _, err := CompareMovesTPS(context.Background(), tps, nil, fastCfg); err == nil {
@@ -203,6 +362,79 @@ func TestAnalyzeTPS_roadThreats(t *testing.T) {
 			}
 			if strings.Join(res.Threats.Black, ",") != strings.Join(tc.wantBlacks, ",") {
 				t.Errorf("black threats = %v, want %v", res.Threats.Black, tc.wantBlacks)
+			}
+		})
+	}
+}
+
+func TestAnalyzeTPS_endgamePatterns(t *testing.T) {
+	cases := []struct {
+		name         string
+		tps          string
+		wantPatterns []string
+		omitPatterns []string
+	}{
+		{
+			name:         "tak present and double tak absent",
+			tps:          "x5/x5/x5/2,2,2,2,x/1,1,1,1,x 1 5",
+			wantPatterns: []string{PatternTak, PatternTinue, PatternWinningLine},
+			omitPatterns: []string{PatternDoubleTak, PatternFlatRace},
+		},
+		{
+			name:         "double tak with opponent to move has no tinue for mover",
+			tps:          "x4/1,1,1,x/1,1,1,x/x4 2 5",
+			wantPatterns: []string{PatternTak, PatternDoubleTak},
+			omitPatterns: []string{PatternTinue, PatternWinningLine, PatternFlatRace},
+		},
+		{
+			name:         "winning line and tinue present for winning mover",
+			tps:          "x4/1,1,1,x/1,1,1,x/x4 1 5",
+			wantPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+			omitPatterns: []string{PatternFlatRace},
+		},
+		{
+			name:         "flat race present via low empty squares",
+			tps:          "1,2,1,2/2,1,2,1/1,2,1,2/2,x3 1 10",
+			wantPatterns: []string{PatternFlatRace},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+		},
+		{
+			name:         "flat race present via low reserves",
+			tps:          "x4/121,21,12,x/21,12,21,12/12,21,12,21 1 15",
+			wantPatterns: []string{PatternFlatRace},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine},
+		},
+		{
+			name:         "quiet opening position has no patterns",
+			tps:          "x5/x5/x5/x5/x5 1 1",
+			wantPatterns: []string{},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine, PatternFlatRace},
+		},
+		{
+			name:         "completed game has no patterns",
+			tps:          "x5/x5/x5/2,2,x3/1,1,1,1,1 2 5",
+			wantPatterns: []string{},
+			omitPatterns: []string{PatternTak, PatternDoubleTak, PatternTinue, PatternWinningLine, PatternFlatRace},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := AnalyzeTPS(context.Background(), tc.tps, fastCfg)
+			if err != nil {
+				t.Fatalf("AnalyzeTPS: %v", err)
+			}
+			if res.Patterns == nil {
+				t.Fatalf("patterns should not be nil")
+			}
+			for _, p := range tc.wantPatterns {
+				if !slices.Contains(res.Patterns, p) {
+					t.Errorf("patterns %v missing expected %q", res.Patterns, p)
+				}
+			}
+			for _, p := range tc.omitPatterns {
+				if slices.Contains(res.Patterns, p) {
+					t.Errorf("patterns %v should not contain %q", res.Patterns, p)
+				}
 			}
 		})
 	}

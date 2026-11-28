@@ -17,6 +17,29 @@ definitions:
       score:
         type: integer
     type: object
+  ai.MoveTree:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/ai.MoveTree'
+        type: array
+      forced_win:
+        type: integer
+      game_over:
+        type: boolean
+      move:
+        type: string
+      pv:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+      tps:
+        type: string
+      winner:
+        type: integer
+    type: object
   ai.PositionAnalysis:
     properties:
       best:
@@ -27,6 +50,10 @@ definitions:
         type: integer
       game_over:
         type: boolean
+      patterns:
+        items:
+          type: string
+        type: array
       pv:
         items:
           type: string
@@ -320,6 +347,10 @@ definitions:
         type: string
       loss:
         type: integer
+      patterns:
+        items:
+          type: string
+        type: array
       played:
         type: string
       player:
@@ -393,6 +424,10 @@ definitions:
         type: boolean
       level:
         type: string
+      patterns:
+        items:
+          type: string
+        type: array
       pv:
         items:
           type: string
@@ -513,6 +548,33 @@ definitions:
         $ref: '#/definitions/main.PieceCounts'
       white:
         $ref: '#/definitions/main.PieceCounts'
+    type: object
+  main.TreeAnalysisRequest:
+    type: object
+  main.TreeAnalysisResponse:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/ai.MoveTree'
+        type: array
+      forced_win:
+        type: integer
+      game_over:
+        type: boolean
+      level:
+        type: string
+      move:
+        type: string
+      pv:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+      tps:
+        type: string
+      winner:
+        type: integer
     type: object
   main.UpdateProfileRequest:
     properties:
@@ -787,6 +849,39 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Analyze a TPS position
+      tags:
+      - analysis
+  /analyze/tree:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Builds a tree of candidate moves and variations from a TPS
+        position. Each node reports score and forced win; leaves carry
+        the engine's principal variation. Breadth up to 4, depth up to 3.
+      parameters:
+      - description: Position, tree shape, and engine config
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.TreeAnalysisRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.TreeAnalysisResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Generate an alternative move tree
       tags:
       - analysis
   /auth/confirm-reset:

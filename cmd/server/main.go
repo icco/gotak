@@ -253,6 +253,7 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Post("/analyze/game/{slug}", postAnalyzeHandler)
 			r.Post("/analyze/position", postAnalyzePositionHandler)
 			r.Post("/analyze/compare-moves", postCompareMovesHandler)
+			r.Post("/analyze/tree", postAnalyzeTreeHandler)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(limitByClientIP(readRequestsPerMinute, time.Minute))
