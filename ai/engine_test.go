@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -449,5 +450,31 @@ func TestTakticianEngineSlidesStayInSync(t *testing.T) {
 	}
 	if h := pos.At(0, 0); len(h) != 0 {
 		t.Errorf("a1 height in engine = %d, want 0", len(h))
+	}
+}
+
+func TestTakticianEngineConcurrentMoves(t *testing.T) {
+	game, err := gotak.NewGame(5, 1, "alice-vs-bob")
+	if err != nil {
+		t.Fatalf("NewGame: %v", err)
+	}
+	if err := game.DoTurn("a1", "e5"); err != nil {
+		t.Fatalf("DoTurn: %v", err)
+	}
+	engine := &TakticianEngine{}
+	errs := make(chan error, 8)
+	for range 8 {
+		go func() {
+			mv, err := engine.GetMove(context.Background(), game, AIConfig{Level: Intermediate})
+			if err == nil && mv == "" {
+				err = fmt.Errorf("empty move")
+			}
+			errs <- err
+		}()
+	}
+	for range 8 {
+		if err := <-errs; err != nil {
+			t.Errorf("GetMove: %v", err)
+		}
 	}
 }
