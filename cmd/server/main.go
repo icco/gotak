@@ -230,6 +230,7 @@ func buildRouter(opts routerOptions) http.Handler {
 
 		r.Get("/", rootHandler)
 		r.Get("/healthz", healthCheckHandler)
+		r.Get("/.well-known/assetlinks.json", assetLinksHandler)
 		r.Get("/swagger/*", httpSwagger.Handler(
 			httpSwagger.URL("https://gotak.app/swagger/doc.json"),
 		))

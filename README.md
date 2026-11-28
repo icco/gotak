@@ -59,6 +59,7 @@ with PostgreSQL persistence.
 | `GEMINI_API_KEY`         | no       | _(empty)_          | Virtual key for the LiteLLM proxy; enables the LLM AI opponent.   |
 | `GOOGLE_GEMINI_BASE_URL` | with key | _(empty)_          | LiteLLM proxy URL. Required when GEMINI_API_KEY is set.           |
 | `GEMINI_MODEL`           | no       | `gemini-2.5-flash` | Gemini model name routed by the proxy.                            |
+| `ANDROID_CERT_SHA256`    | no       | _(empty)_          | Comma-separated release signing SHA-256s; serves assetlinks.json. |
 
 ## Running
 
