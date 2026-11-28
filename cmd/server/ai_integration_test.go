@@ -270,7 +270,7 @@ func createTestGameViaAPI(t *testing.T, serverURL string, user *User) string {
 
 func createTestGameWithSize(t *testing.T, serverURL string, user *User, size int) string {
 	payload := map[string]interface{}{
-		"size": size,
+		"size": strconv.Itoa(size),
 	}
 
 	data, _ := json.Marshal(payload)
