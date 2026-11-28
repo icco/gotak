@@ -253,3 +253,112 @@ func TestParsePTN_moveCommentsRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePTN_tagLikeCommentText(t *testing.T) {
+	src := []byte(`[Size "5"]
+[Player1 "alice"]
+[Player2 "bob"]
+
+1. a1 { reviewed by [Reviewer "Alice"] } e5
+`)
+
+	g, err := ParsePTN(src)
+	if err != nil {
+		t.Fatalf("ParsePTN: %v", err)
+	}
+
+	if len(g.Turns) != 1 {
+		t.Fatalf("got %d turns, want 1", len(g.Turns))
+	}
+	if g.Turns[0].First == nil || g.Turns[0].First.Text != "a1" {
+		t.Errorf("first move = %+v, want a1", g.Turns[0].First)
+	}
+	if g.Turns[0].First.Comment != `reviewed by [Reviewer "Alice"]` {
+		t.Errorf("first move comment = %q", g.Turns[0].First.Comment)
+	}
+	if g.Turns[0].Second == nil || g.Turns[0].Second.Text != "e5" {
+		t.Errorf("second move = %+v, want e5", g.Turns[0].Second)
+	}
+
+	// Verify it does not add a bogus metadata tag
+	if val, _ := g.GetMeta("Reviewer"); val != "" {
+		t.Errorf("unexpected metadata tag Reviewer = %q", val)
+	}
+
+	// Round-trip check
+	out := g.PTN()
+	round, err := ParsePTN([]byte(out))
+	if err != nil {
+		t.Fatalf("ParsePTN(PTN): %v\noutput was:\n%s", err, out)
+	}
+	if len(round.Turns) != 1 || round.Turns[0].First == nil || round.Turns[0].First.Comment != `reviewed by [Reviewer "Alice"]` {
+		t.Fatalf("round-trip comment drift: %+v", round.Turns[0].First)
+	}
+}
+
+func TestParsePTN_consecutiveCommentBlocks(t *testing.T) {
+	src := []byte(`[Size "5"]
+[Player1 "alice"]
+[Player2 "bob"]
+
+1. a1 { opening } { follow-up } e5 { response } { second note }
+`)
+
+	g, err := ParsePTN(src)
+	if err != nil {
+		t.Fatalf("ParsePTN: %v", err)
+	}
+
+	if len(g.Turns) != 1 {
+		t.Fatalf("got %d turns, want 1", len(g.Turns))
+	}
+	t1 := g.Turns[0]
+	if t1.First == nil || t1.First.Comment != "opening follow-up" {
+		t.Errorf("first comment = %q, want 'opening follow-up'", t1.First.Comment)
+	}
+	if t1.Second == nil || t1.Second.Comment != "response second note" {
+		t.Errorf("second comment = %q, want 'response second note'", t1.Second.Comment)
+	}
+	if t1.Comment != "" {
+		t.Errorf("turn comment = %q, want empty", t1.Comment)
+	}
+
+	// Round-trip check
+	out := g.PTN()
+	round, err := ParsePTN([]byte(out))
+	if err != nil {
+		t.Fatalf("ParsePTN(PTN): %v\noutput was:\n%s", err, out)
+	}
+	if len(round.Turns) != 1 || round.Turns[0].First.Comment != "opening follow-up" || round.Turns[0].Second.Comment != "response second note" {
+		t.Fatalf("round-trip comment mismatch: %+v", round.Turns[0])
+	}
+}
+
+func TestGamePTN_unrenderableTurnsSkipped(t *testing.T) {
+	g, err := NewGame(5, 1, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Second-only turn should be skipped, not emit bare label "1."
+	g.Turns = []*Turn{
+		{
+			Number: 1,
+			Second: &Move{Text: "e5"},
+		},
+	}
+
+	out := g.PTN()
+	if strings.Contains(out, "1.") {
+		t.Errorf("unrenderable second-only turn should not emit label, got:\n%s", out)
+	}
+
+	// Game with unrenderable turn should still round-trip through ParsePTN without errors
+	round, err := ParsePTN([]byte(out))
+	if err != nil {
+		t.Fatalf("ParsePTN failed on output with skipped turn: %v", err)
+	}
+	if len(round.Turns) != 0 {
+		t.Errorf("got %d turns, want 0", len(round.Turns))
+	}
+}

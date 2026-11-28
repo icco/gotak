@@ -22,56 +22,52 @@ type Turn struct {
 // placeholder syntax for a missing First move; such a turn would silently
 // disappear from round-tripped output.
 func (t *Turn) Text() string {
+	if t.First == nil {
+		if t.Comment != "" {
+			return fmt.Sprintf("{ %s }", t.Comment)
+		}
+		return ""
+	}
+
 	var prefix string
 	if t.Number > 0 {
 		prefix = fmt.Sprintf("%d%s.", t.Number, t.Branch)
 	}
 
+	first := t.First.Text
+	if t.First.Comment != "" {
+		first = fmt.Sprintf("%s { %s }", first, t.First.Comment)
+	}
+
 	var moves string
-	switch {
-	case t.First != nil && t.Second != nil:
-		first := t.First.Text
-		if t.First.Comment != "" {
-			first = fmt.Sprintf("%s { %s }", first, t.First.Comment)
-		}
+	if t.Second != nil {
 		second := t.Second.Text
 		if t.Second.Comment != "" {
 			second = fmt.Sprintf("%s { %s }", second, t.Second.Comment)
 		}
 		moves = fmt.Sprintf("%s %s", first, second)
-	case t.First != nil:
-		first := t.First.Text
-		if t.First.Comment != "" {
-			first = fmt.Sprintf("%s { %s }", first, t.First.Comment)
-		}
+	} else {
 		moves = first
 	}
 
 	var line string
-	switch {
-	case prefix != "" && moves != "":
+	if prefix != "" {
 		line = fmt.Sprintf("%s %s", prefix, moves)
-	case prefix != "":
-		line = prefix
-	default:
+	} else {
 		line = moves
 	}
 
 	if t.Result != "" {
-		if line != "" {
-			line = fmt.Sprintf("%s %s", line, t.Result)
-		} else {
-			line = t.Result
-		}
+		line = fmt.Sprintf("%s %s", line, t.Result)
 	}
 
 	if t.Comment != "" {
 		switch {
-		case line == "":
-			line = fmt.Sprintf("{ %s }", t.Comment)
 		case t.Result != "":
+			// Post-result position is unambiguous for turn comments
 			line = fmt.Sprintf("%s { %s }", line, t.Comment)
-		case prefix != "" && moves != "":
+		case prefix != "":
+			// Pre-move position is unambiguous when there is no result
 			line = fmt.Sprintf("%s { %s } %s", prefix, t.Comment, moves)
 		default:
 			line = fmt.Sprintf("%s { %s }", line, t.Comment)

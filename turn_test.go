@@ -86,3 +86,29 @@ func containsLine(text, line string) bool {
 func splitLines(s string) []string {
 	return strings.Split(s, "\n")
 }
+
+func TestTurnText_unrenderableTurns(t *testing.T) {
+	// Second-only turn with no first move and no comment cannot be rendered
+	turnWithoutFirst := &Turn{
+		Number: 1,
+		Second: &Move{Text: "e5"},
+	}
+	if got := turnWithoutFirst.Text(); got != "" {
+		t.Errorf("second-only turn Text() = %q, want empty string", got)
+	}
+
+	// Turn with number but no moves and no comment should return empty string
+	emptyTurn := &Turn{Number: 1}
+	if got := emptyTurn.Text(); got != "" {
+		t.Errorf("empty turn Text() = %q, want empty string", got)
+	}
+
+	// Turn with no moves but a comment renders as a standalone comment
+	commentOnlyTurn := &Turn{
+		Number:  1,
+		Comment: "standalone note",
+	}
+	if got, want := commentOnlyTurn.Text(), "{ standalone note }"; got != want {
+		t.Errorf("comment-only turn Text() = %q, want %q", got, want)
+	}
+}

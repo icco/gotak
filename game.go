@@ -523,18 +523,16 @@ func (g *Game) Branches() []string {
 	return out
 }
 
-func parseTag(line string) *Tag {
-	// Example: [Tag_Name "Tag Data"]
-	tagRegex := regexp.MustCompile(`\[([0-9A-Za-z_]+) "(.*)"\]`)
-	parts := tagRegex.FindStringSubmatch(line)
+var tagRegex = regexp.MustCompile(`^\s*\[([0-9A-Za-z_]+)\s+"(.*)"\]\s*$`)
 
+func parseTag(line string) *Tag {
+	parts := tagRegex.FindStringSubmatch(line)
 	if len(parts) >= 3 {
 		return &Tag{
 			Key:   parts[1],
 			Value: parts[2],
 		}
 	}
-
 	return nil
 }
 
@@ -589,6 +587,13 @@ func isPTNResult(s string) bool {
 	return strings.Contains(s, "-") && !moveRegex.MatchString(s) && !placeRegex.MatchString(s)
 }
 
+func appendComment(base, next string) string {
+	if base == "" {
+		return next
+	}
+	return base + " " + next
+}
+
 func parseTurn(line string) (*Turn, error) {
 	tokens := tokenizeTurnLine(line)
 	if len(tokens) == 0 {
@@ -634,9 +639,8 @@ func parseTurn(line string) (*Turn, error) {
 	const (
 		targetPreMove = iota
 		targetFirstMove
-		targetBetweenMoves
 		targetSecondMove
-		targetTurn
+		targetPostResult
 	)
 	state := targetPreMove
 
@@ -669,7 +673,7 @@ func parseTurn(line string) (*Turn, error) {
 			}
 
 			turn.Result = tok.val
-			state = targetTurn
+			state = targetPostResult
 			continue
 		}
 
@@ -678,17 +682,11 @@ func parseTurn(line string) (*Turn, error) {
 		}
 		switch state {
 		case targetFirstMove:
-			turn.First.Comment = tok.val
-			state = targetBetweenMoves
+			turn.First.Comment = appendComment(turn.First.Comment, tok.val)
 		case targetSecondMove:
-			turn.Second.Comment = tok.val
-			state = targetTurn
+			turn.Second.Comment = appendComment(turn.Second.Comment, tok.val)
 		default:
-			if turn.Comment == "" {
-				turn.Comment = tok.val
-			} else {
-				turn.Comment = turn.Comment + " " + tok.val
-			}
+			turn.Comment = appendComment(turn.Comment, tok.val)
 		}
 	}
 
