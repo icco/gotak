@@ -258,6 +258,7 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Use(limitByClientIP(readRequestsPerMinute, time.Minute))
 			r.Get("/analyze/openings", getOpeningsHandler)
 			r.Get("/analyze/heatmap", getHeatmapHandler)
+			r.Get("/analyze/game/{slug}/jobs/{id}", getAnalyzeJobHandler)
 		})
 
 		r.Group(func(r chi.Router) {
