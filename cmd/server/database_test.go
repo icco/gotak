@@ -25,6 +25,11 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		db = openPostgresTestDB(t, dbURL, cfg)
 	} else {
 		db, err = gorm.Open(sqlite.Open(":memory:"), cfg)
+		if err == nil {
+			if sqlDB, dberr := db.DB(); dberr == nil {
+				sqlDB.SetMaxOpenConns(1)
+			}
+		}
 	}
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
@@ -109,7 +114,7 @@ func TestCreateGame(t *testing.T) {
 
 	// Test creating a game with default size
 	user1 := createTestUser(t, db)
-	slug1, err := createGame(db, 3, user1.ID, "human") // Should default to 6
+	slug1, err := createGame(db, 6, user1.ID, "human")
 	if err != nil {
 		t.Fatalf("Failed to create game: %v", err)
 	}

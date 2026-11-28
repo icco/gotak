@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -120,10 +121,19 @@ func main() {
 		}
 	}()
 
-	if _, err := getDB(); err != nil {
+	db, err := getDB()
+	if err != nil {
 		log.Panicw("could not get db", zap.Error(err))
 		return
 	}
+	defer func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			if cerr := sqlDB.Close(); cerr != nil {
+				log.Warnw("failed to close db", zap.Error(cerr))
+			}
+		}
+	}()
 
 	engine, err := ai.NewLLMEngineFromEnv(ctx)
 	if err != nil {
@@ -139,6 +149,7 @@ func main() {
 	handler := buildRouter(routerOptions{
 		IsDev:          isDev,
 		MetricsHandler: metricsHandler,
+		DB:             db,
 	})
 
 	server := &http.Server{
@@ -173,6 +184,8 @@ func main() {
 type routerOptions struct {
 	IsDev          bool
 	MetricsHandler http.Handler
+	DB             *gorm.DB
+	HubManager     *spectateHubManager
 }
 
 // buildRouter wires the chi router with logging, CORS, security headers,
@@ -225,6 +238,13 @@ func buildRouter(opts routerOptions) http.Handler {
 		r.Get("/game/{slug}/ptn", getPTNHandler)
 		r.Get("/game/{slug}/position/{turn}", getPositionHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
+		if opts.DB != nil || opts.HubManager != nil {
+			r.Get("/game/{slug}/spectate", func(w http.ResponseWriter, r *http.Request) {
+				spectateHandlerWithDB(w, r, opts.DB, opts.HubManager)
+			})
+		} else {
+			r.Get("/game/{slug}/spectate", spectateHandler)
+		}
 		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
 		r.Get("/analyze/openings", getOpeningsHandler)
 		r.Post("/analyze/position", postAnalyzePositionHandler)
@@ -364,7 +384,7 @@ func writeStaticHomePage(l *zap.SugaredLogger, w http.ResponseWriter) {
 
 // CreateGameRequest represents the request body for creating a new game
 type CreateGameRequest struct {
-	Size string `json:"size" example:"8" description:"Board size (4-9)"`
+	Size string `json:"size" example:"8" description:"Board size: 4-9 for human games, 4-8 for ai"`
 	Mode string `json:"mode" example:"human" description:"Opponent mode: human or ai"`
 }
 
@@ -394,27 +414,20 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	user := getMustUserFromContext(r)
 	userID := user.ID
 
-	boardSize := 8
-	mode := "human"
-
-	var data CreateGameRequest
-	if err := json.NewDecoder(r.Body).Decode(&data); err == nil {
-		if data.Size != "" {
-			i, err := strconv.Atoi(data.Size)
-			if err == nil && i > 0 {
-				boardSize = i
-			}
+	boardSize, mode, err := parseCreateGameRequest(r.Body)
+	if err != nil {
+		l.Warnw("invalid create game body", zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
 		}
-		if data.Mode != "" {
-			mode = data.Mode
-		}
+		return
 	}
 
 	slug, err := createGame(db, boardSize, userID, mode)
 	if err != nil {
 		l.Errorw("could not create game", zap.Error(err))
 		status := http.StatusInternalServerError
-		if errors.Is(err, errInvalidGameMode) {
+		if errors.Is(err, errInvalidGameMode) || errors.Is(err, errInvalidBoardSize) {
 			status = http.StatusBadRequest
 		}
 		if err := Renderer.JSON(w, status, map[string]string{"error": err.Error()}); err != nil {
@@ -999,4 +1012,32 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		l.Errorw("failed to render JSON", zap.Error(err))
 	}
+}
+
+// parseCreateGameRequest reads an optional CreateGameRequest body. An
+// empty body means an 8x8 human game; a body that does not decode is an
+// error rather than a silent default.
+func parseCreateGameRequest(body io.Reader) (int, string, error) {
+	size, mode := 8, "human"
+	if body == nil {
+		return size, mode, nil
+	}
+	var data CreateGameRequest
+	if err := json.NewDecoder(body).Decode(&data); err != nil {
+		if errors.Is(err, io.EOF) {
+			return size, mode, nil
+		}
+		return 0, "", errors.New("invalid request body")
+	}
+	if data.Size != "" {
+		i, err := strconv.Atoi(data.Size)
+		if err != nil {
+			return 0, "", errors.New("size must be a number")
+		}
+		size = i
+	}
+	if data.Mode != "" {
+		mode = data.Mode
+	}
+	return size, mode, nil
 }
