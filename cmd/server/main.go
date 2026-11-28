@@ -244,6 +244,13 @@ func buildRouter(opts routerOptions) http.Handler {
 		} else {
 			r.Get("/game/{slug}/spectate", spectateHandler)
 		}
+		if opts.DB != nil {
+			r.Get("/game/{slug}/chat", func(w http.ResponseWriter, r *http.Request) {
+				getGameChatHandlerWithDB(w, r, opts.DB)
+			})
+		} else {
+			r.Get("/game/{slug}/chat", getGameChatHandler)
+		}
 		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
 		r.Get("/analyze/openings", getOpeningsHandler)
 		r.Post("/analyze/position", postAnalyzePositionHandler)

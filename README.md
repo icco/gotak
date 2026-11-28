@@ -24,7 +24,8 @@ with PostgreSQL persistence.
 | `GET`  | `/healthz`            | Liveness probe.                                                                                                            |
 | `GET`  | `/swagger/*`          | Swagger UI for the OpenAPI spec.                                                                                           |
 | `GET`  | `/game/{slug}`        | Enriched game state (board, turns, `current_player`, `status`, `mode`, player ids). Public. |
-| `GET`  | `/game/{slug}/spectate`| Live spectating state + count, or WebSocket upgrade for live stream. Public. |
+| `GET`  | `/game/{slug}/spectate`| Live spectating state + count, or WebSocket upgrade for live stream and chat. Public. |
+| `GET`  | `/game/{slug}/chat`   | Spectator chat history (last 50 messages). Blocked for active players. Public. |
 | `GET`  | `/game/{slug}/{turn}` | Game state at a specific turn. Public.                                                     |
 | `POST` | `/game/new`           | Create a game (auth). Body: `{"size":"8","mode":"human\|ai"}`. `Accept: application/json` → **201** JSON; else **307** redirect. |
 | `POST` | `/game/{slug}/join`   | Join a waiting game as black (auth required).                                              |
