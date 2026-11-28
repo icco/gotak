@@ -161,6 +161,19 @@ definitions:
         example: v1.0.0
         type: string
     type: object
+  main.HeatmapResponse:
+    properties:
+      game_count:
+        type: integer
+      placements:
+        type: integer
+      size:
+        type: integer
+      squares:
+        additionalProperties:
+          $ref: '#/definitions/main.SquareCounts'
+        type: object
+    type: object
   main.LoginRequest:
     properties:
       email:
@@ -226,6 +239,15 @@ definitions:
           type: string
         type: array
     type: object
+  main.PieceCounts:
+    properties:
+      capstone:
+        type: integer
+      flat:
+        type: integer
+      standing:
+        type: integer
+    type: object
   main.PositionResponse:
     properties:
       board:
@@ -286,6 +308,13 @@ definitions:
       email:
         example: user@example.com
         type: string
+    type: object
+  main.SquareCounts:
+    properties:
+      black:
+        $ref: '#/definitions/main.PieceCounts'
+      white:
+        $ref: '#/definitions/main.PieceCounts'
     type: object
   main.UpdateProfileRequest:
     properties:
@@ -381,6 +410,40 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Analyze a game move-by-move
+      tags:
+      - analysis
+  /analyze/heatmap:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Returns per-square piece placement counts across all stored games of
+        the given board size, split by player color and stone type.
+        Turn 1 placements in Tak place the opponent's piece, so turn 1 placements
+        are attributed to the stone's color (the opponent).
+      parameters:
+      - description: Board size (4-9)
+        example: 6
+        in: query
+        name: size
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.HeatmapResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Look up piece placement heatmap
       tags:
       - analysis
   /analyze/openings:
