@@ -70,7 +70,8 @@ func jobKey(k analysisCacheKey) AnalysisJob {
 // claimAnalysisJob finds or creates the job for k. It reports start=true
 // when the caller now owns the job and must run it: the job is new, or the
 // last run failed, finished without a cached result, or was abandoned.
-// The conditional update makes concurrent claimers race safely.
+// The returned Attempt is the caller's fencing token; a conditional update
+// makes concurrent claimers race safely.
 func claimAnalysisJob(db *gorm.DB, k analysisCacheKey, budget time.Duration, now time.Time) (*AnalysisJob, bool, error) {
 	expires := now.Add(budget + analyzeDeadlineSlack)
 	row := jobKey(k)
@@ -93,25 +94,45 @@ func claimAnalysisJob(db *gorm.DB, k analysisCacheKey, budget time.Duration, now
 		return &job, false, nil
 	}
 
+	next := job.Attempt + 1
 	upd := db.Model(&AnalysisJob{}).
 		Where("id = ? AND attempt = ?", job.ID, job.Attempt).
-		Updates(map[string]any{"status": JobRunning, "error": "", "expires_at": expires, "attempt": job.Attempt + 1})
+		Updates(map[string]any{"status": JobRunning, "error": "", "expires_at": expires, "attempt": next})
 	if upd.Error != nil {
 		return nil, false, upd.Error
+	}
+	if upd.RowsAffected == 1 {
+		// Use what this caller wrote, not a reread, which could already
+		// belong to a later claimer.
+		job.Status, job.Error, job.ExpiresAt, job.Attempt = JobRunning, "", expires, next
+		return &job, true, nil
 	}
 	if err := db.First(&job, job.ID).Error; err != nil {
 		return nil, false, err
 	}
-	return &job, upd.RowsAffected == 1, nil
+	return &job, false, nil
 }
 
-// runAnalysisJob walks the game, caches the result, and records how the
-// job ended. ctx must outlive the request that started the job.
-func runAnalysisJob(ctx context.Context, db *gorm.DB, l *zap.SugaredLogger, job *AnalysisJob, k analysisCacheKey, ev positionEvaluator, game *gotak.Game, budget time.Duration) {
+// runAnalysisJob builds an evaluator, waits for an engine slot, walks the
+// game, and publishes the result. ctx must outlive the request that
+// started the job.
+func runAnalysisJob(ctx context.Context, db *gorm.DB, l *zap.SugaredLogger, job *AnalysisJob, k analysisCacheKey, newEv func() (positionEvaluator, error), game *gotak.Game, budget time.Duration) {
 	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
 	defer cancel()
 
+	ev, err := newEv()
+	if err != nil {
+		finishAnalysisJob(db, l, job, k, nil, 0, fmt.Sprintf("could not start the engine: %v", err))
+		return
+	}
+	release, err := acquireSlot(actx, engineSlots, budget)
+	if err != nil {
+		finishAnalysisJob(db, l, job, k, nil, 0, fmt.Sprintf("no engine slot: %v", err))
+		return
+	}
 	moves := analyzeGame(actx, ev, game)
+	release()
+
 	agreed := 0
 	failure := ""
 	for i, m := range moves {
@@ -122,27 +143,50 @@ func runAnalysisJob(ctx context.Context, db *gorm.DB, l *zap.SugaredLogger, job 
 			failure = fmt.Sprintf("move %d: %s", i, m.Error)
 		}
 	}
+	finishAnalysisJob(db, l, job, k, moves, agreed, failure)
+}
 
+// finishAnalysisJob records the outcome and, on success, the cached result
+// in one transaction fenced on the attempt, so a superseded run can
+// neither publish a result nor overwrite the current status.
+func finishAnalysisJob(db *gorm.DB, l *zap.SugaredLogger, job *AnalysisJob, k analysisCacheKey, moves []MoveAnalysis, agreed int, failure string) {
 	status := JobDone
 	if failure != "" {
 		status = JobFailed
-	} else {
-		saveAnalysisCache(db, l, k, agreed, moves)
 	}
-	err := db.Model(&AnalysisJob{}).Where("id = ? AND attempt = ?", job.ID, job.Attempt).
-		Updates(map[string]any{"status": status, "error": failure}).Error
+	err := db.Transaction(func(tx *gorm.DB) error {
+		upd := tx.Model(&AnalysisJob{}).Where("id = ? AND attempt = ?", job.ID, job.Attempt).
+			Updates(map[string]any{"status": status, "error": failure})
+		if upd.Error != nil {
+			return upd.Error
+		}
+		if upd.RowsAffected == 0 {
+			l.Infow("analysis job superseded, dropping result", "job", job.ID, "attempt", job.Attempt)
+			return nil
+		}
+		if status == JobDone {
+			saveAnalysisCache(tx, l, k, agreed, moves)
+		}
+		return nil
+	})
 	if err != nil {
 		l.Errorw("could not record analysis job result", "job", job.ID, zap.Error(err))
+		return
 	}
 	l.Infow("analysis job finished", "job", job.ID, "status", status, "error", failure)
 }
 
-func jobResponse(db *gorm.DB, l *zap.SugaredLogger, job *AnalysisJob, slug string, size int64) AnalyzeJobResponse {
+func jobResponse(db *gorm.DB, l *zap.SugaredLogger, job *AnalysisJob, slug string, size int64, now time.Time) AnalyzeJobResponse {
 	resp := AnalyzeJobResponse{
 		ID:        job.ID,
 		Status:    job.Status,
 		StatusURL: fmt.Sprintf("/analyze/game/%s/jobs/%d", slug, job.ID),
 		Error:     job.Error,
+	}
+	if job.Status == JobRunning && !now.Before(job.ExpiresAt) {
+		resp.Status = JobFailed
+		resp.Error = "analysis was abandoned; request it again to restart"
+		return resp
 	}
 	if job.Status != JobDone {
 		return resp
@@ -211,7 +255,7 @@ func getAnalyzeJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := Renderer.JSON(w, http.StatusOK, jobResponse(db, l, &job, game.Slug, game.Board.Size)); err != nil {
+	if err := Renderer.JSON(w, http.StatusOK, jobResponse(db, l, &job, game.Slug, game.Board.Size, time.Now())); err != nil {
 		l.Errorw("failed to render analysis job", zap.Error(err))
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,6 +37,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var (
@@ -119,10 +121,19 @@ func main() {
 		}
 	}()
 
-	if _, err := getDB(); err != nil {
+	db, err := getDB()
+	if err != nil {
 		log.Panicw("could not get db", zap.Error(err))
 		return
 	}
+	defer func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			if cerr := sqlDB.Close(); cerr != nil {
+				log.Warnw("failed to close db", zap.Error(cerr))
+			}
+		}
+	}()
 
 	engine, err := ai.NewLLMEngineFromEnv(ctx)
 	if err != nil {
@@ -138,6 +149,7 @@ func main() {
 	handler := buildRouter(routerOptions{
 		IsDev:          isDev,
 		MetricsHandler: metricsHandler,
+		DB:             db,
 	})
 
 	server := &http.Server{
@@ -172,12 +184,15 @@ func main() {
 type routerOptions struct {
 	IsDev          bool
 	MetricsHandler http.Handler
+	DB             *gorm.DB
+	HubManager     *spectateHubManager
 }
 
 // buildRouter wires the chi router with logging, CORS, security headers,
 // /metrics, and otelhttp instrumentation (excluding /metrics).
 func buildRouter(opts routerOptions) http.Handler {
 	r := chi.NewRouter()
+	r.Use(middleware.ClientIPFromXFF(trustedProxies...))
 	r.Use(logging.Middleware(log.Desugar()))
 	r.Use(routeTag)
 
@@ -224,12 +239,25 @@ func buildRouter(opts routerOptions) http.Handler {
 		r.Get("/game/{slug}/ptn", getPTNHandler)
 		r.Get("/game/{slug}/position/{turn}", getPositionHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
-		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
-		r.Get("/analyze/game/{slug}/jobs/{id}", getAnalyzeJobHandler)
-		r.Get("/analyze/openings", getOpeningsHandler)
-		r.Post("/analyze/position", postAnalyzePositionHandler)
-		r.Post("/analyze/compare-moves", postCompareMovesHandler)
-		r.Get("/analyze/heatmap", getHeatmapHandler)
+		if opts.DB != nil || opts.HubManager != nil {
+			r.Get("/game/{slug}/spectate", func(w http.ResponseWriter, r *http.Request) {
+				spectateHandlerWithDB(w, r, opts.DB, opts.HubManager)
+			})
+		} else {
+			r.Get("/game/{slug}/spectate", spectateHandler)
+		}
+		r.Group(func(r chi.Router) {
+			r.Use(limitByClientIP(engineRequestsPerMinute, time.Minute))
+			r.Post("/analyze/game/{slug}", postAnalyzeHandler)
+			r.Post("/analyze/position", postAnalyzePositionHandler)
+			r.Post("/analyze/compare-moves", postCompareMovesHandler)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(limitByClientIP(readRequestsPerMinute, time.Minute))
+			r.Get("/analyze/openings", getOpeningsHandler)
+			r.Get("/analyze/heatmap", getHeatmapHandler)
+			r.Get("/analyze/game/{slug}/jobs/{id}", getAnalyzeJobHandler)
+		})
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)

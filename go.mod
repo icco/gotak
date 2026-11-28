@@ -6,10 +6,13 @@ require (
 	charm.land/bubbles/v2 v2.2.2
 	charm.land/bubbletea/v2 v2.2.0
 	charm.land/lipgloss/v2 v2.1.1
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
+	github.com/go-chi/httprate v0.16.1
 	github.com/go-pkgz/auth/v2 v2.6.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -74,7 +77,6 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/s2a-go v0.1.10 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.22 // indirect
 	github.com/googleapis/gax-go/v2 v2.25.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
@@ -87,6 +89,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.20.5 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mattn/go-sqlite3 v1.14.53 // indirect
@@ -105,6 +108,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.5 // indirect
 	github.com/xo/terminfo v1.3.1 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.etcd.io/bbolt v1.5.0 // indirect
 	go.mongodb.org/mongo-driver v1.17.10 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.2 // indirect

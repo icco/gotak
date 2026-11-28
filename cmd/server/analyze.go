@@ -176,15 +176,6 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	analyzer, err := ai.NewAnalyzer(size, cfg)
-	if err != nil {
-		l.Warnw("cannot analyze game", "slug", slug, zap.Error(err))
-		if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); jerr != nil {
-			l.Errorw("failed to render JSON", zap.Error(jerr))
-		}
-		return
-	}
-
 	budget := time.Duration(countPlies(game)+1) * cfg.TimeLimit
 	if budget > syncAnalyzeBudget {
 		job, start, err := claimAnalysisJob(db, key, budget, time.Now())
@@ -196,11 +187,21 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if start {
-			go runAnalysisJob(context.WithoutCancel(ctx), db, l, job, key, analyzer, game, budget)
+			newEv := func() (positionEvaluator, error) { return ai.NewAnalyzer(size, cfg) }
+			go runAnalysisJob(context.WithoutCancel(ctx), db, l, job, key, newEv, game, budget)
 		}
-		resp := jobResponse(db, l, job, slug, game.Board.Size)
+		resp := jobResponse(db, l, job, slug, game.Board.Size, time.Now())
 		w.Header().Set("Location", resp.StatusURL)
 		if jerr := Renderer.JSON(w, http.StatusAccepted, resp); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return
+	}
+
+	analyzer, err := ai.NewAnalyzer(size, cfg)
+	if err != nil {
+		l.Warnw("cannot analyze game", "slug", slug, zap.Error(err))
+		if jerr := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); jerr != nil {
 			l.Errorw("failed to render JSON", zap.Error(jerr))
 		}
 		return
@@ -210,6 +211,12 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
 	defer cancel()
 
+	release, err := acquireEngineSlot(actx)
+	if err != nil {
+		writeEngineBusy(w, r, err)
+		return
+	}
+	defer release()
 	moves := analyzeGame(actx, analyzer, game)
 	agreed := 0
 	for _, m := range moves {
