@@ -346,7 +346,7 @@ func writeStaticHomePage(l *zap.SugaredLogger, w http.ResponseWriter) {
 
 // CreateGameRequest represents the request body for creating a new game
 type CreateGameRequest struct {
-	Size string `json:"size" example:"8" description:"Board size (4-9)"`
+	Size string `json:"size" example:"8" description:"Board size: 4-9 for human games, 4-8 for ai"`
 	Mode string `json:"mode" example:"human" description:"Opponent mode: human or ai"`
 }
 
@@ -383,9 +383,13 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&data); err == nil {
 		if data.Size != "" {
 			i, err := strconv.Atoi(data.Size)
-			if err == nil && i > 0 {
-				boardSize = i
+			if err != nil {
+				if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "size must be a number"}); err != nil {
+					l.Errorw("failed to render JSON", zap.Error(err))
+				}
+				return
 			}
+			boardSize = i
 		}
 		if data.Mode != "" {
 			mode = data.Mode
@@ -396,7 +400,7 @@ func newGameHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		l.Errorw("could not create game", zap.Error(err))
 		status := http.StatusInternalServerError
-		if errors.Is(err, errInvalidGameMode) {
+		if errors.Is(err, errInvalidGameMode) || errors.Is(err, errInvalidBoardSize) {
 			status = http.StatusBadRequest
 		}
 		if err := Renderer.JSON(w, status, map[string]string{"error": err.Error()}); err != nil {
