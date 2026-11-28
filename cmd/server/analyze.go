@@ -189,6 +189,12 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
 	defer cancel()
 
+	release, err := acquireEngineSlot(actx)
+	if err != nil {
+		writeEngineBusy(w, r, err)
+		return
+	}
+	defer release()
 	moves := analyzeGame(actx, analyzer, game)
 	agreed := 0
 	for _, m := range moves {

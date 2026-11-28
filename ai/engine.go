@@ -7,6 +7,7 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	taktician "github.com/nelhage/taktician/ai"
@@ -66,6 +67,44 @@ type Engine interface {
 	ExplainMove(ctx context.Context, g *gotak.Game, cfg AIConfig) (string, error)
 }
 
+// playerTableMem caps the minimax transposition table; taktician's default
+// is 100MB, which every AI move used to allocate and throw away.
+const playerTableMem = 16 << 20
+
+type playerKey struct {
+	level DifficultyLevel
+	size  int
+	limit time.Duration
+}
+
+// playerPools reuses engines across requests. Each pooled player is used
+// by one request at a time, which taktician requires.
+var playerPools sync.Map
+
+// Expert time limits are rounded to whole seconds in this range, so the
+// pool registry has a bounded number of MCTS keys.
+const (
+	minExpertLimit = time.Second
+	maxExpertLimit = 30 * time.Second
+)
+
+func expertLimit(d time.Duration) time.Duration {
+	return min(max(d.Round(time.Second), minExpertLimit), maxExpertLimit)
+}
+
+func newPlayer(k playerKey) taktician.TakPlayer {
+	switch k.level {
+	case Beginner:
+		return taktician.NewRandom(42)
+	case Advanced:
+		return taktician.NewMinimax(taktician.MinimaxConfig{Size: k.size, Depth: 5, TableMem: playerTableMem})
+	case Expert:
+		return mcts.NewMonteCarlo(mcts.MCTSConfig{Size: k.size, Limit: k.limit, C: 1.4})
+	default:
+		return taktician.NewMinimax(taktician.MinimaxConfig{Size: k.size, Depth: 3, TableMem: playerTableMem})
+	}
+}
+
 // TakticianEngine wraps the Taktician AI library
 type TakticianEngine struct{}
 
@@ -84,30 +123,15 @@ func (e *TakticianEngine) GetMove(ctx context.Context, g *gotak.Game, cfg AIConf
 	// Safe conversion of int64 to int (already validated to be in range 3-9)
 	boardSize := int(g.Board.Size)
 
-	// Create appropriate AI based on configuration
-	var ai taktician.TakPlayer
-	switch cfg.Level {
-	case Beginner:
-		ai = taktician.NewRandom(42)
-	case Intermediate:
-		ai = taktician.NewMinimax(taktician.MinimaxConfig{
-			Size:  boardSize,
-			Depth: 3,
-		})
-	case Advanced:
-		ai = taktician.NewMinimax(taktician.MinimaxConfig{
-			Size:  boardSize,
-			Depth: 5,
-		})
-	case Expert:
-		ai = mcts.NewMonteCarlo(mcts.MCTSConfig{
-			Size:  boardSize,
-			Limit: cfg.TimeLimit,
-			C:     1.4, // Exploration parameter
-		})
+	key := playerKey{level: cfg.Level, size: boardSize}
+	if cfg.Level == Expert {
+		key.limit = expertLimit(cfg.TimeLimit)
 	}
+	poolAny, _ := playerPools.LoadOrStore(key, &sync.Pool{New: func() any { return newPlayer(key) }})
+	pool := poolAny.(*sync.Pool)
+	ai := pool.Get().(taktician.TakPlayer)
+	defer pool.Put(ai)
 
-	// Get move from AI
 	move := ai.GetMove(ctx, position)
 
 	// Convert tak.Move to PTN string

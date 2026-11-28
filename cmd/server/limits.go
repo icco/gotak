@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net"
 	"net/http"
 	"runtime"
@@ -60,28 +62,36 @@ func limitByClientIP(requests int, window time.Duration) func(http.Handler) http
 		}))
 }
 
-// limitEngineConcurrency holds a request until an engine slot frees up,
-// or answers 503 after engineSlotWait.
-func limitEngineConcurrency(next http.Handler) http.Handler {
-	return limitConcurrency(engineSlots, engineSlotWait, next)
+// errEngineBusy means no engine slot freed up within engineSlotWait.
+var errEngineBusy = errors.New("analysis engine is busy, try again later")
+
+// acquireEngineSlot waits up to engineSlotWait for a free engine slot.
+// Handlers call it after reading and validating the request, right before
+// searching, so a slow client cannot hold a slot while sending its body.
+func acquireEngineSlot(ctx context.Context) (func(), error) {
+	return acquireSlot(ctx, engineSlots, engineSlotWait)
 }
 
-func limitConcurrency(slots chan struct{}, wait time.Duration, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		timer := time.NewTimer(wait)
-		defer timer.Stop()
-		select {
-		case slots <- struct{}{}:
-		case <-timer.C:
-			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())))
-			writeLimitError(w, r, http.StatusServiceUnavailable, "analysis engine is busy, try again later")
-			return
-		case <-r.Context().Done():
-			return
-		}
-		defer func() { <-slots }()
-		next.ServeHTTP(w, r)
-	})
+func acquireSlot(ctx context.Context, slots chan struct{}, wait time.Duration) (func(), error) {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case slots <- struct{}{}:
+		return func() { <-slots }, nil
+	case <-timer.C:
+		return nil, errEngineBusy
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// writeEngineBusy answers a request that could not get an engine slot.
+func writeEngineBusy(w http.ResponseWriter, r *http.Request, err error) {
+	if !errors.Is(err, errEngineBusy) {
+		return
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(int(engineSlotWait.Seconds())))
+	writeLimitError(w, r, http.StatusServiceUnavailable, err.Error())
 }
 
 func writeLimitError(w http.ResponseWriter, r *http.Request, status int, msg string) {

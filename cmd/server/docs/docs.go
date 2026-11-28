@@ -987,6 +987,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/game/{slug}/spectate": {
+            "get": {
+                "description": "Returns the current game state, spectator count, and WebSocket URL for live updates.\nWhen requested with WebSocket upgrade headers, opens a live spectating stream.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Spectate game",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.SpectateResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/game/{slug}/{turn}": {
             "get": {
                 "description": "Returns the state of a game at a specific turn",
@@ -1708,6 +1752,60 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "example": "user@example.com"
+                }
+            }
+        },
+        "main.SpectateResponse": {
+            "type": "object",
+            "properties": {
+                "black_player_id": {
+                    "type": "integer"
+                },
+                "board": {
+                    "$ref": "#/definitions/gotak.Board"
+                },
+                "current_player": {
+                    "type": "integer"
+                },
+                "game": {
+                    "$ref": "#/definitions/main.GameStateResponse"
+                },
+                "id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "meta": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/gotak.Tag"
+                    }
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "spectators": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "turns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/gotak.Turn"
+                    }
+                },
+                "websocket_url": {
+                    "type": "string"
+                },
+                "white_player_id": {
+                    "type": "integer"
+                },
+                "winner": {
+                    "type": "integer"
                 }
             }
         },

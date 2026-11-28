@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/ifo/sanic"
-	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"moul.io/zapgorm2"
 
 	"go.icco.me/gotak"
@@ -76,16 +76,16 @@ func closeDB(db *gorm.DB) error {
 var slugWorker = sanic.NewWorker7()
 
 func createGame(db *gorm.DB, size int, userID int64, mode string) (string, error) {
-	if size < 4 {
-		size = 6
-	}
-
 	if userID == 0 {
 		return "", fmt.Errorf("user authentication required")
 	}
 
 	normalizedMode, err := normalizeGameMode(mode)
 	if err != nil {
+		return "", err
+	}
+
+	if err := validateBoardSize(size, normalizedMode); err != nil {
 		return "", err
 	}
 

@@ -1,53 +1,52 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func TestLimitConcurrency_busyReturns503(t *testing.T) {
+func TestAcquireSlot(t *testing.T) {
 	slots := make(chan struct{}, 1)
-	release := make(chan struct{})
-	entered := make(chan struct{})
-	var once sync.Once
-	h := limitConcurrency(slots, 50*time.Millisecond, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		once.Do(func() { close(entered) })
-		<-release
-		w.WriteHeader(http.StatusOK)
-	}))
 
-	first := httptest.NewRecorder()
-	done := make(chan struct{})
-	go func() {
-		h.ServeHTTP(first, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil))
-		close(done)
-	}()
-	<-entered
-
-	second := httptest.NewRecorder()
-	h.ServeHTTP(second, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil))
-	if second.Code != http.StatusServiceUnavailable {
-		t.Errorf("second request = %d, want 503", second.Code)
+	release, err := acquireSlot(t.Context(), slots, 50*time.Millisecond)
+	if err != nil {
+		t.Fatalf("first acquire: %v", err)
 	}
-	if second.Header().Get("Retry-After") == "" {
-		t.Error("503 should carry Retry-After")
+	if _, err := acquireSlot(t.Context(), slots, 50*time.Millisecond); !errors.Is(err, errEngineBusy) {
+		t.Errorf("second acquire err = %v, want errEngineBusy", err)
 	}
 
-	close(release)
-	<-done
-	if first.Code != http.StatusOK {
-		t.Errorf("first request = %d, want 200", first.Code)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := acquireSlot(ctx, slots, time.Second); !errors.Is(err, context.Canceled) {
+		t.Errorf("canceled acquire err = %v, want context.Canceled", err)
 	}
 
-	third := httptest.NewRecorder()
-	h.ServeHTTP(third, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil))
-	if third.Code != http.StatusOK {
-		t.Errorf("slot was not released: third request = %d", third.Code)
+	release()
+	again, err := acquireSlot(t.Context(), slots, 50*time.Millisecond)
+	if err != nil {
+		t.Fatalf("slot was not released: %v", err)
+	}
+	again()
+}
+
+func TestWriteEngineBusy(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writeEngineBusy(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil), errEngineBusy)
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+		t.Errorf("busy = %d with Retry-After %q, want 503 with Retry-After", rec.Code, rec.Header().Get("Retry-After"))
+	}
+
+	gone := httptest.NewRecorder()
+	writeEngineBusy(gone, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil), context.Canceled)
+	if gone.Body.Len() != 0 {
+		t.Errorf("canceled client got a body: %q", gone.Body.String())
 	}
 }
 
