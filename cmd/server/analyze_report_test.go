@@ -308,6 +308,16 @@ func TestAnalyzeReport_SVGPresent(t *testing.T) {
 	if !strings.Contains(body, "polyline") {
 		t.Errorf("missing polyline in eval graph")
 	}
+
+	boardWithCap := map[string][]*gotak.Stone{
+		"c3": {
+			{Player: gotak.PlayerBlack, Type: gotak.StoneCap},
+		},
+	}
+	capSVG := renderBoardSVG(boardWithCap, 5, "")
+	if !strings.Contains(string(capSVG), `stroke="#ffffff"`) {
+		t.Errorf("black capstone inner ring should use contrasting white stroke: %s", string(capSVG))
+	}
 }
 
 func TestAnalyzeReport_QueryParamsMatching(t *testing.T) {
@@ -354,6 +364,18 @@ func TestAnalyzeReport_QueryParamsMatching(t *testing.T) {
 	getAnalyzeReportWithDB(wMiss, reqMiss, db)
 	if wMiss.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 on mismatched cache key", wMiss.Code)
+	}
+
+	// Custom query params on uncached game -> 404 includes guidance with custom settings
+	reqMissCustom := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/analyze/game/"+slug+"/report?level=expert&style=defensive&time_limit=3s", http.NoBody)
+	reqMissCustom = reqMissCustom.WithContext(context.WithValue(reqMissCustom.Context(), chi.RouteCtxKey, rctx))
+	wMissCustom := httptest.NewRecorder()
+	getAnalyzeReportWithDB(wMissCustom, reqMissCustom, db)
+	if wMissCustom.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 on custom miss", wMissCustom.Code)
+	}
+	if !strings.Contains(wMissCustom.Body.String(), `"level":"expert"`) {
+		t.Errorf("expected custom miss guidance to contain expert level: %s", wMissCustom.Body.String())
 	}
 
 	// Exact query params -> hit (200)

@@ -96,6 +96,9 @@ code {
 <h1>Analysis Not Found</h1>
 <p>No cached analysis found for game <strong>{{.Slug}}</strong>.</p>
 <p>Run <code>POST /analyze/game/{{.Slug}}</code> to generate the analysis first.</p>
+{{if or (ne .Level "advanced") (ne .Style "balanced") (ne .TimeLimitNs 2000000000)}}
+<p>Ensure the POST request body includes the matching engine settings: <code>{"level":"{{.Level}}","style":"{{.Style}}","time_limit":{{.TimeLimitNs}}}</code>.</p>
+{{end}}
 </body>
 </html>
 `))
@@ -440,13 +443,6 @@ func getAnalyzeReportWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB)
 
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 
-	game, err := getGame(db, slug)
-	if err != nil {
-		l.Warnw("game not found for report", "slug", slug, zap.Error(err))
-		renderUncachedReport(w, slug)
-		return
-	}
-
 	q := r.URL.Query()
 	var req AnalyzeRequest
 	req.Level = q.Get("level")
@@ -460,6 +456,19 @@ func getAnalyzeReportWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB)
 	}
 
 	cfg, levelName := analyzeConfigFromRequest(req)
+
+	game, err := getGame(db, slug)
+	if err != nil {
+		l.Warnw("game not found for report", "slug", slug, zap.Error(err))
+		renderUncachedReport(w, uncachedReportData{
+			Slug:        slug,
+			Level:       levelName,
+			Style:       string(cfg.Style),
+			TimeLimitNs: int64(cfg.TimeLimit),
+		})
+		return
+	}
+
 	key := analysisCacheKey{
 		gameID:      game.ID,
 		level:       levelName,
@@ -470,21 +479,28 @@ func getAnalyzeReportWithDB(w http.ResponseWriter, r *http.Request, db *gorm.DB)
 
 	cached, ok := loadAnalysisCache(db, l, key)
 	if !ok {
-		renderUncachedReport(w, slug)
+		renderUncachedReport(w, uncachedReportData{
+			Slug:        slug,
+			Level:       levelName,
+			Style:       string(cfg.Style),
+			TimeLimitNs: int64(cfg.TimeLimit),
+		})
 		return
 	}
 
 	renderAnalyzeReport(w, l, game, cfg, levelName, cached)
 }
 
-func renderUncachedReport(w http.ResponseWriter, slug string) {
+type uncachedReportData struct {
+	Slug        string
+	Level       string
+	Style       string
+	TimeLimitNs int64
+}
+
+func renderUncachedReport(w http.ResponseWriter, data uncachedReportData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
-	data := struct {
-		Slug string
-	}{
-		Slug: slug,
-	}
 	if err := uncachedReportTemplate.Execute(w, data); err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 	}
@@ -847,7 +863,7 @@ func renderBoardSVG(b map[string][]*gotak.Stone, size int, highlightSquare strin
 					fmt.Fprintf(&sb, `<circle cx="%d" cy="%d" r="15" fill="%s" stroke="%s" stroke-width="2" />`,
 						cx, cy, stoneFill, stoneStroke)
 					fmt.Fprintf(&sb, `<circle cx="%d" cy="%d" r="8" fill="none" stroke="%s" stroke-width="1.5" />`,
-						cx, cy, stoneStroke)
+						cx, cy, textColor)
 					if stackHeight > 1 {
 						fmt.Fprintf(&sb, `<text x="%d" y="%d" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="bold" fill="%s">%d</text>`,
 							cx, cy, textColor, stackHeight)
