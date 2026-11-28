@@ -69,12 +69,58 @@ func TestSpectate_PresenceCounting(t *testing.T) {
 		}
 	}
 
-	count, err := countSpectators(db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
+	count, err := countSpectators(context.Background(), db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
 	if err != nil {
 		t.Fatalf("countSpectators: %v", err)
 	}
 	if count != 3 {
 		t.Fatalf("got spectator count %d, want 3", count)
+	}
+}
+
+func TestSpectate_CleanExpiredSpectators(t *testing.T) {
+	db := setupTestDB(t)
+	ada := createNamedTestUser(t, db, "Ada Lovelace", "ada@example.com")
+
+	slug, err := createGame(db, 5, ada.ID, "human")
+	if err != nil {
+		t.Fatalf("create game: %v", err)
+	}
+	var game Game
+	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
+		t.Fatalf("find game: %v", err)
+	}
+
+	now := time.Now()
+	expired := Spectator{
+		GameID:    game.ID,
+		Session:   "session-expired",
+		LastSeen:  now.Add(-10 * time.Minute),
+		CreatedAt: now.Add(-10 * time.Minute),
+	}
+	active := Spectator{
+		GameID:    game.ID,
+		Session:   "session-active",
+		LastSeen:  now.Add(-1 * time.Minute),
+		CreatedAt: now.Add(-1 * time.Minute),
+	}
+	if err := db.Create(&expired).Error; err != nil {
+		t.Fatalf("create expired: %v", err)
+	}
+	if err := db.Create(&active).Error; err != nil {
+		t.Fatalf("create active: %v", err)
+	}
+
+	if err := cleanExpiredSpectators(db, 5*time.Minute); err != nil {
+		t.Fatalf("cleanExpiredSpectators: %v", err)
+	}
+
+	var remaining []Spectator
+	if err := db.Where("game_id = ?", game.ID).Find(&remaining).Error; err != nil {
+		t.Fatalf("find remaining: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].Session != "session-active" {
+		t.Fatalf("expected only session-active remaining, got %v", remaining)
 	}
 }
 

@@ -34,6 +34,7 @@ type WSStateMessage struct {
 	Type       string             `json:"type"`
 	Game       *GameStateResponse `json:"game"`
 	Spectators int                `json:"spectators"`
+	Revision   int64              `json:"revision,omitempty"`
 }
 
 // WSSpectatorsMessage is sent when the spectator count updates without a state change.
@@ -41,6 +42,11 @@ type WSSpectatorsMessage struct {
 	Type  string `json:"type"`
 	Count int    `json:"count"`
 }
+
+const (
+	spectatorActiveThreshold    = 45 * time.Second
+	spectatorCleanupGracePeriod = 5 * time.Minute
+)
 
 var defaultSpectateManager = newSpectateHubManager(1*time.Second, 15*time.Second)
 
@@ -93,7 +99,7 @@ func spectateHTTPHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 	var game Game
-	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
+	if err := db.WithContext(ctx).Where("slug = ?", slug).First(&game).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if jerr := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); jerr != nil {
 				l.Errorw("failed to render JSON", zap.Error(jerr))
@@ -116,7 +122,7 @@ func spectateHTTPHandler(w http.ResponseWriter, r *http.Request, db *gorm.DB) {
 		return
 	}
 
-	spectatorCount, err := countSpectators(db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
+	spectatorCount, err := countSpectators(ctx, db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
 	if err != nil {
 		l.Errorw("could not count spectators", "slug", slug, zap.Error(err))
 		spectatorCount = 0
@@ -139,9 +145,11 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 	ctx := r.Context()
 	l := logging.FromContext(ctx)
 
+	mgr.ensureCleanup(db)
+
 	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
 	var game Game
-	if err := db.Where("slug = ?", slug).First(&game).Error; err != nil {
+	if err := db.WithContext(ctx).Where("slug = ?", slug).First(&game).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if jerr := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); jerr != nil {
 				l.Errorw("failed to render JSON", zap.Error(jerr))
@@ -194,6 +202,7 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 	}
 	if err := upsertSpectator(db, &spectator); err != nil {
 		l.Errorw("failed to upsert spectator presence", zap.Error(err))
+		return
 	}
 	defer func() {
 		if err := removeSpectator(db, game.ID, sessionID); err != nil {
@@ -204,39 +213,13 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 	hub, client := mgr.registerSpectator(slug, game.ID, db, l)
 	defer mgr.unregisterSpectator(slug, hub, client)
 
-	state, err := buildGameStateResponse(db, slug)
-	if err != nil {
-		l.Errorw("failed to build game state for new spectator", "slug", slug, zap.Error(err))
-		return
-	}
-	count, err := countSpectators(db, game.ID, game.WhitePlayerID, game.BlackPlayerID)
-	if err != nil {
-		l.Errorw("failed to count spectators for new spectator", "slug", slug, zap.Error(err))
-		count = 1
-	}
-
-	initialMsg, err := json.Marshal(WSStateMessage{
-		Type:       "state",
-		Game:       state,
-		Spectators: count,
-	})
-	if err != nil {
-		l.Errorw("failed to marshal initial state message", zap.Error(err))
-		return
-	}
-	writeCtx, writeCancel := context.WithTimeout(ctx, 5*time.Second)
-	err = c.Write(writeCtx, websocket.MessageText, initialMsg)
-	writeCancel()
-	if err != nil {
-		l.Errorw("failed to send initial state message", zap.Error(err))
-		return
-	}
-
 	// CloseRead drains frames in background to respond to pings and detects client disconnect.
 	connCtx := c.CloseRead(ctx)
 
 	heartbeatTicker := time.NewTicker(mgr.heartbeatInterval)
 	defer heartbeatTicker.Stop()
+
+	var lastRevision int64
 
 	for {
 		select {
@@ -249,6 +232,16 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 			if !ok {
 				return
 			}
+			var header struct {
+				Type     string `json:"type"`
+				Revision int64  `json:"revision"`
+			}
+			if err := json.Unmarshal(msg, &header); err == nil && header.Type == "state" && header.Revision > 0 {
+				if header.Revision < lastRevision {
+					continue
+				}
+				lastRevision = header.Revision
+			}
 			writeCtx, writeCancel := context.WithTimeout(connCtx, 5*time.Second)
 			err := c.Write(writeCtx, websocket.MessageText, msg)
 			writeCancel()
@@ -257,7 +250,8 @@ func spectateWebSocketHandler(w http.ResponseWriter, r *http.Request, db *gorm.D
 				return
 			}
 		case <-heartbeatTicker.C:
-			if err := touchSpectator(db, game.ID, sessionID); err != nil {
+			spectator.LastSeen = time.Now()
+			if err := upsertSpectator(db, &spectator); err != nil {
 				l.Warnw("failed to refresh spectator heartbeat", zap.Error(err))
 			}
 			pingCtx, pingCancel := context.WithTimeout(connCtx, 5*time.Second)
@@ -305,22 +299,19 @@ func upsertSpectator(db *gorm.DB, s *Spectator) error {
 	}).Create(s).Error
 }
 
-func touchSpectator(db *gorm.DB, gameID int64, session string) error {
-	return db.Model(&Spectator{}).
-		Where("game_id = ? AND session = ?", gameID, session).
-		Update("last_seen", time.Now()).Error
-}
-
 func removeSpectator(db *gorm.DB, gameID int64, session string) error {
 	return db.Where("game_id = ? AND session = ?", gameID, session).
 		Delete(&Spectator{}).Error
 }
 
-const spectatorActiveThreshold = 45 * time.Second
+func cleanExpiredSpectators(db *gorm.DB, gracePeriod time.Duration) error {
+	cutoff := time.Now().Add(-gracePeriod)
+	return db.Where("last_seen < ?", cutoff).Delete(&Spectator{}).Error
+}
 
-func countSpectators(db *gorm.DB, gameID int64, whitePlayerID, blackPlayerID *int64) (int, error) {
+func countSpectators(ctx context.Context, db *gorm.DB, gameID int64, whitePlayerID, blackPlayerID *int64) (int, error) {
 	cutoff := time.Now().Add(-spectatorActiveThreshold)
-	q := db.Model(&Spectator{}).Where("game_id = ? AND last_seen >= ?", gameID, cutoff)
+	q := db.WithContext(ctx).Model(&Spectator{}).Where("game_id = ? AND last_seen >= ?", gameID, cutoff)
 	var excluded []int64
 	if whitePlayerID != nil {
 		excluded = append(excluded, *whitePlayerID)
@@ -348,10 +339,10 @@ type gameFingerprint struct {
 	UpdatedAtUnix int64
 }
 
-func getGameFingerprint(db *gorm.DB, gameID int64) (gameFingerprint, *int64, *int64, error) {
+func getGameFingerprint(ctx context.Context, db *gorm.DB, gameID int64) (gameFingerprint, *int64, *int64, error) {
 	var fp gameFingerprint
 	var g Game
-	if err := db.Model(&Game{}).
+	if err := db.WithContext(ctx).Model(&Game{}).
 		Select("status, winner, current_turn, current_player, updated_at, white_player_id, black_player_id").
 		Where("id = ?", gameID).
 		First(&g).Error; err != nil {
@@ -367,7 +358,7 @@ func getGameFingerprint(db *gorm.DB, gameID int64) (gameFingerprint, *int64, *in
 		Count int64
 		MaxID int64
 	}
-	if err := db.Model(&Move{}).
+	if err := db.WithContext(ctx).Model(&Move{}).
 		Select("COUNT(*) as count, COALESCE(MAX(id), 0) as max_id").
 		Where("game_id = ?", gameID).
 		Scan(&moveStats).Error; err != nil {
@@ -405,12 +396,14 @@ type gameHub struct {
 	logger     *zap.SugaredLogger
 	pollPeriod time.Duration
 
-	mu          sync.Mutex
-	subscribers map[*spectatorClient]struct{}
-	stopPoller  chan struct{}
-	pollerDone  chan struct{}
-	lastFP      gameFingerprint
-	lastCount   int
+	mu           sync.Mutex
+	subscribers  map[*spectatorClient]struct{}
+	stopPoller   chan struct{}
+	pollerDone   chan struct{}
+	lastFP       gameFingerprint
+	lastCount    int
+	lastStateMsg []byte
+	revision     int64
 }
 
 func newGameHub(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger, pollPeriod time.Duration) *gameHub {
@@ -428,6 +421,10 @@ func newGameHub(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger, po
 
 func (h *gameHub) runPoller() {
 	defer close(h.pollerDone)
+
+	// Build initial state snapshot for the first subscriber.
+	h.pollAndBroadcast()
+
 	ticker := time.NewTicker(h.pollPeriod)
 	defer ticker.Stop()
 
@@ -456,20 +453,23 @@ func (h *gameHub) broadcast(msg []byte) {
 }
 
 func (h *gameHub) pollAndBroadcast() {
-	fp, whiteID, blackID, err := getGameFingerprint(h.db, h.gameID)
+	queryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	fp, whiteID, blackID, err := getGameFingerprint(queryCtx, h.db, h.gameID)
 	if err != nil {
 		h.logger.Warnw("failed to get game fingerprint", "slug", h.slug, zap.Error(err))
 		return
 	}
 
-	count, err := countSpectators(h.db, h.gameID, whiteID, blackID)
+	count, err := countSpectators(queryCtx, h.db, h.gameID, whiteID, blackID)
 	if err != nil {
 		h.logger.Warnw("failed to count spectators", "slug", h.slug, zap.Error(err))
 		return
 	}
 
 	h.mu.Lock()
-	stateChanged := fp != h.lastFP
+	stateChanged := fp != h.lastFP || h.lastStateMsg == nil
 	countChanged := count != h.lastCount
 	h.mu.Unlock()
 
@@ -483,10 +483,16 @@ func (h *gameHub) pollAndBroadcast() {
 			h.logger.Warnw("failed to build game state", "slug", h.slug, zap.Error(err))
 			return
 		}
+		h.mu.Lock()
+		h.revision++
+		rev := h.revision
+		h.mu.Unlock()
+
 		msg, err := json.Marshal(WSStateMessage{
 			Type:       "state",
 			Game:       state,
 			Spectators: count,
+			Revision:   rev,
 		})
 		if err != nil {
 			h.logger.Warnw("failed to marshal state message", zap.Error(err))
@@ -495,6 +501,7 @@ func (h *gameHub) pollAndBroadcast() {
 		h.mu.Lock()
 		h.lastFP = fp
 		h.lastCount = count
+		h.lastStateMsg = msg
 		h.mu.Unlock()
 		h.broadcast(msg)
 	} else if countChanged {
@@ -518,6 +525,8 @@ type spectateHubManager struct {
 	hubs              map[string]*gameHub
 	pollPeriod        time.Duration
 	heartbeatInterval time.Duration
+	cleanupOnce       sync.Once
+	cleanupStop       chan struct{}
 }
 
 func newSpectateHubManager(pollPeriod, heartbeatInterval time.Duration) *spectateHubManager {
@@ -528,10 +537,30 @@ func newSpectateHubManager(pollPeriod, heartbeatInterval time.Duration) *spectat
 	}
 }
 
+func (mgr *spectateHubManager) ensureCleanup(db *gorm.DB) {
+	mgr.cleanupOnce.Do(func() {
+		mgr.cleanupStop = make(chan struct{})
+		go func() {
+			_ = cleanExpiredSpectators(db, spectatorCleanupGracePeriod)
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-mgr.cleanupStop:
+					return
+				case <-ticker.C:
+					if err := cleanExpiredSpectators(db, spectatorCleanupGracePeriod); err != nil {
+						log.Warnw("failed to clean expired spectators", zap.Error(err))
+					}
+				}
+			}
+		}()
+	})
+}
+
+//nolint:contextcheck // hub poller outlives individual request contexts
 func (mgr *spectateHubManager) registerSpectator(slug string, gameID int64, db *gorm.DB, l *zap.SugaredLogger) (*gameHub, *spectatorClient) {
 	mgr.mu.Lock()
-	defer mgr.mu.Unlock()
-
 	hub, ok := mgr.hubs[slug]
 	if !ok {
 		hub = newGameHub(slug, gameID, db, l, mgr.pollPeriod)
@@ -542,18 +571,25 @@ func (mgr *spectateHubManager) registerSpectator(slug string, gameID int64, db *
 
 	hub.mu.Lock()
 	hub.subscribers[client] = struct{}{}
-	if len(hub.subscribers) == 1 {
-		fp, whiteID, blackID, err := getGameFingerprint(hub.db, hub.gameID)
-		if err == nil {
-			hub.lastFP = fp
-			count, err := countSpectators(hub.db, hub.gameID, whiteID, blackID)
-			if err == nil {
-				hub.lastCount = count
-			}
-		}
-		go hub.runPoller()
+	isFirst := len(hub.subscribers) == 1
+	var cachedMsg []byte
+	if !isFirst && hub.lastStateMsg != nil {
+		cachedMsg = hub.lastStateMsg
 	}
 	hub.mu.Unlock()
+	mgr.mu.Unlock()
+
+	if cachedMsg != nil {
+		select {
+		case client.send <- cachedMsg:
+		default:
+			client.disconnect()
+		}
+	}
+
+	if isFirst {
+		go hub.runPoller()
+	}
 
 	return hub, client
 }

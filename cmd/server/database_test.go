@@ -25,6 +25,11 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		db = openPostgresTestDB(t, dbURL, cfg)
 	} else {
 		db, err = gorm.Open(sqlite.Open(":memory:"), cfg)
+		if err == nil {
+			if sqlDB, dberr := db.DB(); dberr == nil {
+				sqlDB.SetMaxOpenConns(1)
+			}
+		}
 	}
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
