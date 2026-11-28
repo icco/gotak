@@ -99,7 +99,22 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &AnalysisJob{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &AnalysisJob{}, &Puzzle{})
+}
+
+// Puzzle represents a tactical puzzle mined from a game position.
+type Puzzle struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	GameID    int64     `gorm:"not null;uniqueIndex:idx_game_ply,priority:1" json:"game_id"`
+	Ply       int       `gorm:"not null;uniqueIndex:idx_game_ply,priority:2" json:"ply"`
+	Turn      int64     `gorm:"not null" json:"turn"`
+	Player    int       `gorm:"not null" json:"player"`
+	Size      int64     `gorm:"not null;index" json:"size"`
+	TPS       string    `gorm:"type:text;not null" json:"tps"`
+	Solution  string    `gorm:"type:jsonb;not null" json:"solution"`
+	Depth     int       `gorm:"not null" json:"depth"`
+	Source    string    `gorm:"type:varchar(32);not null" json:"source"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Spectator tracks active spectator sessions for live games.

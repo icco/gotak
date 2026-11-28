@@ -52,7 +52,7 @@ func TestWriteEngineBusy(t *testing.T) {
 
 func TestLimitByClientIP(t *testing.T) {
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	h := middleware.ClientIPFromXFF(trustedProxies...)(limitByClientIP(2, time.Minute)(ok))
+	h := middleware.ClientIPFromXFF(trustedProxies...)(limitByClientIP(2, 10*time.Millisecond)(ok))
 
 	send := func(remote, xff string) int {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/analyze/position", nil)

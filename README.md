@@ -38,6 +38,9 @@ with PostgreSQL persistence.
 | `GET`  | `/analyze/openings`     | Continuation counts across stored games for a move prefix. Query: `prefix=a1,e5`.                                         |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
 | `GET`  | `/analyze/heatmap`    | Per-square piece placement heatmap for a board size (4-9). Public.                                                         |
+| `POST` | `/puzzles/mine/{slug}`| Mine tactical puzzles from a game (auth required, participants only).                                                      |
+| `GET`  | `/puzzles/tactical`   | Fetch a random stored puzzle for a given size. Query: `size=6`. Public.                                                    |
+| `POST` | `/puzzles/{id}/attempt`| Attempt a puzzle or reveal solution. Body: `{"move":"c3","reveal":false}`. Public.                                        |
 | `GET`  | `/metrics`            | OTel HTTP semconv metrics (e.g. `http_server_request_duration_seconds`) in Prometheus exposition format.                   |
 
 ## Environment variables

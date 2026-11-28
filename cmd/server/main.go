@@ -260,6 +260,8 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Get("/analyze/heatmap", getHeatmapHandler)
 			r.Get("/analyze/game/{slug}/jobs/{id}", getAnalyzeJobHandler)
 		})
+		r.Get("/puzzles/tactical", getTacticalPuzzleHandler)
+		r.Post("/puzzles/{id}/attempt", postPuzzleAttemptHandler)
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
@@ -269,6 +271,7 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Post("/game/{slug}/move", newMoveHandler)
 			r.Post("/game/{slug}/annotate", annotateHandler)
 			r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
+			r.With(limitByClientIP(engineRequestsPerMinute, time.Minute)).Post("/puzzles/mine/{slug}", postMinePuzzlesHandler)
 		})
 	})
 
