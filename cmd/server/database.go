@@ -6,15 +6,21 @@ import (
 	"strconv"
 
 	"github.com/ifo/sanic"
-	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 	"moul.io/zapgorm2"
 
 	"go.icco.me/gotak"
 )
 
+var dbOverride *gorm.DB
+
 func getDB() (*gorm.DB, error) {
+	if dbOverride != nil {
+		return dbOverride, nil
+	}
+
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
@@ -102,11 +108,17 @@ func updateTag(db *gorm.DB, slug, key, value string) error {
 }
 
 func insertMove(db *gorm.DB, gameID int64, player int, text string, turnNumber int64) error {
+	return insertMoveWithComment(db, gameID, player, text, turnNumber, "")
+}
+
+// insertMoveWithComment saves a move with an optional annotation comment.
+func insertMoveWithComment(db *gorm.DB, gameID int64, player int, text string, turnNumber int64, comment string) error {
 	move := Move{
-		GameID: gameID,
-		Player: player,
-		Text:   text,
-		Turn:   turnNumber,
+		GameID:  gameID,
+		Player:  player,
+		Text:    text,
+		Turn:    turnNumber,
+		Comment: comment,
 	}
 
 	return db.Create(&move).Error
@@ -178,6 +190,7 @@ func getTurns(db *gorm.DB, game *gotak.Game) error {
 		if err != nil {
 			return err
 		}
+		mv.Comment = move.Comment
 
 		// White player always goes first, Black player always goes second
 		if move.Player == gotak.PlayerWhite {
