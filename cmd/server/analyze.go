@@ -56,7 +56,8 @@ type AnalyzeRequest struct {
 // Played is what the player did and Best is what the engine would have
 // done in the same position. Scores are from White's point of view: Score
 // before the move, ScoreAfter once it is played. Loss is what the move
-// cost the player who made it and Quality buckets that loss.
+// cost the player who made it, Quality buckets that loss, and Patterns
+// lists endgame patterns present in the position before the move.
 type MoveAnalysis struct {
 	Turn       int64    `json:"turn"`
 	Player     int      `json:"player"`
@@ -69,6 +70,7 @@ type MoveAnalysis struct {
 	ScoreAfter int64    `json:"score_after"`
 	Loss       int64    `json:"loss"`
 	Quality    string   `json:"quality,omitempty"`
+	Patterns   []string `json:"patterns"`
 	// Error captures why the engine couldn't evaluate this move, if any.
 	// When non-empty, the engine fields should be ignored.
 	Error string `json:"error,omitempty"`
@@ -231,10 +233,10 @@ func extendWriteDeadline(w http.ResponseWriter, l *zap.SugaredLogger, d time.Dur
 	}
 }
 
-// gameCacheVersion is the cache-invalidation fingerprint. v2 added scores
-// to every move, so v1 rows are never served.
+// gameCacheVersion is the cache-invalidation fingerprint. v3 added patterns
+// to every move, so older rows are never served.
 func gameCacheVersion(g *gotak.Game) string {
-	return fmt.Sprintf("v2:moves=%d", countPlies(g))
+	return fmt.Sprintf("v3:moves=%d", countPlies(g))
 }
 
 func countPlies(g *gotak.Game) int {
@@ -406,7 +408,7 @@ func analyzeGame(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Mov
 	size, err := analyzableSize(g)
 	if err != nil {
 		for _, p := range plies {
-			out = append(out, MoveAnalysis{Turn: p.turn, Player: p.player, Played: p.played, Error: err.Error()})
+			out = append(out, MoveAnalysis{Turn: p.turn, Player: p.player, Played: p.played, Patterns: []string{}, Error: err.Error()})
 		}
 		return out
 	}
@@ -421,7 +423,7 @@ func analyzeGame(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Mov
 	}
 
 	for i, p := range plies {
-		m := MoveAnalysis{Turn: p.turn, Player: p.player, Played: p.played}
+		m := MoveAnalysis{Turn: p.turn, Player: p.player, Played: p.played, Patterns: []string{}}
 		if errs[i] != nil {
 			m.Error = errs[i].Error()
 			out = append(out, m)
@@ -433,6 +435,10 @@ func analyzeGame(ctx context.Context, ev positionEvaluator, g *gotak.Game) []Mov
 		m.TPS = before.TPS
 		m.Score = before.Score
 		m.Agreed = ai.SameMove(p.played, before.Best, size)
+		m.Patterns = before.Patterns
+		if m.Patterns == nil {
+			m.Patterns = []string{}
+		}
 		if errs[i+1] != nil {
 			m.Error = errs[i+1].Error()
 			out = append(out, m)
