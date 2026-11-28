@@ -28,8 +28,9 @@ with PostgreSQL persistence.
 | `GET`  | `/game/{slug}/{turn}` | Game state at a specific turn. Public.                                                     |
 | `POST` | `/game/new`           | Create a game (auth). Body: `{"size":"8","mode":"human\|ai"}`. `Accept: application/json` → **201** JSON; else **307** redirect. |
 | `POST` | `/game/{slug}/join`   | Join a waiting game as black (auth required).                                              |
-| `POST` | `/game/{slug}/move`   | Submit a move (auth required). Body: `{"player": 1, "move": "c3", "turn": 1}`.             |
-| `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required).                                                        |
+| `POST` | `/game/{slug}/move`     | Submit a move (auth required). Body: `{"player": 1, "move": "c3", "turn": 1}`.             |
+| `POST` | `/game/{slug}/annotate` | Annotate a move with a comment (auth required). Body: `{"turn": 1, "player": 1, "comment": "..."}`. |
+| `POST` | `/game/{slug}/ai-move`  | Request an AI move (auth required).                                                        |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
 | `GET`  | `/metrics`            | OTel HTTP semconv metrics (e.g. `http_server_request_duration_seconds`) in Prometheus exposition format.                   |
 
