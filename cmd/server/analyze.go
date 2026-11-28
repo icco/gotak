@@ -117,6 +117,7 @@ type positionEvaluator interface {
 // @Param slug path string true "Game slug identifier"
 // @Param request body AnalyzeRequest false "Engine config (optional)"
 // @Success 200 {object} AnalyzeResponse
+// @Success 202 {object} AnalyzeJobResponse "Long game: analysis runs in the background; poll status_url"
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
@@ -175,6 +176,28 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	budget := time.Duration(countPlies(game)+1) * cfg.TimeLimit
+	if budget > syncAnalyzeBudget {
+		job, start, err := claimAnalysisJob(db, key, budget, time.Now())
+		if err != nil {
+			l.Errorw("could not claim analysis job", "slug", slug, zap.Error(err))
+			if jerr := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not start analysis"}); jerr != nil {
+				l.Errorw("failed to render JSON", zap.Error(jerr))
+			}
+			return
+		}
+		if start {
+			newEv := func() (positionEvaluator, error) { return ai.NewAnalyzer(size, cfg) }
+			go runAnalysisJob(context.WithoutCancel(ctx), db, l, job, key, newEv, game, budget)
+		}
+		resp := jobResponse(db, l, job, slug, game.Board.Size, time.Now())
+		w.Header().Set("Location", resp.StatusURL)
+		if jerr := Renderer.JSON(w, http.StatusAccepted, resp); jerr != nil {
+			l.Errorw("failed to render JSON", zap.Error(jerr))
+		}
+		return
+	}
+
 	analyzer, err := ai.NewAnalyzer(size, cfg)
 	if err != nil {
 		l.Warnw("cannot analyze game", "slug", slug, zap.Error(err))
@@ -184,7 +207,6 @@ func postAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	budget := time.Duration(countPlies(game)+1) * cfg.TimeLimit
 	extendWriteDeadline(w, l, budget+analyzeDeadlineSlack)
 	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
 	defer cancel()
@@ -216,7 +238,7 @@ func writeAnalyzeResponse(w http.ResponseWriter, l *zap.SugaredLogger, slug stri
 	resp.Slug = slug
 	resp.Size = size
 	resp.Level = level
-	resp.CriticalMoments = criticalMoments(resp.Moves, maxCriticalMoments)
+	resp.CriticalMoments = criticalMoments(resp.Moves)
 	if err := Renderer.JSON(w, http.StatusOK, resp); err != nil {
 		l.Errorw("failed to render analyze response", zap.Error(err))
 	}
@@ -489,7 +511,7 @@ func moveQuality(agreed bool, loss int64) string {
 	}
 }
 
-func criticalMoments(moves []MoveAnalysis, n int) []CriticalMoment {
+func criticalMoments(moves []MoveAnalysis) []CriticalMoment {
 	out := []CriticalMoment{}
 	for i, m := range moves {
 		switch m.Quality {
@@ -506,8 +528,8 @@ func criticalMoments(moves []MoveAnalysis, n int) []CriticalMoment {
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Loss > out[j].Loss })
-	if len(out) > n {
-		out = out[:n]
+	if len(out) > maxCriticalMoments {
+		out = out[:maxCriticalMoments]
 	}
 	return out
 }
