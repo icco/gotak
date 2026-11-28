@@ -17,6 +17,29 @@ definitions:
       score:
         type: integer
     type: object
+  ai.MoveTree:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/ai.MoveTree'
+        type: array
+      forced_win:
+        type: integer
+      game_over:
+        type: boolean
+      move:
+        type: string
+      pv:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+      tps:
+        type: string
+      winner:
+        type: integer
+    type: object
   ai.PositionAnalysis:
     properties:
       best:
@@ -27,6 +50,10 @@ definitions:
         type: integer
       game_over:
         type: boolean
+      patterns:
+        items:
+          type: string
+        type: array
       pv:
         items:
           type: string
@@ -67,6 +94,8 @@ definitions:
     type: object
   gotak.Move:
     properties:
+      comment:
+        type: string
       moveCount:
         description: Move only
         format: int64
@@ -154,6 +183,18 @@ definitions:
         type: integer
       slug:
         type: string
+    type: object
+  main.AnnotateRequest:
+    properties:
+      comment:
+        example: blunder
+        type: string
+      player:
+        example: 1
+        type: integer
+      turn:
+        example: 1
+        type: integer
     type: object
   main.AuthResponse:
     properties:
@@ -306,6 +347,10 @@ definitions:
         type: string
       loss:
         type: integer
+      patterns:
+        items:
+          type: string
+        type: array
       played:
         type: string
       player:
@@ -323,6 +368,9 @@ definitions:
     type: object
   main.MoveRequest:
     properties:
+      comment:
+        example: great move
+        type: string
       move:
         example: c3
         type: string
@@ -376,6 +424,10 @@ definitions:
         type: boolean
       level:
         type: string
+      patterns:
+        items:
+          type: string
+        type: array
       pv:
         items:
           type: string
@@ -437,6 +489,8 @@ definitions:
             $ref: '#/definitions/gotak.Stone'
           type: array
         type: object
+      comment:
+        type: string
       move:
         type: string
       played_at:
@@ -494,6 +548,33 @@ definitions:
         $ref: '#/definitions/main.PieceCounts'
       white:
         $ref: '#/definitions/main.PieceCounts'
+    type: object
+  main.TreeAnalysisRequest:
+    type: object
+  main.TreeAnalysisResponse:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/ai.MoveTree'
+        type: array
+      forced_win:
+        type: integer
+      game_over:
+        type: boolean
+      level:
+        type: string
+      move:
+        type: string
+      pv:
+        items:
+          type: string
+        type: array
+      score:
+        type: integer
+      tps:
+        type: string
+      winner:
+        type: integer
     type: object
   main.UpdateProfileRequest:
     properties:
@@ -770,6 +851,39 @@ paths:
       summary: Analyze a TPS position
       tags:
       - analysis
+  /analyze/tree:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Builds a tree of candidate moves and variations from a TPS
+        position. Each node reports score and forced win; leaves carry
+        the engine's principal variation. Breadth up to 4, depth up to 3.
+      parameters:
+      - description: Position, tree shape, and engine config
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.TreeAnalysisRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.TreeAnalysisResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Generate an alternative move tree
+      tags:
+      - analysis
   /auth/confirm-reset:
     post:
       consumes:
@@ -1030,6 +1144,49 @@ paths:
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Get specific turn
+      tags:
+      - game
+  /game/{slug}/annotate:
+    post:
+      consumes:
+      - application/json
+      description: Add or update a comment on a specific move
+      parameters:
+      - description: Game slug identifier
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: Annotation details
+        in: body
+        name: annotation
+        required: true
+        schema:
+          $ref: '#/definitions/main.AnnotateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ReplayStep'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Annotate a move
       tags:
       - game
   /game/{slug}/join:

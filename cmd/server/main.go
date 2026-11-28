@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"net/http"
@@ -260,6 +261,7 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Post("/analyze/game/{slug}", postAnalyzeHandler)
 			r.Post("/analyze/position", postAnalyzePositionHandler)
 			r.Post("/analyze/compare-moves", postCompareMovesHandler)
+			r.Post("/analyze/tree", postAnalyzeTreeHandler)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(limitByClientIP(readRequestsPerMinute, time.Minute))
@@ -267,6 +269,8 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Get("/analyze/heatmap", getHeatmapHandler)
 			r.Get("/analyze/game/{slug}/jobs/{id}", getAnalyzeJobHandler)
 		})
+		r.Get("/puzzles/tactical", getTacticalPuzzleHandler)
+		r.Post("/puzzles/{id}/attempt", postPuzzleAttemptHandler)
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
@@ -274,7 +278,9 @@ func buildRouter(opts routerOptions) http.Handler {
 			r.Post("/game/new", newGameHandler)
 			r.Post("/game/{slug}/join", joinGameHandler)
 			r.Post("/game/{slug}/move", newMoveHandler)
+			r.Post("/game/{slug}/annotate", annotateHandler)
 			r.Post("/game/{slug}/ai-move", PostAIMoveHandler)
+			r.With(limitByClientIP(engineRequestsPerMinute, time.Minute)).Post("/puzzles/mine/{slug}", postMinePuzzlesHandler)
 		})
 	})
 
@@ -525,11 +531,15 @@ func joinGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxRequestBody bounds request bodies for write endpoints.
+const maxRequestBody = 64 << 10
+
 // MoveRequest represents the request body for making a move
 type MoveRequest struct {
-	Player int    `json:"player" example:"1" description:"Player number (1 or 2)"`
-	Text   string `json:"move" example:"c3" description:"Move in PTN notation"`
-	Turn   int64  `json:"turn" example:"1" description:"Turn number"`
+	Player  int    `json:"player" example:"1" description:"Player number (1 or 2)"`
+	Text    string `json:"move" example:"c3" description:"Move in PTN notation"`
+	Turn    int64  `json:"turn" example:"1" description:"Turn number"`
+	Comment string `json:"comment,omitempty" example:"great move" description:"Optional move comment"`
 }
 
 // @Summary Make a move in a game
@@ -578,9 +588,18 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	var data MoveRequest
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			l.Warnw("body too large", zap.Error(err))
+			if err := Renderer.JSON(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "request body too large"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
 		l.Errorw("could not read body", zap.Error(err))
-		if err := Renderer.JSON(w, 400, map[string]string{"error": err.Error()}); err != nil {
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
 		}
 		return
@@ -665,7 +684,8 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 
 	currentTurn := plyTurn(game)
 
-	if err := insertMove(db, game.ID, data.Player, data.Text, currentTurn); err != nil {
+	comment := sanitizeComment(data.Comment)
+	if err := insertMoveWithComment(db, game.ID, data.Player, data.Text, currentTurn, comment); err != nil {
 		l.Errorw("could not insert move", "data", data, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "could not save move"}); err != nil {
 			l.Errorw("failed to render JSON", zap.Error(err))
@@ -726,6 +746,194 @@ func newMoveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := Renderer.JSON(w, http.StatusOK, state); err != nil {
+		l.Errorw("failed to render JSON", zap.Error(err))
+	}
+}
+
+// AnnotateRequest represents the request body for annotating a move.
+type AnnotateRequest struct {
+	Turn    int64  `json:"turn" example:"1" description:"Turn number"`
+	Player  int    `json:"player" example:"1" description:"Player number (1 or 2)"`
+	Comment string `json:"comment" example:"blunder" description:"Annotation comment"`
+}
+
+// sanitizeComment cleans an annotation comment using ugcPolicy, unescapes
+// HTML entities produced by bluemonday, normalizes internal whitespace,
+// removes braces to keep PTN valid, and truncates to 500 characters.
+func sanitizeComment(raw string) string {
+	cleaned := ugcPolicy.Sanitize(raw)
+	cleaned = html.UnescapeString(cleaned)
+	cleaned = strings.ReplaceAll(cleaned, "{", "")
+	cleaned = strings.ReplaceAll(cleaned, "}", "")
+	cleaned = strings.Join(strings.Fields(cleaned), " ")
+	runes := []rune(cleaned)
+	if len(runes) > 500 {
+		runes = runes[:500]
+	}
+	return string(runes)
+}
+
+// @Summary Annotate a move
+// @Description Add or update a comment on a specific move
+// @Tags game
+// @Accept json
+// @Produce json
+// @Param slug path string true "Game slug identifier"
+// @Param annotation body AnnotateRequest true "Annotation details"
+// @Success 200 {object} ReplayStep
+// @Failure 400 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /game/{slug}/annotate [post]
+func annotateHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	l := logging.FromContext(ctx)
+	db, err := getDB()
+	if err != nil {
+		l.Errorw("could not get db", zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "bad connection to db"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	user := getMustUserFromContext(r)
+	slug := ugcPolicy.Sanitize(chi.URLParamFromCtx(ctx, "slug"))
+
+	var data AnnotateRequest
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			l.Warnw("body too large", zap.Error(err))
+			if err := Renderer.JSON(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "request body too large"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+		l.Errorw("could not read body", zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if data.Player != gotak.PlayerWhite && data.Player != gotak.PlayerBlack {
+		l.Errorw("invalid player", "player", data.Player)
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid player"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if data.Turn <= 0 {
+		l.Errorw("invalid turn", "turn", data.Turn)
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: "turn must be positive"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	var dbGame Game
+	if err := db.Where("slug = ?", slug).First(&dbGame).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			l.Warnw("game not found", "slug", slug)
+			if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "game not found"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+		l.Errorw("could not get game", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not query game"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if err := verifyGameParticipation(db, slug, user.ID); err != nil {
+		l.Errorw("game participation verification failed", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusForbidden, ErrorResponse{Error: "access denied: you are not a participant in this game"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
+	if err != nil {
+		l.Errorw("could not get player number", "slug", slug, "user_id", user.ID, zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	if data.Player != userPlayerNumber {
+		l.Errorw("player mismatch", "requested_player", data.Player, "user_player", userPlayerNumber)
+		if err := Renderer.JSON(w, http.StatusForbidden, ErrorResponse{Error: "you can only annotate your own moves"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	var move Move
+	if err := db.Where("game_id = ? AND turn = ? AND player = ?", dbGame.ID, data.Turn, data.Player).First(&move).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			l.Warnw("move not found", "game_id", dbGame.ID, "turn", data.Turn, "player", data.Player)
+			if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "move not found"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+		l.Errorw("could not query move", zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not query move"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	cleaned := sanitizeComment(data.Comment)
+	if err := db.Model(&Move{}).Where("id = ?", move.ID).Update("comment", cleaned).Error; err != nil {
+		l.Errorw("could not update move comment", zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not update move comment"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	game, err := getGame(db, slug)
+	if err != nil {
+		l.Errorw("could not reload game", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not reload game state"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	times, err := loadMoveTimestamps(db, game.ID)
+	if err != nil {
+		times = nil
+	}
+
+	steps, err := buildReplaySteps(game, times)
+	if err != nil {
+		l.Errorw("could not build replay steps", "slug", slug, zap.Error(err))
+		if err := Renderer.JSON(w, http.StatusInternalServerError, ErrorResponse{Error: "could not build replay"}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	for _, step := range steps {
+		if step.Turn == data.Turn && step.Player == data.Player {
+			if err := Renderer.JSON(w, http.StatusOK, step); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+	}
+
+	if err := Renderer.JSON(w, http.StatusNotFound, ErrorResponse{Error: "step not found in replay"}); err != nil {
 		l.Errorw("failed to render JSON", zap.Error(err))
 	}
 }

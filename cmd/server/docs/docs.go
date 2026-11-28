@@ -338,6 +338,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/analyze/tree": {
+            "post": {
+                "description": "Builds a tree of candidate moves and variations from a TPS\nposition. Each node reports score and forced win; leaves carry\nthe engine's principal variation. Breadth up to 4, depth up to 3.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Generate an alternative move tree",
+                "parameters": [
+                    {
+                        "description": "Position, tree shape, and engine config",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.TreeAnalysisRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.TreeAnalysisResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/confirm-reset": {
             "post": {
                 "description": "Reset password with token",
@@ -796,6 +842,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/game/{slug}/annotate": {
+            "post": {
+                "description": "Add or update a comment on a specific move",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Annotate a move",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Annotation details",
+                        "name": "annotation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AnnotateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ReplayStep"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/game/{slug}/join": {
             "post": {
                 "description": "Join a game that is waiting for a second player (as black player)",
@@ -1181,6 +1292,41 @@ const docTemplate = `{
                 }
             }
         },
+        "ai.MoveTree": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai.MoveTree"
+                    }
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "game_over": {
+                    "type": "boolean"
+                },
+                "move": {
+                    "type": "string"
+                },
+                "pv": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
+                },
+                "winner": {
+                    "type": "integer"
+                }
+            }
+        },
         "ai.PositionAnalysis": {
             "type": "object",
             "properties": {
@@ -1195,6 +1341,12 @@ const docTemplate = `{
                 },
                 "game_over": {
                     "type": "boolean"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "pv": {
                     "type": "array",
@@ -1257,6 +1409,9 @@ const docTemplate = `{
         "gotak.Move": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string"
+                },
                 "moveCount": {
                     "description": "Move only",
                     "type": "integer",
@@ -1383,6 +1538,23 @@ const docTemplate = `{
                 },
                 "slug": {
                     "type": "string"
+                }
+            }
+        },
+        "main.AnnotateRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string",
+                    "example": "blunder"
+                },
+                "player": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "turn": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
@@ -1608,6 +1780,12 @@ const docTemplate = `{
                 "loss": {
                     "type": "integer"
                 },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "played": {
                     "type": "string"
                 },
@@ -1634,6 +1812,10 @@ const docTemplate = `{
         "main.MoveRequest": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string",
+                    "example": "great move"
+                },
                 "move": {
                     "type": "string",
                     "example": "c3"
@@ -1713,6 +1895,12 @@ const docTemplate = `{
                 },
                 "level": {
                     "type": "string"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "pv": {
                     "type": "array",
@@ -1806,6 +1994,9 @@ const docTemplate = `{
                         }
                     }
                 },
+                "comment": {
+                    "type": "string"
+                },
                 "move": {
                     "type": "string"
                 },
@@ -1891,6 +2082,47 @@ const docTemplate = `{
                 },
                 "white": {
                     "$ref": "#/definitions/main.PieceCounts"
+                }
+            }
+        },
+        "main.TreeAnalysisRequest": {
+            "type": "object"
+        },
+        "main.TreeAnalysisResponse": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ai.MoveTree"
+                    }
+                },
+                "forced_win": {
+                    "type": "integer"
+                },
+                "game_over": {
+                    "type": "boolean"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "move": {
+                    "type": "string"
+                },
+                "pv": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "tps": {
+                    "type": "string"
+                },
+                "winner": {
+                    "type": "integer"
                 }
             }
         },
