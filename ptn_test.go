@@ -135,3 +135,95 @@ func TestGamePTN_nilGame(t *testing.T) {
 		t.Errorf("nil game should return empty string, got %q", got)
 	}
 }
+
+func TestParsePTN_moveCommentsRoundTrip(t *testing.T) {
+	src := []byte(`[Size "5"]
+[Player1 "alice"]
+[Player2 "bob"]
+
+1. a1 { nice } e5 { blunder }
+2. b2 { solid } d4
+3. c3 e4 { mistake }
+4. d3 { win threat } R-0 { resignation }
+`)
+
+	g, err := ParsePTN(src)
+	if err != nil {
+		t.Fatalf("ParsePTN: %v", err)
+	}
+
+	if len(g.Turns) != 4 {
+		t.Fatalf("got %d turns, want 4", len(g.Turns))
+	}
+
+	// Turn 1: both moves have comments
+	t1 := g.Turns[0]
+	if t1.First == nil || t1.First.Text != "a1" || t1.First.Comment != "nice" {
+		t.Errorf("turn 1 first move = %+v, want a1 with 'nice'", t1.First)
+	}
+	if t1.Second == nil || t1.Second.Text != "e5" || t1.Second.Comment != "blunder" {
+		t.Errorf("turn 1 second move = %+v, want e5 with 'blunder'", t1.Second)
+	}
+
+	// Turn 2: only first move has comment
+	t2 := g.Turns[1]
+	if t2.First == nil || t2.First.Comment != "solid" {
+		t.Errorf("turn 2 first comment = %q, want 'solid'", t2.First.Comment)
+	}
+	if t2.Second == nil || t2.Second.Comment != "" {
+		t.Errorf("turn 2 second comment = %q, want empty", t2.Second.Comment)
+	}
+
+	// Turn 3: only second move has comment
+	t3 := g.Turns[2]
+	if t3.First == nil || t3.First.Comment != "" {
+		t.Errorf("turn 3 first comment = %q, want empty", t3.First.Comment)
+	}
+	if t3.Second == nil || t3.Second.Comment != "mistake" {
+		t.Errorf("turn 3 second comment = %q, want 'mistake'", t3.Second.Comment)
+	}
+
+	// Turn 4: first move has comment, comment after result goes to turn
+	t4 := g.Turns[3]
+	if t4.First == nil || t4.First.Comment != "win threat" {
+		t.Errorf("turn 4 first comment = %q, want 'win threat'", t4.First.Comment)
+	}
+	if t4.Result != "R-0" {
+		t.Errorf("turn 4 result = %q, want 'R-0'", t4.Result)
+	}
+	if t4.Comment != "resignation" {
+		t.Errorf("turn 4 comment = %q, want 'resignation'", t4.Comment)
+	}
+
+	out := g.PTN()
+	round, err := ParsePTN([]byte(out))
+	if err != nil {
+		t.Fatalf("ParsePTN(PTN): %v\noutput was:\n%s", err, out)
+	}
+
+	if len(round.Turns) != len(g.Turns) {
+		t.Fatalf("round-trip turns = %d, want %d", len(round.Turns), len(g.Turns))
+	}
+	for i := range g.Turns {
+		orig := g.Turns[i]
+		rt := round.Turns[i]
+		if orig.First.Text != rt.First.Text || orig.First.Comment != rt.First.Comment {
+			t.Errorf("turn %d first move drift: orig=(%q, %q) vs rt=(%q, %q)",
+				i+1, orig.First.Text, orig.First.Comment, rt.First.Text, rt.First.Comment)
+		}
+		if (orig.Second == nil) != (rt.Second == nil) {
+			t.Errorf("turn %d second nil drift", i+1)
+		} else if orig.Second != nil {
+			if orig.Second.Text != rt.Second.Text || orig.Second.Comment != rt.Second.Comment {
+				t.Errorf("turn %d second move drift: orig=(%q, %q) vs rt=(%q, %q)",
+					i+1, orig.Second.Text, orig.Second.Comment, rt.Second.Text, rt.Second.Comment)
+			}
+		}
+		if orig.Comment != rt.Comment {
+			t.Errorf("turn %d turn comment drift: %q vs %q", i+1, orig.Comment, rt.Comment)
+		}
+		if orig.Result != rt.Result {
+			t.Errorf("turn %d result drift: %q vs %q", i+1, orig.Result, rt.Result)
+		}
+	}
+}
