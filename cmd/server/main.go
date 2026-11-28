@@ -21,7 +21,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	httpSwagger "github.com/swaggo/http-swagger"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.icco.me/gotak"
@@ -214,6 +214,7 @@ func buildRouter(opts routerOptions) http.Handler {
 		r.Get("/analyze/openings", getOpeningsHandler)
 		r.Post("/analyze/position", postAnalyzePositionHandler)
 		r.Post("/analyze/compare-moves", postCompareMovesHandler)
+		r.Get("/analyze/heatmap", getHeatmapHandler)
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)

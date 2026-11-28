@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"go.icco.me/gotak"
 )
 
@@ -199,10 +199,7 @@ func main() {
 		}
 	}
 
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-	)
+	p := tea.NewProgram(model)
 
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
@@ -420,7 +417,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.waitingForAI = false
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch m.screen {
 		case screenAuthMode:
 			return m.updateAuthMode(msg)
@@ -440,7 +437,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateAuthMode(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keyCtrlC:
 		return m, tea.Quit
@@ -477,7 +474,7 @@ func (m model) updateAuthMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateAuth(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg.String() {
@@ -620,7 +617,7 @@ func (m model) updateAuth(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateMenu(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyCtrlC:
 		return m, tea.Quit
@@ -651,7 +648,7 @@ func (m model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateGame(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
 		m.screen = screenMenu
@@ -677,7 +674,7 @@ func (m model) updateGame(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m model) updateSettings(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m model) updateSettings(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", keyEsc:
 		m.screen = screenMenu
@@ -732,7 +729,7 @@ func (m *model) cycleGameMode() {
 	}
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
 	var content string
 
 	switch m.screen {
@@ -755,7 +752,9 @@ func (m model) View() string {
 		content = m.withSpinner(content)
 	}
 
-	return content
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }
 
 func (m model) withSpinner(content string) string {
