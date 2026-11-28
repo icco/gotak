@@ -25,6 +25,7 @@ import (
 	"github.com/unrolled/render"
 	"github.com/unrolled/secure"
 	"go.icco.me/gotak"
+	"go.icco.me/gotak/ai"
 	"go.icco.me/gotak/cmd/server/docs"
 	"go.icco.me/gutil/logging"
 	"go.icco.me/gutil/tracing"
@@ -55,6 +56,8 @@ var (
 
 	log       = logging.Must(logging.NewLogger(gotak.Service))
 	ugcPolicy = bluemonday.StrictPolicy()
+
+	llmEngine ai.Engine
 )
 
 // @title GoTak API
@@ -118,6 +121,15 @@ func main() {
 	if _, err := getDB(); err != nil {
 		log.Panicw("could not get db", zap.Error(err))
 		return
+	}
+
+	llmEngine, err = ai.NewLLMEngineFromEnv(ctx)
+	if err != nil {
+		log.Panicw("failed to initialize LLM engine", zap.Error(err))
+		return
+	}
+	if llmEngine != nil {
+		log.Infow("LLM AI opponent initialized")
 	}
 
 	metricsHandler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})

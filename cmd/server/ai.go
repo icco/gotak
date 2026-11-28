@@ -15,6 +15,7 @@ import (
 
 // AIRequest represents a request for an AI move
 type AIRequest struct {
+	Engine      string        `json:"engine"`
 	Level       string        `json:"level"`
 	Style       string        `json:"style"`
 	TimeLimit   time.Duration `json:"time_limit"`
@@ -119,8 +120,37 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		Personality: req.Personality,
 	}
 
-	engine := &ai.TakticianEngine{}
-	move, err := engine.GetMove(ctx, game, cfg)
+	var moveEngine ai.Engine
+	switch req.Engine {
+	case "llm":
+		if llmEngine == nil {
+			l.Errorw("LLM engine requested but not configured")
+			if err := Renderer.JSON(w, http.StatusServiceUnavailable, ErrorResponse{Error: "LLM opponent is not configured"}); err != nil {
+				l.Errorw("failed to render JSON", zap.Error(err))
+			}
+			return
+		}
+		moveEngine = llmEngine
+	case "taktician", "":
+		moveEngine = &ai.TakticianEngine{}
+	default:
+		l.Errorw("unknown AI engine requested", "engine", req.Engine)
+		if err := Renderer.JSON(w, http.StatusBadRequest, ErrorResponse{Error: fmt.Sprintf("unknown AI engine: %s", req.Engine)}); err != nil {
+			l.Errorw("failed to render JSON", zap.Error(err))
+		}
+		return
+	}
+
+	var move string
+	var hint string
+	if explainer, ok := moveEngine.(ai.MoveExplainer); ok {
+		move, hint, err = explainer.MoveWithReason(ctx, game, cfg)
+	} else {
+		move, err = moveEngine.GetMove(ctx, game, cfg)
+		if err == nil {
+			hint, _ = moveEngine.ExplainMove(ctx, game, cfg)
+		}
+	}
 	if err != nil {
 		l.Errorw("AI move failed", "slug", slug, zap.Error(err))
 		if err := Renderer.JSON(w, 500, map[string]string{"error": "AI move failed"}); err != nil {
@@ -128,8 +158,6 @@ func PostAIMoveHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	hint, _ := engine.ExplainMove(ctx, game, cfg)
 
 	userPlayerNumber, err := getPlayerNumber(db, slug, user.ID)
 	if err != nil {

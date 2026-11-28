@@ -14,7 +14,12 @@ import (
 	"go.icco.me/gotak"
 )
 
+var getDBHook func() (*gorm.DB, error)
+
 func getDB() (*gorm.DB, error) {
+	if getDBHook != nil {
+		return getDBHook()
+	}
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
