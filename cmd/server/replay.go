@@ -21,6 +21,7 @@ type ReplayStep struct {
 	Move     string                    `json:"move"`
 	Board    map[string][]*gotak.Stone `json:"board"`
 	PlayedAt *time.Time                `json:"played_at,omitempty"`
+	Comment  string                    `json:"comment,omitempty"`
 }
 
 // ReplayResponse is the payload returned by GET /game/{slug}/replay.
@@ -228,6 +229,7 @@ func buildReplaySteps(game *gotak.Game, moveTimes []time.Time) ([]ReplayStep, er
 				Move:     turn.First.Text,
 				Board:    snapshotSquares(board),
 				PlayedAt: timeAt(len(steps)),
+				Comment:  turn.First.Comment,
 			})
 		}
 		if turn.Second != nil {
@@ -240,6 +242,7 @@ func buildReplaySteps(game *gotak.Game, moveTimes []time.Time) ([]ReplayStep, er
 				Move:     turn.Second.Text,
 				Board:    snapshotSquares(board),
 				PlayedAt: timeAt(len(steps)),
+				Comment:  turn.Second.Comment,
 			})
 		}
 	}

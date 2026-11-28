@@ -61,6 +61,7 @@ type Move struct {
 	Player    int       `gorm:"not null" json:"player"`
 	Turn      int64     `gorm:"not null" json:"turn"`
 	Text      string    `gorm:"type:text" json:"text"`
+	Comment   string    `gorm:"type:text" json:"comment,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 
 	// Associations
