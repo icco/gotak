@@ -128,10 +128,64 @@ const docTemplate = `{
                             "$ref": "#/definitions/main.AnalyzeResponse"
                         }
                     },
+                    "202": {
+                        "description": "Long game: analysis runs in the background; poll status_url",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeJobResponse"
+                        }
+                    },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analyze/game/{slug}/jobs/{id}": {
+            "get": {
+                "description": "Reports a job started by POST /analyze/game/{slug} for a\nlong game: running, failed with an error, or done with the\nfull analysis in result.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Get a background game analysis",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Job id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeJobResponse"
                         }
                     },
                     "404": {
@@ -742,6 +796,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/game/{slug}/annotate": {
+            "post": {
+                "description": "Add or update a comment on a specific move",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "game"
+                ],
+                "summary": "Annotate a move",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Annotation details",
+                        "name": "annotation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.AnnotateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.ReplayStep"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/game/{slug}/join": {
             "post": {
                 "description": "Join a game that is waiting for a second player (as black player)",
@@ -1203,6 +1322,9 @@ const docTemplate = `{
         "gotak.Move": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string"
+                },
                 "moveCount": {
                     "description": "Move only",
                     "type": "integer",
@@ -1277,6 +1399,26 @@ const docTemplate = `{
                 }
             }
         },
+        "main.AnalyzeJobResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "result": {
+                    "$ref": "#/definitions/main.AnalyzeResponse"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_url": {
+                    "type": "string"
+                }
+            }
+        },
         "main.AnalyzeRequest": {
             "type": "object"
         },
@@ -1309,6 +1451,23 @@ const docTemplate = `{
                 },
                 "slug": {
                     "type": "string"
+                }
+            }
+        },
+        "main.AnnotateRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string",
+                    "example": "blunder"
+                },
+                "player": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "turn": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
@@ -1560,6 +1719,10 @@ const docTemplate = `{
         "main.MoveRequest": {
             "type": "object",
             "properties": {
+                "comment": {
+                    "type": "string",
+                    "example": "great move"
+                },
                 "move": {
                     "type": "string",
                     "example": "c3"
@@ -1731,6 +1894,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/gotak.Stone"
                         }
                     }
+                },
+                "comment": {
+                    "type": "string"
                 },
                 "move": {
                     "type": "string"

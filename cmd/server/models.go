@@ -61,6 +61,7 @@ type Move struct {
 	Player    int       `gorm:"not null" json:"player"`
 	Turn      int64     `gorm:"not null" json:"turn"`
 	Text      string    `gorm:"type:text" json:"text"`
+	Comment   string    `gorm:"type:text" json:"comment,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 
 	// Associations
@@ -98,7 +99,7 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{})
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &AnalysisJob{})
 }
 
 // Spectator tracks active spectator sessions for live games.
