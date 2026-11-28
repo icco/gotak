@@ -34,6 +34,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var (
@@ -158,6 +159,8 @@ func main() {
 type routerOptions struct {
 	IsDev          bool
 	MetricsHandler http.Handler
+	DB             *gorm.DB
+	HubManager     *spectateHubManager
 }
 
 // buildRouter wires the chi router with logging, CORS, security headers,
@@ -210,6 +213,13 @@ func buildRouter(opts routerOptions) http.Handler {
 		r.Get("/game/{slug}/ptn", getPTNHandler)
 		r.Get("/game/{slug}/position/{turn}", getPositionHandler)
 		r.Get("/game/{slug}/{turn}", getTurnHandler)
+		if opts.DB != nil || opts.HubManager != nil {
+			r.Get("/game/{slug}/spectate", func(w http.ResponseWriter, r *http.Request) {
+				spectateHandlerWithDB(w, r, opts.DB, opts.HubManager)
+			})
+		} else {
+			r.Get("/game/{slug}/spectate", spectateHandler)
+		}
 		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
 		r.Get("/analyze/openings", getOpeningsHandler)
 

@@ -6,10 +6,12 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
 	github.com/go-pkgz/auth/v2 v2.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/ifo/sanic v0.0.1
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -69,7 +71,6 @@ require (
 	github.com/go-pkgz/repeater/v2 v2.2.0 // indirect
 	github.com/go-pkgz/rest v1.24.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
