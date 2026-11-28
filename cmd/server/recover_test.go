@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -84,4 +85,16 @@ func TestRecoverPanics_abortsCommittedResponse(t *testing.T) {
 			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 		})
 	}
+}
+
+func TestRecoverPanics_unwrapsAbortHandler(t *testing.T) {
+	h := recoverPanics(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic(fmt.Errorf("client went away: %w", http.ErrAbortHandler))
+	}))
+	defer func() {
+		if rec := recover(); rec != http.ErrAbortHandler { //nolint:errorlint // net/http compares the sentinel by identity
+			t.Errorf("recovered %v, want the bare http.ErrAbortHandler sentinel", rec)
+		}
+	}()
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 }

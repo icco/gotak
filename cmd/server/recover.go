@@ -25,7 +25,7 @@ func recoverPanics(next http.Handler) http.Handler {
 				return
 			}
 			if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
-				panic(rec)
+				panic(http.ErrAbortHandler)
 			}
 			l.Errorw("handler panicked", "panic", rec, "stack", string(debug.Stack()))
 			if ww.Status() != 0 || ww.BytesWritten() > 0 {
