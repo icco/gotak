@@ -172,6 +172,34 @@ func TestCompareMovesTPS_limits(t *testing.T) {
 	}
 }
 
+func TestAnalyzeTPS_roadThreats(t *testing.T) {
+	cases := []struct {
+		name       string
+		tps        string
+		wantWhite  []string
+		wantBlacks []string
+	}{
+		{"both sides one away", "x5/x5/x5/2,2,2,2,x/1,1,1,1,x 1 5", []string{"e1"}, []string{"e2"}},
+		{"two gaps for white", "x5/x5/x5/x5/1,1,x,1,x 2 4", []string{}, []string{}},
+		{"vertical road", "1,x4/1,x4/x5/1,x4/1,x4 2 5", []string{"a3"}, []string{}},
+		{"empty board", "x5/x5/x5/x5/x5 1 1", []string{}, []string{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := AnalyzeTPS(context.Background(), tc.tps, fastCfg)
+			if err != nil {
+				t.Fatalf("AnalyzeTPS: %v", err)
+			}
+			if strings.Join(res.Threats.White, ",") != strings.Join(tc.wantWhite, ",") {
+				t.Errorf("white threats = %v, want %v", res.Threats.White, tc.wantWhite)
+			}
+			if strings.Join(res.Threats.Black, ",") != strings.Join(tc.wantBlacks, ",") {
+				t.Errorf("black threats = %v, want %v", res.Threats.Black, tc.wantBlacks)
+			}
+		})
+	}
+}
+
 func TestAnalyzer_canceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

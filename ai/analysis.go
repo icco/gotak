@@ -36,15 +36,24 @@ var ErrNoMove = errors.New("engine found no move within the time limit")
 // White's point of view: positive favours White, negative favours Black,
 // and roughly 400 is worth one flat on top.
 type PositionAnalysis struct {
-	TPS       string   `json:"tps"`
-	ToMove    int      `json:"to_move"`
-	Best      string   `json:"best,omitempty"`
-	PV        []string `json:"pv,omitempty"`
-	Score     int64    `json:"score"`
-	ForcedWin int      `json:"forced_win,omitempty"`
-	GameOver  bool     `json:"game_over"`
-	Winner    int      `json:"winner,omitempty"`
-	Depth     int      `json:"depth"`
+	TPS       string      `json:"tps"`
+	ToMove    int         `json:"to_move"`
+	Best      string      `json:"best,omitempty"`
+	PV        []string    `json:"pv,omitempty"`
+	Score     int64       `json:"score"`
+	ForcedWin int         `json:"forced_win,omitempty"`
+	GameOver  bool        `json:"game_over"`
+	Winner    int         `json:"winner,omitempty"`
+	Depth     int         `json:"depth"`
+	Threats   RoadThreats `json:"threats"`
+}
+
+// RoadThreats lists, per color, the empty squares where a flat placed now
+// would complete a road. Either side's list can be non-empty regardless
+// of who is to move.
+type RoadThreats struct {
+	White []string `json:"white"`
+	Black []string `json:"black"`
 }
 
 // MoveScore is one candidate in a Comparison. Score is White's point of
@@ -264,8 +273,9 @@ func (a *Analyzer) play(p *tak.Position, text string) (*tak.Position, error) {
 
 func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnalysis, error) {
 	res := &PositionAnalysis{
-		TPS:    ptn.FormatTPS(p),
-		ToMove: colorToPlayer(p.ToMove()),
+		TPS:     ptn.FormatTPS(p),
+		ToMove:  colorToPlayer(p.ToMove()),
+		Threats: roadThreats(p),
 	}
 
 	if over, winner := p.GameOver(); over {
@@ -318,6 +328,45 @@ func (a *Analyzer) analyze(ctx context.Context, p *tak.Position) (*PositionAnaly
 		res.Score = max(-ForcedWinScore+1, min(ForcedWinScore-1, v))
 	}
 	return res, nil
+}
+
+func roadThreats(p *tak.Position) RoadThreats {
+	out := RoadThreats{White: []string{}, Black: []string{}}
+	if over, _ := p.GameOver(); over {
+		return out
+	}
+	n := p.Size()
+	board := make([][]tak.Square, n)
+	for y := range n {
+		board[y] = make([]tak.Square, n)
+		for x := range n {
+			board[y][x] = p.At(x, y)
+		}
+	}
+	for y := range n {
+		for x := range n {
+			if len(board[y][x]) != 0 {
+				continue
+			}
+			for _, c := range []tak.Color{tak.White, tak.Black} {
+				board[y][x] = tak.Square{tak.MakePiece(c, tak.Flat)}
+				q, err := tak.FromSquares(p.Config(), board, p.MoveNumber())
+				board[y][x] = nil
+				if err != nil {
+					continue
+				}
+				if d := q.WinDetails(); d.Over && d.Reason == tak.RoadWin && d.Winner == c {
+					sq := fmt.Sprintf("%c%d", 'a'+x, y+1)
+					if c == tak.White {
+						out.White = append(out.White, sq)
+					} else {
+						out.Black = append(out.Black, sq)
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 func colorToPlayer(c tak.Color) int {
