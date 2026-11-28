@@ -80,6 +80,12 @@ func postAnalyzePositionHandler(w http.ResponseWriter, r *http.Request) {
 	actx, cancel := context.WithTimeout(ctx, cfg.TimeLimit+analyzeDeadlineSlack/2)
 	defer cancel()
 
+	release, err := acquireEngineSlot(actx)
+	if err != nil {
+		writeEngineBusy(w, r, err)
+		return
+	}
+	defer release()
 	res, err := ai.AnalyzeTPS(actx, req.TPS, cfg)
 	if err != nil {
 		writeAnalysisError(w, l, analysisErrorStatus(err), err)
@@ -129,6 +135,12 @@ func postCompareMovesHandler(w http.ResponseWriter, r *http.Request) {
 	actx, cancel := context.WithTimeout(ctx, budget+analyzeDeadlineSlack/2)
 	defer cancel()
 
+	release, err := acquireEngineSlot(actx)
+	if err != nil {
+		writeEngineBusy(w, r, err)
+		return
+	}
+	defer release()
 	res, err := ai.CompareMovesTPS(actx, req.TPS, req.Moves, cfg)
 	if err != nil {
 		writeAnalysisError(w, l, analysisErrorStatus(err), err)

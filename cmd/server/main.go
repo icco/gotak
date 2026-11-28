@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/prometheus/client_golang/prometheus"
@@ -191,6 +192,7 @@ type routerOptions struct {
 // /metrics, and otelhttp instrumentation (excluding /metrics).
 func buildRouter(opts routerOptions) http.Handler {
 	r := chi.NewRouter()
+	r.Use(middleware.ClientIPFromXFF(trustedProxies...))
 	r.Use(logging.Middleware(log.Desugar()))
 	r.Use(routeTag)
 
@@ -244,11 +246,17 @@ func buildRouter(opts routerOptions) http.Handler {
 		} else {
 			r.Get("/game/{slug}/spectate", spectateHandler)
 		}
-		r.Post("/analyze/game/{slug}", postAnalyzeHandler)
-		r.Get("/analyze/openings", getOpeningsHandler)
-		r.Post("/analyze/position", postAnalyzePositionHandler)
-		r.Post("/analyze/compare-moves", postCompareMovesHandler)
-		r.Get("/analyze/heatmap", getHeatmapHandler)
+		r.Group(func(r chi.Router) {
+			r.Use(limitByClientIP(engineRequestsPerMinute, time.Minute))
+			r.Post("/analyze/game/{slug}", postAnalyzeHandler)
+			r.Post("/analyze/position", postAnalyzePositionHandler)
+			r.Post("/analyze/compare-moves", postCompareMovesHandler)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(limitByClientIP(readRequestsPerMinute, time.Minute))
+			r.Get("/analyze/openings", getOpeningsHandler)
+			r.Get("/analyze/heatmap", getHeatmapHandler)
+		})
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
