@@ -30,8 +30,8 @@ with PostgreSQL persistence.
 | `POST` | `/game/{slug}/join`   | Join a waiting game as black (auth required).                                              |
 | `POST` | `/game/{slug}/move`   | Submit a move (auth required). Body: `{"player": 1, "move": "c3", "turn": 1}`.             |
 | `POST` | `/game/{slug}/ai-move`| Request an AI move (auth required). Body accepts optional `"engine": "taktician"\|"llm"`, level, style, time limit, and personality. |
-| `POST` | `/analyze/game/{slug}` | Score every move of a game: best move and line, White-relative scores, loss, quality, `critical_moments`. Body: `{"level":"advanced","time_limit":2000000000}` (per-position ns, max 10s). |
-| `POST` | `/analyze/position`   | Score a TPS position: best move and line, score, forced win, one-flat road threats. Body: `{"tps":"x5/x5/x5/x5/x5 1 1"}`. |
+| `POST` | `/analyze/game/{slug}` | Score every move of a game: best move and line, White-relative scores, loss, quality, patterns, `critical_moments`. Body: `{"level":"advanced","time_limit":2000000000}` (per-position ns, max 10s). |
+| `POST` | `/analyze/position`   | Score a TPS position: best move and line, score, forced win, one-flat road threats, patterns. Body: `{"tps":"x5/x5/x5/x5/x5 1 1"}`. |
 | `POST` | `/analyze/compare-moves` | Score up to 16 candidate moves from a TPS position, best first. Body: `{"tps":"...","moves":["e1","a3"]}`. |
 | `GET`  | `/analyze/openings`   | Continuation counts across stored games for a move prefix. Query: `prefix=a1,e5`.                                         |
 | `GET`  | `/auth/*`             | JWT + Google OAuth via `go-pkgz/auth`.                                                                                     |
@@ -73,6 +73,16 @@ go run ./cmd/gotak                       # TUI against https://gotak.app
 go run ./cmd/gotak -- --local            # TUI against http://localhost:8080
 go run ./cmd/parse-ptn -f test_games/foo.ptn
 ```
+
+## Endgame patterns
+
+Positions evaluated by `/analyze/position` and `/analyze/game/{slug}` report recognized endgame patterns in `patterns` (always a non-nil list of strings). Labels use a uniform color-agnostic scheme because player identity is already exposed through `to_move`, `forced_win`, and `threats`:
+
+- `tak`: at least one player has a one-flat road threat.
+- `double_tak`: a player has two or more distinct road-threat squares that a single placement cannot both block.
+- `tinue`: the player to move faces an unavoidable forced loss (`forced_win` belongs to the opponent).
+- `winning_line`: the player to move has an engine-verified forced win (`forced_win` matches `to_move`).
+- `flat_race`: either player has 3 or fewer pieces remaining in reserve (stones plus capstones), or the board has board-size or fewer empty squares.
 
 ## Development
 
