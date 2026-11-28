@@ -98,7 +98,10 @@ type AnalysisCache struct {
 
 // AutoMigrate runs the database migrations
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &SpectatorMessage{})
+// AutoMigrate runs the database migrations
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(&Game{}, &Tag{}, &Move{}, &User{}, &AnalysisCache{}, &Spectator{}, &SpectatorMessage{}, &AnalysisJob{})
+}
 }
 
 // Spectator tracks active spectator sessions for live games.

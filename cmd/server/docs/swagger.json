@@ -122,10 +122,64 @@
                             "$ref": "#/definitions/main.AnalyzeResponse"
                         }
                     },
+                    "202": {
+                        "description": "Long game: analysis runs in the background; poll status_url",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeJobResponse"
+                        }
+                    },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analyze/game/{slug}/jobs/{id}": {
+            "get": {
+                "description": "Reports a job started by POST /analyze/game/{slug} for a\nlong game: running, failed with an error, or done with the\nfull analysis in result.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analysis"
+                ],
+                "summary": "Get a background game analysis",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Game slug identifier",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Job id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.AnalyzeJobResponse"
                         }
                     },
                     "404": {
@@ -1268,6 +1322,26 @@
                 },
                 "second": {
                     "$ref": "#/definitions/gotak.Move"
+                }
+            }
+        },
+        "main.AnalyzeJobResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "result": {
+                    "$ref": "#/definitions/main.AnalyzeResponse"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_url": {
+                    "type": "string"
                 }
             }
         },
