@@ -300,6 +300,10 @@ func (a *Analyzer) parseTPS(tps string) (p *tak.Position, err error) {
 	return p, nil
 }
 
+// maxStackHeight is the top stone plus the 64 buried colors taktician keeps
+// in one uint64 per square.
+const maxStackHeight = 65
+
 // checkInventory rejects positions with more pieces than a player owns.
 // taktician stores stack heights in a uint8 and wraps on oversized stacks.
 func checkInventory(b *gotak.Board) error {
@@ -309,7 +313,10 @@ func checkInventory(b *gotak.Board) error {
 	limits := tak.New(tak.Config{Size: int(b.Size)}).Config()
 	stones := map[int]int{}
 	caps := map[int]int{}
-	for _, stack := range b.Squares {
+	for sq, stack := range b.Squares {
+		if len(stack) > maxStackHeight {
+			return fmt.Errorf("stack on %s is %d high, the engine tracks at most %d", sq, len(stack), maxStackHeight)
+		}
 		for _, s := range stack {
 			if s == nil {
 				continue
